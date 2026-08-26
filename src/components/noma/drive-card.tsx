@@ -282,13 +282,30 @@ export function DriveCard({
         </p>
       )}
 
+      {connecting && !connection && (
+        <p className={`mt-3 text-sm text-muted-foreground ${fade}`}>Connecting to Google Drive…</p>
+      )}
+
+      {connectError && !connecting && (
+        <p className={`mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive ${fade}`} role="alert">
+          {connectError}
+        </p>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         {!connection || needsReconnect ? (
           <Button className={`h-11 gap-2 ${tap}`} disabled={connecting} onClick={() => void handleConnect()}>
             {connecting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CloudUpload className="size-4" aria-hidden="true" />}
-            {connecting ? "Connecting…" : needsReconnect ? "Reconnect Google Drive" : "Connect Google Drive"}
+            {connecting
+              ? "Connecting…"
+              : connectError
+                ? "Try again"
+                : needsReconnect
+                  ? "Reconnect Google Drive"
+                  : "Connect Google Drive"}
           </Button>
         ) : null}
+
 
         {connection && !needsReconnect && (
           <>
