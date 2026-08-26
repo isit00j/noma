@@ -51,8 +51,9 @@ export function AuthScreen() {
           <div className="mt-8 rounded-lg border border-border bg-card p-4 text-sm">
             <p className="font-medium">Authentication isn't configured yet</p>
             <p className="mt-1 text-muted-foreground">
-              Add your Firebase keys from <code className="font-mono text-xs">.env.example</code> to enable Noma
-              accounts. Until then Noma runs in local-only mode — your notes are still saved on this device.
+              Paste your Firebase Web App values into{" "}
+              <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable Noma accounts. Until
+              then Noma runs in local-only mode — your notes are still saved on this device.
             </p>
           </div>
         )}
