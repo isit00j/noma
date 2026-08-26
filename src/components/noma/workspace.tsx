@@ -177,7 +177,9 @@ export function Workspace() {
     trash: (note) => {
       void trashNote(note.id);
       if (activeNoteId === note.id) setActiveNoteId(null);
-      toast.success("Moved to Trash");
+      toast.success("Moved to Trash", {
+        action: { label: "Undo", onClick: () => void restoreNote(note.id) },
+      });
     },
     restore: (note) => {
       void restoreNote(note.id);
