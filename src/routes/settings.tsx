@@ -30,14 +30,8 @@ import {
   type BackupPayload,
 } from "@/lib/noma/backup";
 import { db } from "@/lib/noma/db";
-import {
-  backupNow,
-  connectDrive,
-  disconnectDrive,
-  fetchDriveBackup,
-  getConnection,
-  isDriveConfigured,
-} from "@/lib/noma/drive";
+import { DriveCard } from "@/components/noma/drive-card";
+
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
