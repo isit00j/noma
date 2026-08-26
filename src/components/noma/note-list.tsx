@@ -5,6 +5,7 @@ import {
   Copy,
   FolderInput,
   MoreHorizontal,
+  NotebookPen,
   Pin,
   RotateCcw,
   Star,
