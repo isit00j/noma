@@ -341,7 +341,14 @@ function SettingsPage() {
                     }
                   }}
                 >
-                  {auth.googleLinked ? "Unlink Google" : "Connect Google Account"}
+                  {busy === "link" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  {busy === "link"
+                    ? auth.googleLinked
+                      ? "Unlinking…"
+                      : "Connecting…"
+                    : auth.googleLinked
+                      ? "Unlink Google"
+                      : "Connect Google Account"}
                 </Button>
                 <Button
                   variant="ghost"
