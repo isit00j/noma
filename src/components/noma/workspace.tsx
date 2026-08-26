@@ -311,8 +311,24 @@ export function Workspace() {
                 <ArrowLeft className="size-4" />
                 <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
               </Button>
-              <span className="ml-auto text-xs text-muted-foreground" aria-live="polite">
-                {!online ? "Offline" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
+              <span
+                className="ml-auto flex items-center gap-1 text-xs text-muted-foreground animate-in fade-in duration-200 motion-reduce:animate-none"
+                aria-live="polite"
+                role="status"
+              >
+                {!online ? (
+                  <>
+                    <WifiOff className="size-3.5" aria-hidden="true" /> Saved offline
+                  </>
+                ) : saveState === "saving" ? (
+                  "Saving…"
+                ) : saveState === "saved" ? (
+                  <>
+                    <Check className="size-3.5" aria-hidden="true" /> Saved
+                  </>
+                ) : (
+                  ""
+                )}
               </span>
               <Button
                 variant="ghost"
