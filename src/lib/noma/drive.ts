@@ -1,5 +1,6 @@
 import { googleDriveClientId } from "../firebase";
-import { buildBackupZip, readBackupZip, recordBackup, type BackupManifest, type BackupPayload } from "./backup";
+import { buildBackupZip, readBackupZip, recordBackup, type BackupPayload } from "./backup";
+import type { BackupManifest } from "./types";
 
 /** Narrowest scope that still lets Noma manage only the files it creates. */
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
