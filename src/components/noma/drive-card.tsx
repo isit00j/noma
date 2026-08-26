@@ -145,18 +145,24 @@ export function DriveCard({
 
   async function handleConnect() {
     setConnecting(true);
+    setConnectError(null);
     setStatus({ kind: "idle" });
     try {
       setConnection(await connectDrive());
       setNeedsReconnect(false);
       setJustConnected(true);
       setTimeout(() => setJustConnected(false), 2500);
+      toast.success("Google Drive connected ✓");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google Drive authorization wasn't completed.");
+      const message =
+        error instanceof Error ? error.message : "Google Drive authorization wasn't completed.";
+      setConnectError(message);
+      toast.error(message);
     } finally {
       setConnecting(false);
     }
   }
+
 
   async function openRestore() {
     setRestoreOpen(true);
