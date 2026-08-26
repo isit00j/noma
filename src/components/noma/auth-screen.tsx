@@ -140,7 +140,9 @@ export function AuthScreen() {
                 />
                 <h2 className="mt-4 font-serif text-2xl font-semibold tracking-tight">Check your inbox</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  We've sent a password reset link to <span className="font-medium text-foreground">{email}</span>.
+                  We've sent a password reset link to{" "}
+                  <span className="font-medium text-foreground">{maskEmail(email)}</span>. It can take a minute to
+                  arrive — check spam too.
                 </p>
                 <div aria-live="polite" className="mt-6 space-y-3">
                   <Button
