@@ -300,8 +300,9 @@ function SettingsPage() {
             <div className="rounded-lg border border-border bg-card p-4 text-sm">
               <p className="font-medium">Authentication isn't configured</p>
               <p className="mt-1 text-muted-foreground">
-                Add the Firebase keys listed in <code className="font-mono text-xs">.env.example</code> to enable Noma
-                accounts. Your notes keep working on this device in the meantime.
+                Paste your six Firebase Web App values into{" "}
+                <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable Noma accounts. Your
+                notes keep working on this device in the meantime.
               </p>
             </div>
           ) : auth.user ? (
