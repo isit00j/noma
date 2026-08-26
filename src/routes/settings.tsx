@@ -117,25 +117,8 @@ function SettingsPage() {
     }
   }
 
-  async function handleDrive(action: "connect" | "backup" | "restore" | "disconnect") {
-    setBusy(action);
-    try {
-      if (action === "connect") setConnection(await connectDrive());
-      if (action === "backup") {
-        setConnection(await backupNow());
-        toast.success("Backed up to Google Drive");
-      }
-      if (action === "restore") setPendingImport(await fetchDriveBackup());
-      if (action === "disconnect") {
-        await disconnectDrive();
-        setConnection(null);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google Drive request failed");
-    } finally {
-      setBusy(null);
-    }
-  }
+
+
 
   return (
     <div className="noma-scroll min-h-dvh overflow-y-auto bg-background">
