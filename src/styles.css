@@ -142,6 +142,10 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, oklch(0.623 0.188 260 / 12%), transparent 70%),
+      radial-gradient(50rem 34rem at 100% 0%, oklch(0.541 0.247 293 / 12%), transparent 70%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -149,9 +153,33 @@
   }
 
   ::selection {
-    background: oklch(0.85 0.06 80 / 60%);
+    background: oklch(0.623 0.188 260 / 40%);
   }
 }
+
+/* Brand surface helpers. */
+@utility noma-gradient {
+  background-image: var(--noma-gradient);
+}
+
+@utility noma-glow {
+  box-shadow: var(--noma-glow);
+}
+
+/* Gradient primary buttons and key actions. */
+.noma-cta {
+  background-image: var(--noma-gradient);
+  color: oklch(0.985 0.008 268);
+  box-shadow: var(--noma-glow);
+  transition: filter 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+.noma-cta:hover {
+  filter: brightness(1.08);
+}
+.noma-cta:active {
+  transform: scale(0.985);
+}
+
 
 /* Editor surface — driven by Settings > Editor. */
 .noma-editor .tiptap {
