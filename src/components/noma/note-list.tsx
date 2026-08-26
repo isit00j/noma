@@ -59,7 +59,10 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
   if (notes.length === 0) {
     const copy = EMPTY_COPY[view.kind] ?? EMPTY_COPY["default"]!;
     return (
-      <div className="px-6 py-16 text-center">
+      <div className="px-6 py-20 text-center animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
+        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-border bg-card">
+          <NotebookPen className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
         <p className="font-serif text-lg">{copy.title}</p>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{copy.body}</p>
       </div>
