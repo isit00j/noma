@@ -46,8 +46,12 @@ export function AppGate({ children }: { children: ReactNode }) {
 
   if (auth.configured && auth.user && ready && settings.onboardedFor !== auth.user.uid) {
     const uid = auth.user.uid;
-    return <Welcome email={auth.email} onStart={() => void update({ onboardedFor: uid })} />;
+    return (
+      <div className="animate-in fade-in duration-300 motion-reduce:animate-none">
+        <Welcome email={auth.email} onStart={() => void update({ onboardedFor: uid })} />
+      </div>
+    );
   }
 
-  return <>{children}</>;
+  return <div className="animate-in fade-in duration-300 motion-reduce:animate-none">{children}</div>;
 }
