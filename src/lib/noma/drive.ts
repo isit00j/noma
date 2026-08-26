@@ -148,22 +148,28 @@ function authorizeErrorMessage(code?: string, description?: string): string {
     case "popup_closed":
     case "user_cancel":
     case "access_denied":
-      return "Authorization was cancelled. Google Drive is still not connected.";
+      return "Authorization was cancelled or denied. Google Drive is still not connected.";
     case "popup_failed_to_open":
       return "Your browser blocked the Google window. Allow pop-ups for Noma, then try again.";
     case "idpiframe_initialization_failed":
       return "Google couldn't start authorization in this browser. Try again in a normal browser tab.";
     case "invalid_client":
       return "The Google Drive client ID looks invalid. Check googleDriveClientId in src/config/firebaseConfig.ts.";
+    case "invalid_scope":
+      return "Google rejected the Drive scope (drive.file). Enable the Google Drive API for this project in Google Cloud.";
     case "unauthorized_client":
+    case "origin_mismatch":
     case "redirect_uri_mismatch":
-      return "This domain isn't authorized for the Google Drive client. Add it in Google Cloud → Credentials.";
+      return `This origin (${typeof window !== "undefined" ? window.location.origin : "this domain"}) isn't authorized for the Google Drive OAuth client. Add it as an authorized JavaScript origin in Google Cloud → Credentials.`;
     default:
       return description
         ? `Google Drive authorization failed: ${description}`
-        : "Google Drive authorization wasn't completed.";
+        : "Google Drive authorization wasn't completed. Please try again.";
   }
 }
+
+/** Failsafe so the token callback can never leave the UI spinning forever. */
+const AUTHORIZE_TIMEOUT_MS = 120_000;
 
 async function authorize(prompt?: string): Promise<string> {
   if (!googleDriveClientId) {
@@ -180,32 +186,87 @@ async function authorize(prompt?: string): Promise<string> {
 
   return new Promise<string>((resolve, reject) => {
     let settled = false;
+    let timer = 0;
     const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
+      window.clearTimeout(timer);
       fn();
     };
-    const client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: SCOPE,
-      ...(prompt ? { prompt } : {}),
-      callback: (response) => {
-        if (!response.access_token) {
-          finish(() =>
-            reject(new DriveError(authorizeErrorMessage(response.error, response.error_description), true)),
-          );
-          return;
-        }
-        accessToken = response.access_token;
-        tokenExpiresAt = Date.now() + 50 * 60 * 1000;
-        finish(() => resolve(response.access_token!));
-      },
-      error_callback: (error) => {
-        finish(() => reject(new DriveError(authorizeErrorMessage(error.type, error.message), true)));
-      },
-    });
-    client.requestAccessToken(prompt ? { prompt } : undefined);
+    timer = window.setTimeout(() => {
+      log("token callback never fired within timeout");
+      finish(() =>
+        reject(
+          new DriveError(
+            "Google never returned an authorization result. If the Google window closed already, try again.",
+            true,
+          ),
+        ),
+      );
+    }, AUTHORIZE_TIMEOUT_MS);
+
+    let client: TokenClient;
+    try {
+      client = window.google!.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPE,
+        ...(prompt ? { prompt } : {}),
+        callback: (response) => {
+          log("token callback", {
+            hasToken: Boolean(response.access_token),
+            error: response.error,
+            error_description: response.error_description,
+            scope: (response as { scope?: string }).scope,
+          });
+          if (!response.access_token) {
+            finish(() =>
+              reject(new DriveError(authorizeErrorMessage(response.error, response.error_description), true)),
+            );
+            return;
+          }
+          const granted = (response as { scope?: string }).scope;
+          if (granted && !granted.includes("drive.file")) {
+            finish(() =>
+              reject(
+                new DriveError("Google Drive access wasn't granted. Please allow the Drive permission and try again.", true),
+              ),
+            );
+            return;
+          }
+          accessToken = response.access_token;
+          tokenExpiresAt = Date.now() + 50 * 60 * 1000;
+          finish(() => resolve(response.access_token!));
+        },
+        error_callback: (error) => {
+          log("token error_callback", error);
+          finish(() => reject(new DriveError(authorizeErrorMessage(error.type, error.message), true)));
+        },
+      });
+    } catch (error) {
+      log("initTokenClient threw", error);
+      finish(() =>
+        reject(new DriveError("Google authorization couldn't start. Reload Noma and try again.", true)),
+      );
+      return;
+    }
+
+    try {
+      client.requestAccessToken(prompt ? { prompt } : undefined);
+    } catch (error) {
+      log("requestAccessToken threw", error);
+      finish(() => reject(new DriveError(authorizeErrorMessage("popup_failed_to_open"), true)));
+    }
   });
+}
+
+function googleErrorText(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; status?: string } | string };
+    if (typeof parsed.error === "string") return parsed.error;
+    return parsed.error?.message ?? null;
+  } catch {
+    return body.slice(0, 200) || null;
+  }
 }
 
 async function driveFetch(path: string, token: string, init: RequestInit = {}): Promise<Response> {
@@ -215,26 +276,47 @@ async function driveFetch(path: string, token: string, init: RequestInit = {}): 
       ...init,
       headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
     });
-  } catch {
+  } catch (error) {
+    log("network error", path, error);
     throw new DriveError("Couldn't reach Google Drive. Check your connection and try again.");
   }
+  if (!response.ok) log("drive request failed", path, response.status);
   if (response.status === 401 || response.status === 403) {
     const body = await response.text();
+    const detail = googleErrorText(body);
     accessToken = null;
     tokenExpiresAt = 0;
     if (/rateLimitExceeded|userRateLimitExceeded|quotaExceeded/i.test(body)) {
       throw new DriveError("Google Drive is rate-limiting Noma right now. Try again in a minute.");
     }
-    throw new DriveError("Google Drive needs to be connected again.", true);
+    if (/accessNotConfigured|has not been used|is disabled/i.test(body)) {
+      throw new DriveError(
+        `The Google Drive API isn't enabled for this Google Cloud project. Enable it, then try again.${detail ? ` (${detail})` : ""}`,
+      );
+    }
+    if (response.status === 403 && /insufficient(Permissions|Scope)|ACCESS_TOKEN_SCOPE/i.test(body)) {
+      throw new DriveError(
+        `Google Drive denied the request for the drive.file scope${detail ? `: ${detail}` : "."}`,
+        true,
+      );
+    }
+    throw new DriveError(
+      `Google Drive rejected the request (${response.status})${detail ? `: ${detail}` : ""}. Please connect again.`,
+      true,
+    );
   }
   if (response.status === 429 || response.status >= 500) {
     throw new DriveError("Google Drive is temporarily unavailable. Your notes are safe on this device — try again.");
   }
   if (!response.ok) {
-    throw new DriveError("Google Drive couldn't complete that request. Please try again.");
+    const detail = googleErrorText(await response.text());
+    throw new DriveError(
+      `Google Drive couldn't complete that request (${response.status})${detail ? `: ${detail}` : ""}.`,
+    );
   }
   return response;
 }
+
 
 /** Finds (or creates once) the dedicated Noma Backups folder and caches its id. */
 async function ensureFolder(token: string): Promise<string> {
