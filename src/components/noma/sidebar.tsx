@@ -103,13 +103,26 @@ export function NomaSidebar({
   return (
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
-        <span className="font-serif text-xl font-semibold tracking-tight text-sidebar-foreground">Noma</span>
+        <span className="flex items-center gap-2.5">
+          <img
+            src="/noma-icon-192.png"
+            alt="Noma"
+            className="size-8 rounded-[10px] noma-glow"
+            width={32}
+            height={32}
+          />
+          <span className="flex flex-col leading-none">
+            <span className="font-serif text-lg font-semibold tracking-tight text-sidebar-foreground">Noma</span>
+            <span className="mt-0.5 text-[11px] text-muted-foreground">A quiet place for your thoughts.</span>
+          </span>
+        </span>
         {onCollapse && (
           <Button variant="ghost" size="icon" className="size-7" onClick={onCollapse} aria-label="Collapse sidebar">
             <ChevronLeft className="size-4" />
           </Button>
         )}
       </div>
+
 
       <div className="px-3 pb-3">
         <Button className="h-9 w-full justify-start gap-2" onClick={onNewNote}>

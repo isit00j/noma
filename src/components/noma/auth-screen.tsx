@@ -86,10 +86,18 @@ export function AuthScreen() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-12">
       <div className="w-full max-w-sm">
-        <div className="text-center animate-in fade-in duration-300 motion-reduce:animate-none">
-          <h1 className="font-serif text-4xl font-semibold tracking-tight">Noma</h1>
+        <div className="flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-2 duration-500 motion-reduce:animate-none">
+          <img
+            src="/noma-icon-512.png"
+            alt="Noma"
+            width={72}
+            height={72}
+            className="size-[72px] rounded-2xl noma-glow"
+          />
+          <h1 className="mt-5 font-serif text-4xl font-semibold tracking-tight">Noma</h1>
           <p className="mt-2 text-sm text-muted-foreground">A quiet place for your thoughts.</p>
         </div>
+
 
         {!auth.configured && (
           <div className="mt-8 rounded-lg border border-border bg-card p-4 text-sm">
