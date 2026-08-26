@@ -113,7 +113,25 @@ export function VerifyEmail() {
           </Button>
           <Button
             variant="ghost"
-            className="h-11 w-full"
+            className="h-11 w-full transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+            disabled={signingOut || checking || sending}
+            onClick={async () => {
+              setSigningOut(true);
+              try {
+                await auth.signOut();
+                toast.success("Signed out — you can use a different email now.");
+              } catch (error) {
+                toast.error(friendlyAuthError(error));
+                setSigningOut(false);
+              }
+            }}
+          >
+            {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {signingOut ? "Signing out…" : "Use a different email"}
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-11 w-full text-muted-foreground"
             disabled={signingOut}
             onClick={async () => {
               setSigningOut(true);
@@ -125,8 +143,7 @@ export function VerifyEmail() {
               }
             }}
           >
-            {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            {signingOut ? "Signing out…" : "Sign out / use another account"}
+            Sign out
           </Button>
         </div>
 
