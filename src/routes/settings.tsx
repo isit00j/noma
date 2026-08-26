@@ -294,35 +294,64 @@ function SettingsPage() {
 
         <Section
           title="Account"
-          description={
-            auth.configured
-              ? "Your notes stay on this device; the account only identifies you for backups."
-              : "Noma is running in local-only mode — no account needed."
-          }
+          description="Your Noma identity is separate from this device's notes and from Google Drive backup."
         >
-          {auth.configured && auth.user ? (
+          {!auth.configured ? (
+            <div className="rounded-lg border border-border bg-card p-4 text-sm">
+              <p className="font-medium">Authentication isn't configured</p>
+              <p className="mt-1 text-muted-foreground">
+                Add the Firebase keys listed in <code className="font-mono text-xs">.env.example</code> to enable Noma
+                accounts. Your notes keep working on this device in the meantime.
+              </p>
+            </div>
+          ) : auth.user ? (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Signed in as {auth.email}</p>
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">{auth.email ?? "Signed in"}</p>
+                <p className="text-muted-foreground">
+                  Sign-in methods:{" "}
+                  {auth.providers
+                    .map((id) => (id === "google.com" ? "Google" : id === "password" ? "Email & password" : id))
+                    .join(", ") || "—"}
+                </p>
+                <p className="text-muted-foreground">
+                  {auth.googleLinked ? "Google account connected ✓" : "Google account not linked"}
+                </p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
+                  disabled={busy === "link"}
                   onClick={async () => {
+                    setBusy("link");
                     try {
-                      auth.googleLinked ? await auth.unlinkGoogle() : await auth.linkGoogle();
+                      if (auth.googleLinked) {
+                        await auth.unlinkGoogle();
+                        toast.success("Google account unlinked.");
+                      } else {
+                        await auth.linkGoogle();
+                        toast.success("Google account connected.");
+                      }
                     } catch (error) {
                       toast.error(friendlyAuthError(error));
+                    } finally {
+                      setBusy(null);
                     }
                   }}
                 >
-                  {auth.googleLinked ? "Unlink Google" : "Link Google account"}
+                  {auth.googleLinked ? "Unlink Google" : "Connect Google Account"}
                 </Button>
                 <Button variant="ghost" className="gap-2" onClick={() => void auth.signOut()}>
                   <LogOut className="size-4" /> Sign out
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Linking adds a second way into this same Noma account — it never creates a new one. Google Drive backup
+                is authorized separately above.
+              </p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Everything you write is saved locally in this browser.</p>
+            <p className="text-sm text-muted-foreground">You're signed out.</p>
           )}
         </Section>
       </div>
