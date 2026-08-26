@@ -70,8 +70,11 @@ export function VerifyEmail() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-12">
-      <div className="w-full max-w-sm text-center">
-        <MailCheck className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
+      <div className="w-full max-w-sm text-center animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
+        <MailCheck
+          className="mx-auto size-8 text-muted-foreground animate-in zoom-in-75 fade-in duration-300 motion-reduce:animate-none"
+          aria-hidden="true"
+        />
         <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">Verify your email</h1>
         <p className="mt-3 text-sm text-muted-foreground">
           We sent a verification link to{" "}
