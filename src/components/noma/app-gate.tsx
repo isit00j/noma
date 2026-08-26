@@ -1,8 +1,10 @@
 import { useEffect, type ReactNode } from "react";
 import { AuthScreen } from "./auth-screen";
+import { VerifyEmail } from "./verify-email";
 import { Welcome } from "./welcome";
 import { useSettings } from "@/hooks/use-noma";
 import { useAuth } from "@/lib/noma/auth";
+
 
 
 /** Applies the stored theme and keeps unauthenticated users out when Firebase auth is on. */
