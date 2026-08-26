@@ -258,13 +258,13 @@
 .noma-editor .tiptap pre code { background: none; padding: 0; }
 
 .noma-editor .tiptap mark {
-  background: oklch(0.9 0.11 95 / 70%);
+  background: oklch(0.623 0.188 260 / 32%);
   color: inherit;
   border-radius: 3px;
   padding: 0 0.15em;
 }
 .dark .noma-editor .tiptap mark {
-  background: oklch(0.75 0.13 95 / 40%);
+  background: oklch(0.541 0.247 293 / 38%);
 }
 
 .noma-editor .tiptap a {
