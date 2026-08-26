@@ -72,6 +72,7 @@ function SettingsPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [connection, setConnection] = useState(() => (typeof window === "undefined" ? null : getConnection()));
   const backups = useLiveQuery(() => db().backups.orderBy("createdAt").reverse().limit(5).toArray(), [], []);
   const noteCount = useLiveQuery(() => db().notes.filter((n) => !n.deleted).count(), [], 0);
