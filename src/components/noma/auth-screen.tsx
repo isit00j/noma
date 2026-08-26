@@ -11,6 +11,16 @@ type Mode = "choose" | "email" | "reset" | "reset-sent";
 
 const RESEND_COOLDOWN = 45;
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Shows enough of the address to recognise it without exposing the full inbox. */
+function maskEmail(value: string): string {
+  const [name = "", domain = ""] = value.trim().split("@");
+  if (!domain) return value.trim();
+  const head = name.slice(0, 2);
+  return `${head}${"•".repeat(Math.max(name.length - 2, 1))}@${domain}`;
+}
+
 function GoogleMark() {
   return (
     <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
