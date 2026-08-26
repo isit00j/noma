@@ -2,11 +2,16 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
   linkWithPopup,
+  linkWithRedirect,
   unlink,
+  reload,
   GoogleAuthProvider,
   type User,
 } from "firebase/auth";
@@ -21,10 +26,14 @@ export interface NomaAuth {
   email: string | null;
   providers: string[];
   googleLinked: boolean;
+  /** True when the account signs in with a password and the email is still unverified. */
+  needsEmailVerification: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  sendVerification: () => Promise<void>;
+  refreshUser: () => Promise<boolean>;
   signOut: () => Promise<void>;
   linkGoogle: () => Promise<void>;
   unlinkGoogle: () => Promise<void>;
@@ -34,6 +43,8 @@ const AuthContext = createContext<NomaAuth | null>(null);
 
 export function friendlyAuthError(error: unknown): string {
   const code = (error as { code?: string } | null)?.code ?? "";
+  // Keep full diagnostics in the console — never swallow the original error.
+  if (error) console.error("[noma-auth]", code || "no-code", error);
   switch (code) {
     case "auth/invalid-email":
       return "That email address doesn't look right.";
@@ -52,6 +63,12 @@ export function friendlyAuthError(error: unknown): string {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "The Google window was closed before finishing.";
+    case "auth/unauthorized-domain":
+      return "This site's domain isn't authorized in Firebase Authentication. Add this exact hostname under Firebase console → Authentication → Settings → Authorized domains.";
+    case "auth/operation-not-allowed":
+      return "Google sign-in is disabled for this Firebase project. Enable the Google provider under Firebase console → Authentication → Sign-in method.";
+    case "auth/operation-not-supported-in-this-environment":
+      return "This browser blocked the Google sign-in window. Retrying with a full-page redirect…";
     case "auth/credential-already-in-use":
     case "auth/account-exists-with-different-credential":
       return "This Google account is already connected to a different Noma account. Sign in to that account, or unlink Google there first — Noma will not merge two accounts automatically.";
@@ -64,9 +81,25 @@ export function friendlyAuthError(error: unknown): string {
   }
 }
 
+const REDIRECT_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/popup-closed-by-user",
+  "auth/cancelled-popup-request",
+  "auth/operation-not-supported-in-this-environment",
+  "auth/web-storage-unsupported",
+  "auth/internal-error",
+]);
+
+function googleProvider() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  return provider;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -74,6 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    // Completes a redirect-based Google sign-in (mobile-friendly path).
+    void getRedirectResult(auth).catch((error) => {
+      console.error("[noma-auth] google redirect result failed", error);
+    });
     return onAuthStateChanged(auth, (next) => {
       setUser(next);
       setLoading(false);
@@ -87,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return auth;
     };
     const providers = user?.providerData.map((p) => p.providerId) ?? [];
+    const passwordOnly = providers.includes("password") && !providers.includes("google.com");
 
     return {
       mode: isFirebaseConfigured ? "firebase" : "local",
@@ -96,26 +134,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: user?.email ?? null,
       providers,
       googleLinked: providers.includes("google.com"),
+      needsEmailVerification: Boolean(user) && passwordOnly && !user?.emailVerified,
       signUp: async (email, password) => {
-        await createUserWithEmailAndPassword(requireAuth(), email.trim(), password);
+        const credential = await createUserWithEmailAndPassword(requireAuth(), email.trim(), password);
+        await sendEmailVerification(credential.user, { url: window.location.origin });
       },
       signIn: async (email, password) => {
         await signInWithEmailAndPassword(requireAuth(), email.trim(), password);
       },
       signInWithGoogle: async () => {
-        await signInWithPopup(requireAuth(), new GoogleAuthProvider());
+        const auth = requireAuth();
+        try {
+          await signInWithPopup(auth, googleProvider());
+        } catch (error) {
+          const code = (error as { code?: string }).code ?? "";
+          console.error("[noma-auth] google popup failed", code, error);
+          if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
+          await signInWithRedirect(auth, googleProvider());
+        }
       },
       resetPassword: async (email) => {
         await sendPasswordResetEmail(requireAuth(), email.trim());
+      },
+      sendVerification: async () => {
+        const current = requireAuth().currentUser;
+        if (!current) throw new Error("You need to be signed in to resend verification.");
+        await sendEmailVerification(current, { url: window.location.origin });
+      },
+      refreshUser: async () => {
+        const current = requireAuth().currentUser;
+        if (!current) return false;
+        await reload(current);
+        setVersion((v) => v + 1);
+        setUser(requireAuth().currentUser);
+        return Boolean(requireAuth().currentUser?.emailVerified);
       },
       signOut: async () => {
         await fbSignOut(requireAuth());
       },
       linkGoogle: async () => {
-        const current = requireAuth().currentUser;
+        const auth = requireAuth();
+        const current = auth.currentUser;
         if (!current) throw new Error("You need to be signed in to link Google.");
         // Provider linking keeps ONE Noma account with two sign-in methods.
-        await linkWithPopup(current, new GoogleAuthProvider());
+        try {
+          await linkWithPopup(current, googleProvider());
+        } catch (error) {
+          const code = (error as { code?: string }).code ?? "";
+          console.error("[noma-auth] google link popup failed", code, error);
+          if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
+          await linkWithRedirect(current, googleProvider());
+          return;
+        }
         setUser({ ...current } as User);
       },
       unlinkGoogle: async () => {
@@ -128,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ ...current } as User);
       },
     };
-  }, [user, loading]);
+  }, [user, loading, version]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
