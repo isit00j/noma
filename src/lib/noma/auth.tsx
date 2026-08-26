@@ -160,6 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         const auth = requireAuth();
+        if (preferRedirect()) {
+          await signInWithRedirect(auth, googleProvider());
+          return;
+        }
         try {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
@@ -169,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await signInWithRedirect(auth, googleProvider());
         }
       },
+
       resetPassword: async (email) => {
         await sendPasswordResetEmail(requireAuth(), email.trim());
       },
