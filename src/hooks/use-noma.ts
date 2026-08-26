@@ -6,20 +6,24 @@ import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/noma/types";
 export function useSettings() {
   // Live queries must stay read-only — Dexie rejects writes inside them, so the
   // defaults row is seeded from an effect instead of the observable.
-  const stored = useLiveQuery(() => db().settings.get("app"), [], undefined);
+  // The result is wrapped so `undefined` means "still loading" and a missing
+  // row resolves as `{ row: undefined }` — otherwise `ready` never flips.
+  const result = useLiveQuery(async () => ({ row: await db().settings.get("app") }), [], undefined);
+  const stored = result?.row;
   const settings: AppSettings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
 
   useEffect(() => {
-    if (stored === undefined) return;
-    if (stored === null || stored === undefined) void db().settings.put(DEFAULT_SETTINGS);
-  }, [stored]);
+    if (!result) return;
+    if (!result.row) void db().settings.put(DEFAULT_SETTINGS);
+  }, [result]);
 
   const update = useCallback(async (patch: Partial<AppSettings>) => {
     await saveSettings(patch);
   }, []);
 
-  return { settings, update, ready: stored !== undefined };
+  return { settings, update, ready: result !== undefined };
 }
+
 
 export function useOnline(): boolean {
   const [online, setOnline] = useState(true);
