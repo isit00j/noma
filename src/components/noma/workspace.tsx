@@ -177,7 +177,9 @@ export function Workspace() {
     trash: (note) => {
       void trashNote(note.id);
       if (activeNoteId === note.id) setActiveNoteId(null);
-      toast.success("Moved to Trash");
+      toast.success("Moved to Trash", {
+        action: { label: "Undo", onClick: () => void restoreNote(note.id) },
+      });
     },
     restore: (note) => {
       void restoreNote(note.id);
@@ -311,8 +313,24 @@ export function Workspace() {
                 <ArrowLeft className="size-4" />
                 <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
               </Button>
-              <span className="ml-auto text-xs text-muted-foreground" aria-live="polite">
-                {!online ? "Offline" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
+              <span
+                className="ml-auto flex items-center gap-1 text-xs text-muted-foreground animate-in fade-in duration-200 motion-reduce:animate-none"
+                aria-live="polite"
+                role="status"
+              >
+                {!online ? (
+                  <>
+                    <WifiOff className="size-3.5" aria-hidden="true" /> Saved offline
+                  </>
+                ) : saveState === "saving" ? (
+                  "Saving…"
+                ) : saveState === "saved" ? (
+                  <>
+                    <Check className="size-3.5" aria-hidden="true" /> Saved
+                  </>
+                ) : (
+                  ""
+                )}
               </span>
               <Button
                 variant="ghost"
@@ -448,7 +466,15 @@ export function Workspace() {
               lineHeight={settings.lineHeight}
             />
           ) : notes === undefined ? (
-            <div className="px-6 py-16 text-center text-sm text-muted-foreground">Opening your library…</div>
+            <ul className="divide-y divide-border/70" aria-busy="true" aria-label="Loading notes">
+              {[0, 1, 2, 3].map((row) => (
+                <li key={row} className="px-5 py-4 sm:px-6">
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                  <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+                  <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
+                </li>
+              ))}
+            </ul>
           ) : (
             <NoteList
               notes={visibleNotes}

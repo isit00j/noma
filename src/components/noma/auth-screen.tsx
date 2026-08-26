@@ -11,6 +11,16 @@ type Mode = "choose" | "email" | "reset" | "reset-sent";
 
 const RESEND_COOLDOWN = 45;
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Shows enough of the address to recognise it without exposing the full inbox. */
+function maskEmail(value: string): string {
+  const [name = "", domain = ""] = value.trim().split("@");
+  if (!domain) return value.trim();
+  const head = name.slice(0, 2);
+  return `${head}${"•".repeat(Math.max(name.length - 2, 1))}@${domain}`;
+}
+
 function GoogleMark() {
   return (
     <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
@@ -130,7 +140,9 @@ export function AuthScreen() {
                 />
                 <h2 className="mt-4 font-serif text-2xl font-semibold tracking-tight">Check your inbox</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  We've sent a password reset link to <span className="font-medium text-foreground">{email}</span>.
+                  We've sent a password reset link to{" "}
+                  <span className="font-medium text-foreground">{maskEmail(email)}</span>. It can take a minute to
+                  arrive — check spam too.
                 </p>
                 <div aria-live="polite" className="mt-6 space-y-3">
                   <Button
@@ -161,14 +173,24 @@ export function AuthScreen() {
             <Step>
               <form
                 className="space-y-4"
+                noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
+                  if (busy) return;
+                  if (!EMAIL_PATTERN.test(email.trim())) {
+                    setError("Enter a valid email address, like you@example.com.");
+                    return;
+                  }
                   if (mode === "reset") {
                     sendReset(true);
                     return;
                   }
+                  if (password.length < 6) {
+                    setError("Passwords need at least 6 characters.");
+                    return;
+                  }
                   if (isNew && password !== confirm) {
-                    setError("Passwords don't match.");
+                    setError("Those passwords don't match yet.");
                     return;
                   }
                   void run("email", () => (isNew ? auth.signUp(email, password) : auth.signIn(email, password)));
@@ -218,6 +240,11 @@ export function AuthScreen() {
                             setError(null);
                           }}
                         />
+                        {confirm.length > 0 && confirm !== password && (
+                          <p className="text-xs text-muted-foreground animate-in fade-in duration-150 motion-reduce:animate-none">
+                            Passwords don't match yet.
+                          </p>
+                        )}
                       </div>
                     )}
                   </>

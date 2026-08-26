@@ -5,6 +5,7 @@ import {
   Copy,
   FolderInput,
   MoreHorizontal,
+  NotebookPen,
   Pin,
   RotateCcw,
   Star,
@@ -59,7 +60,10 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
   if (notes.length === 0) {
     const copy = EMPTY_COPY[view.kind] ?? EMPTY_COPY["default"]!;
     return (
-      <div className="px-6 py-16 text-center">
+      <div className="px-6 py-20 text-center animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
+        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-border bg-card">
+          <NotebookPen className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
         <p className="font-serif text-lg">{copy.title}</p>
         <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{copy.body}</p>
       </div>
@@ -75,7 +79,8 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
         <li key={note.id}>
           <div
             className={cn(
-              "group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-accent/40 sm:px-6",
+              "group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-accent/40 active:bg-accent/60 sm:px-6",
+              "animate-in fade-in duration-200 motion-reduce:animate-none",
               activeNoteId === note.id && "bg-accent/60",
             )}
           >
