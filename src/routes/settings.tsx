@@ -176,7 +176,7 @@ function SettingsPage() {
               max={22}
               step={1}
               value={[settings.fontSize]}
-              onValueChange={([value]) => void update({ fontSize: value })}
+              onValueChange={(value) => void update({ fontSize: value[0] ?? settings.fontSize })}
             />
           </div>
 
@@ -190,7 +190,7 @@ function SettingsPage() {
               max={2.2}
               step={0.1}
               value={[settings.lineHeight]}
-              onValueChange={([value]) => void update({ lineHeight: value })}
+              onValueChange={(value) => void update({ lineHeight: value[0] ?? settings.lineHeight })}
             />
           </div>
 
@@ -204,7 +204,7 @@ function SettingsPage() {
               max={960}
               step={20}
               value={[settings.editorWidth]}
-              onValueChange={([value]) => void update({ editorWidth: value })}
+              onValueChange={(value) => void update({ editorWidth: value[0] ?? settings.editorWidth })}
             />
           </div>
         </Section>
