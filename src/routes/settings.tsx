@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, CloudUpload, Download, Loader2, LogOut, Upload } from "lucide-react";
+import { ArrowLeft, Download, Loader2, LogOut, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppGate } from "@/components/noma/app-gate";
@@ -30,14 +30,8 @@ import {
   type BackupPayload,
 } from "@/lib/noma/backup";
 import { db } from "@/lib/noma/db";
-import {
-  backupNow,
-  connectDrive,
-  disconnectDrive,
-  fetchDriveBackup,
-  getConnection,
-  isDriveConfigured,
-} from "@/lib/noma/drive";
+import { DriveCard } from "@/components/noma/drive-card";
+
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
@@ -73,7 +67,7 @@ function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  const [connection, setConnection] = useState(() => (typeof window === "undefined" ? null : getConnection()));
+  
   const backups = useLiveQuery(() => db().backups.orderBy("createdAt").reverse().limit(5).toArray(), [], []);
   const noteCount = useLiveQuery(() => db().notes.filter((n) => !n.deleted).count(), [], 0);
 
@@ -117,25 +111,8 @@ function SettingsPage() {
     }
   }
 
-  async function handleDrive(action: "connect" | "backup" | "restore" | "disconnect") {
-    setBusy(action);
-    try {
-      if (action === "connect") setConnection(await connectDrive());
-      if (action === "backup") {
-        setConnection(await backupNow());
-        toast.success("Backed up to Google Drive");
-      }
-      if (action === "restore") setPendingImport(await fetchDriveBackup());
-      if (action === "disconnect") {
-        await disconnectDrive();
-        setConnection(null);
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google Drive request failed");
-    } finally {
-      setBusy(null);
-    }
-  }
+
+
 
   return (
     <div className="noma-scroll min-h-dvh overflow-y-auto bg-background">
@@ -248,50 +225,13 @@ function SettingsPage() {
           )}
         </Section>
 
-        <Section
-          title="Google Drive"
-          description={
-            isDriveConfigured
-              ? "Keep an encrypted-at-rest copy of your library in your own Drive."
-              : "Add a Google client ID in the app configuration to enable Drive backups."
-          }
-        >
-          {connection ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Connected{connection.email ? ` as ${connection.email}` : ""}
-                {connection.lastBackupAt ? ` · last backup ${new Date(connection.lastBackupAt).toLocaleString()}` : ""}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button className="gap-2" disabled={busy === "backup"} onClick={() => void handleDrive("backup")}>
-                  <CloudUpload className="size-4" /> {busy === "backup" ? "Backing up…" : "Back up now"}
-                </Button>
-                <Button variant="outline" disabled={busy === "restore"} onClick={() => void handleDrive("restore")}>
-                  Restore latest
-                </Button>
-                <Button variant="ghost" onClick={() => void handleDrive("disconnect")}>
-                  Disconnect
-                </Button>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <Label>Auto-backup</Label>
-                  <p className="text-xs text-muted-foreground">Back up to Drive when you open Noma online.</p>
-                </div>
-                <Switch checked={settings.autoBackup} onCheckedChange={(autoBackup) => void update({ autoBackup })} />
-              </div>
-            </>
-          ) : (
-            <Button
-              variant="outline"
-              className="gap-2"
-              disabled={!isDriveConfigured || busy === "connect"}
-              onClick={() => void handleDrive("connect")}
-            >
-              <CloudUpload className="size-4" /> {busy === "connect" ? "Connecting…" : "Connect Google Drive"}
-            </Button>
-          )}
+        <Section title="Google Drive" description="Optional, and independent from how you sign in to Noma.">
+          <DriveCard
+            autoBackup={settings.autoBackup}
+            onAutoBackupChange={(autoBackup) => void update({ autoBackup })}
+          />
         </Section>
+
 
         <Section
           title="Account"
