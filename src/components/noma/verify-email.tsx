@@ -13,6 +13,7 @@ export function VerifyEmail() {
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [notDetected, setNotDetected] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const busyRef = useRef(false);
 
   useEffect(() => {
