@@ -105,23 +105,43 @@ function patchConnection(patch: Partial<DriveConnection>): DriveConnection {
   return setConnection({ ...base, ...patch })!;
 }
 
+const DEV = import.meta.env.DEV;
+/** Dev-only diagnostics around the OAuth callback + first Drive request. */
+function log(...args: unknown[]) {
+  if (DEV) console.info("[noma-drive]", ...args);
+}
+
+function waitForGis(timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      if (window.google?.accounts?.oauth2) return resolve();
+      if (Date.now() - started > timeoutMs) {
+        return reject(new DriveError("Google authorization couldn't start. Reload Noma and try again."));
+      }
+      window.setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
 async function loadGis(): Promise<void> {
   if (typeof window === "undefined") throw new DriveError("Google Drive is only available in the browser.");
   if (window.google?.accounts?.oauth2) return;
-  await new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
-    const script = existing ?? document.createElement("script");
+  const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+  if (!existing) {
+    const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new DriveError("Couldn't reach Google. Check your connection and try again."));
-    if (!existing) document.head.appendChild(script);
-  });
-  if (!window.google?.accounts?.oauth2) {
-    throw new DriveError("Google authorization couldn't start. Reload Noma and try again.");
+    script.onerror = () => log("GIS script failed to load");
+    document.head.appendChild(script);
   }
+  // Polling instead of relying on onload: an already-loaded script never fires
+  // onload again, which previously left the connect promise pending forever.
+  await waitForGis(15_000);
+  log("GIS ready");
 }
+
 
 function authorizeErrorMessage(code?: string, description?: string): string {
   switch (code) {
