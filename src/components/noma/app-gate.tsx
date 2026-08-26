@@ -1,12 +1,14 @@
 import { useEffect, type ReactNode } from "react";
 import { AuthScreen } from "./auth-screen";
+import { Welcome } from "./welcome";
 import { useSettings } from "@/hooks/use-noma";
 import { useAuth } from "@/lib/noma/auth";
+
 
 /** Applies the stored theme and keeps unauthenticated users out when Firebase auth is on. */
 export function AppGate({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const { settings } = useSettings();
+  const { settings, update, ready } = useSettings();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -29,6 +31,11 @@ export function AppGate({ children }: { children: ReactNode }) {
   }
 
   if (auth.configured && !auth.user) return <AuthScreen />;
+
+  if (auth.configured && auth.user && ready && settings.onboardedFor !== auth.user.uid) {
+    const uid = auth.user.uid;
+    return <Welcome email={auth.email} onStart={() => void update({ onboardedFor: uid })} />;
+  }
 
   return <>{children}</>;
 }

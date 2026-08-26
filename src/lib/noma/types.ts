@@ -52,6 +52,8 @@ export interface AppSettings {
   lineHeight: number;
   autoBackup: boolean;
   sidebarCollapsed: boolean;
+  /** Firebase uid that has completed the first-run welcome on this device. */
+  onboardedFor: string | null;
 }
 
 export interface BackupRecord {
@@ -84,4 +86,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lineHeight: 1.7,
   autoBackup: false,
   sidebarCollapsed: false,
+  onboardedFor: null,
 };
