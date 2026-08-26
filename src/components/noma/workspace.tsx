@@ -466,7 +466,15 @@ export function Workspace() {
               lineHeight={settings.lineHeight}
             />
           ) : notes === undefined ? (
-            <div className="px-6 py-16 text-center text-sm text-muted-foreground">Opening your library…</div>
+            <ul className="divide-y divide-border/70" aria-busy="true" aria-label="Loading notes">
+              {[0, 1, 2, 3].map((row) => (
+                <li key={row} className="px-5 py-4 sm:px-6">
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                  <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+                  <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
+                </li>
+              ))}
+            </ul>
           ) : (
             <NoteList
               notes={visibleNotes}
