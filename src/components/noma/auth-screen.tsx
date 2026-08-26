@@ -171,14 +171,24 @@ export function AuthScreen() {
             <Step>
               <form
                 className="space-y-4"
+                noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
+                  if (busy) return;
+                  if (!EMAIL_PATTERN.test(email.trim())) {
+                    setError("Enter a valid email address, like you@example.com.");
+                    return;
+                  }
                   if (mode === "reset") {
                     sendReset(true);
                     return;
                   }
+                  if (password.length < 6) {
+                    setError("Passwords need at least 6 characters.");
+                    return;
+                  }
                   if (isNew && password !== confirm) {
-                    setError("Passwords don't match.");
+                    setError("Those passwords don't match yet.");
                     return;
                   }
                   void run("email", () => (isNew ? auth.signUp(email, password) : auth.signIn(email, password)));
