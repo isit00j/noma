@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, CloudUpload, Download, Loader2, LogOut, Upload } from "lucide-react";
+import { ArrowLeft, Download, Loader2, LogOut, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppGate } from "@/components/noma/app-gate";
