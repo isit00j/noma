@@ -52,7 +52,7 @@ export const Route = createFileRoute("/settings")({
   component: () => (
     <AppGate>
       <SettingsPage />
-    </AppGage>
+    </AppGate>
   ),
 });
 
