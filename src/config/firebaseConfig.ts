@@ -12,12 +12,12 @@
  * >>> PASTE YOUR SIX VALUES BELOW <<<
  */
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyC6sEQpvGn3HYmW9RTeS4SAlfpWkSf_wQM",
+  authDomain: "noma-note.firebaseapp.com",
+  projectId: "noma-note",
+  storageBucket: "noma-note.firebasestorage.app",
+  messagingSenderId: "453389463270",
+  appId: "1:453389463270:web:72efa216b515fedf125527",
 };
 
 /**
