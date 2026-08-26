@@ -79,7 +79,8 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
         <li key={note.id}>
           <div
             className={cn(
-              "group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-accent/40 sm:px-6",
+              "group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-accent/40 active:bg-accent/60 sm:px-6",
+              "animate-in fade-in duration-200 motion-reduce:animate-none",
               activeNoteId === note.id && "bg-accent/60",
             )}
           >
