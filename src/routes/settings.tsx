@@ -368,6 +368,37 @@ function SettingsPage() {
         </Section>
       </div>
 
+      <AlertDialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">Sign out of Noma?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your notes stay on this device. You'll need to sign in again to use your Noma account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay signed in</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy === "signout"}
+              onClick={async () => {
+                setBusy("signout");
+                setConfirmSignOut(false);
+                try {
+                  // Brief, intentional beat before the screen crossfades back to auth.
+                  await new Promise((resolve) => setTimeout(resolve, 220));
+                  await auth.signOut();
+                } catch (error) {
+                  toast.error(friendlyAuthError(error));
+                  setBusy(null);
+                }
+              }}
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={Boolean(pendingImport)} onOpenChange={(open) => !open && setPendingImport(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
