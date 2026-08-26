@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, CloudUpload, Download, LogOut, Upload } from "lucide-react";
+import { ArrowLeft, CloudUpload, Download, Loader2, LogOut, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppGate } from "@/components/noma/app-gate";
@@ -72,6 +72,7 @@ function SettingsPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [connection, setConnection] = useState(() => (typeof window === "undefined" ? null : getConnection()));
   const backups = useLiveQuery(() => db().backups.orderBy("createdAt").reverse().limit(5).toArray(), [], []);
   const noteCount = useLiveQuery(() => db().notes.filter((n) => !n.deleted).count(), [], 0);
@@ -340,10 +341,27 @@ function SettingsPage() {
                     }
                   }}
                 >
-                  {auth.googleLinked ? "Unlink Google" : "Connect Google Account"}
+                  {busy === "link" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  {busy === "link"
+                    ? auth.googleLinked
+                      ? "Unlinking…"
+                      : "Connecting…"
+                    : auth.googleLinked
+                      ? "Unlink Google"
+                      : "Connect Google Account"}
                 </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => void auth.signOut()}>
-                  <LogOut className="size-4" /> Sign out
+                <Button
+                  variant="ghost"
+                  className="gap-2 transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+                  disabled={busy === "signout"}
+                  onClick={() => setConfirmSignOut(true)}
+                >
+                  {busy === "signout" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <LogOut className="size-4" aria-hidden="true" />
+                  )}
+                  {busy === "signout" ? "Signing out…" : "Sign out"}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -356,6 +374,37 @@ function SettingsPage() {
           )}
         </Section>
       </div>
+
+      <AlertDialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">Sign out of Noma?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your notes stay on this device. You'll need to sign in again to use your Noma account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay signed in</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy === "signout"}
+              onClick={async () => {
+                setBusy("signout");
+                setConfirmSignOut(false);
+                try {
+                  // Brief, intentional beat before the screen crossfades back to auth.
+                  await new Promise((resolve) => setTimeout(resolve, 220));
+                  await auth.signOut();
+                } catch (error) {
+                  toast.error(friendlyAuthError(error));
+                  setBusy(null);
+                }
+              }}
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={Boolean(pendingImport)} onOpenChange={(open) => !open && setPendingImport(null)}>
         <AlertDialogContent>
