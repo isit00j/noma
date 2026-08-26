@@ -83,28 +83,49 @@ export function VerifyEmail() {
         </p>
 
         {notDetected && (
-          <p className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+          <p
+            role="status"
+            className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground animate-in fade-in duration-200 motion-reduce:animate-none"
+          >
             Verification hasn't been detected yet. Click the link in the email (check spam too), then tap “I've verified
             my email”.
           </p>
         )}
 
-        <div className="mt-8 space-y-3">
-          <Button className="h-11 w-full" disabled={checking} onClick={() => void check(true)}>
-            {checking && <Loader2 className="size-4 animate-spin" />}
-            I've verified my email
+        <div className="mt-8 space-y-3" aria-live="polite">
+          <Button
+            className="h-11 w-full transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+            disabled={checking || signingOut}
+            onClick={() => void check(true)}
+          >
+            {checking && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {checking ? "Checking…" : "I've verified my email"}
           </Button>
           <Button
             variant="outline"
-            className="h-11 w-full"
-            disabled={sending || cooldown > 0}
+            className="h-11 w-full transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+            disabled={sending || cooldown > 0 || signingOut}
             onClick={() => void resend()}
           >
-            {sending && <Loader2 className="size-4 animate-spin" />}
-            {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend verification email"}
+            {sending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {sending ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend verification email"}
           </Button>
-          <Button variant="ghost" className="h-11 w-full" onClick={() => void auth.signOut()}>
-            Sign out / use another account
+          <Button
+            variant="ghost"
+            className="h-11 w-full"
+            disabled={signingOut}
+            onClick={async () => {
+              setSigningOut(true);
+              try {
+                await auth.signOut();
+              } catch (error) {
+                toast.error(friendlyAuthError(error));
+                setSigningOut(false);
+              }
+            }}
+          >
+            {signingOut && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {signingOut ? "Signing out…" : "Sign out / use another account"}
           </Button>
         </div>
 
