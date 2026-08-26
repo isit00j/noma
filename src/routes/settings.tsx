@@ -248,50 +248,13 @@ function SettingsPage() {
           )}
         </Section>
 
-        <Section
-          title="Google Drive"
-          description={
-            isDriveConfigured
-              ? "Keep an encrypted-at-rest copy of your library in your own Drive."
-              : "Add a Google client ID in the app configuration to enable Drive backups."
-          }
-        >
-          {connection ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Connected{connection.email ? ` as ${connection.email}` : ""}
-                {connection.lastBackupAt ? ` · last backup ${new Date(connection.lastBackupAt).toLocaleString()}` : ""}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button className="gap-2" disabled={busy === "backup"} onClick={() => void handleDrive("backup")}>
-                  <CloudUpload className="size-4" /> {busy === "backup" ? "Backing up…" : "Back up now"}
-                </Button>
-                <Button variant="outline" disabled={busy === "restore"} onClick={() => void handleDrive("restore")}>
-                  Restore latest
-                </Button>
-                <Button variant="ghost" onClick={() => void handleDrive("disconnect")}>
-                  Disconnect
-                </Button>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <Label>Auto-backup</Label>
-                  <p className="text-xs text-muted-foreground">Back up to Drive when you open Noma online.</p>
-                </div>
-                <Switch checked={settings.autoBackup} onCheckedChange={(autoBackup) => void update({ autoBackup })} />
-              </div>
-            </>
-          ) : (
-            <Button
-              variant="outline"
-              className="gap-2"
-              disabled={!isDriveConfigured || busy === "connect"}
-              onClick={() => void handleDrive("connect")}
-            >
-              <CloudUpload className="size-4" /> {busy === "connect" ? "Connecting…" : "Connect Google Drive"}
-            </Button>
-          )}
+        <Section title="Google Drive" description="Optional, and independent from how you sign in to Noma.">
+          <DriveCard
+            autoBackup={settings.autoBackup}
+            onAutoBackupChange={(autoBackup) => void update({ autoBackup })}
+          />
         </Section>
+
 
         <Section
           title="Account"
