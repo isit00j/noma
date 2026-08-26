@@ -238,6 +238,11 @@ export function AuthScreen() {
                             setError(null);
                           }}
                         />
+                        {confirm.length > 0 && confirm !== password && (
+                          <p className="text-xs text-muted-foreground animate-in fade-in duration-150 motion-reduce:animate-none">
+                            Passwords don't match yet.
+                          </p>
+                        )}
                       </div>
                     )}
                   </>
