@@ -352,16 +352,17 @@ async function ensureFolder(token: string): Promise<string> {
 
 export async function connectDrive(): Promise<DriveConnection> {
   const token = await authorize("consent");
-  let email: string | null = null;
-  try {
-    const info = await driveFetch("drive/v3/about?fields=user(emailAddress)", token);
-    email = ((await info.json()) as { user?: { emailAddress?: string } }).user?.emailAddress ?? null;
-  } catch (error) {
-    if (error instanceof DriveError && error.needsReconnect) throw error;
-  }
+  log("access token acquired, verifying with Drive API…");
+  // Verification request — the connection is only "connected" once a real
+  // authenticated Drive call succeeds, not merely because consent completed.
+  const info = await driveFetch("drive/v3/about?fields=user(emailAddress)", token);
+  const email = ((await info.json()) as { user?: { emailAddress?: string } }).user?.emailAddress ?? null;
+  log("Drive API verification ok", { hasEmail: Boolean(email) });
   const folderId = await ensureFolder(token);
+  log("Noma Backups folder ready", folderId);
   return patchConnection({ email, connectedAt: Date.now(), folderId });
 }
+
 
 export async function disconnectDrive(): Promise<void> {
   if (accessToken && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
