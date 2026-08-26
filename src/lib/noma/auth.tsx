@@ -107,9 +107,9 @@ function preferRedirect(): boolean {
   if (typeof window === "undefined") return false;
   const embedded = window.top !== window.self;
   const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  const coopIsolated = !embedded && "crossOriginIsolated" in window;
-  return !embedded && (mobile || coopIsolated === false ? mobile : mobile);
+  return !embedded && mobile;
 }
+
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
