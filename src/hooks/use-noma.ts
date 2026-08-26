@@ -1,31 +1,22 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
-import { getSettings, saveSettings } from "@/lib/noma/db";
+import { db, saveSettings } from "@/lib/noma/db";
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/noma/types";
 
 export function useSettings() {
-  const stored = useLiveQuery(() => getSettings(), [], undefined);
-  const settings: AppSettings = stored ?? DEFAULT_SETTINGS;
+  // Live queries must stay read-only — Dexie rejects writes inside them, so the
+  // defaults row is seeded from an effect instead of the observable.
+  const stored = useLiveQuery(() => db().settings.get("app"), [], undefined);
+  const settings: AppSettings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
+
+  useEffect(() => {
+    if (stored === undefined) return;
+    if (stored === null || stored === undefined) void db().settings.put(DEFAULT_SETTINGS);
+  }, [stored]);
 
   const update = useCallback(async (patch: Partial<AppSettings>) => {
     await saveSettings(patch);
   }, []);
-
-  // Apply theme as soon as settings are known.
-  useEffect(() => {
-    const root = document.documentElement;
-    const apply = () => {
-      const dark =
-        settings.theme === "dark" ||
-        (settings.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      root.classList.toggle("dark", dark);
-    };
-    apply();
-    if (settings.theme !== "system") return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [settings.theme]);
 
   return { settings, update, ready: stored !== undefined };
 }
