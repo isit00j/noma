@@ -105,7 +105,7 @@ function ColorPicker({
   label: string;
   icon: React.ReactNode;
   swatches: { name: string; value: string | null }[];
-  current?: string;
+  current?: string | undefined;
   onPick: (value: string | null) => void;
 }) {
   return (
