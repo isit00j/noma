@@ -84,6 +84,8 @@ export function DriveCard({
   );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
