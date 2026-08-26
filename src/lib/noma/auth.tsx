@@ -198,9 +198,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = auth.currentUser;
         if (!current) throw new Error("You need to be signed in to link Google.");
         // Provider linking keeps ONE Noma account with two sign-in methods.
+        if (preferRedirect()) {
+          await linkWithRedirect(current, googleProvider());
+          return;
+        }
         try {
           await linkWithPopup(current, googleProvider());
         } catch (error) {
+
           const code = (error as { code?: string }).code ?? "";
           console.error("[noma-auth] google link popup failed", code, error);
           if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
