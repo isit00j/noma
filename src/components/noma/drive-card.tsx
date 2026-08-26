@@ -84,6 +84,8 @@ export function DriveCard({
   );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
   const [needsReconnect, setNeedsReconnect] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -145,18 +147,24 @@ export function DriveCard({
 
   async function handleConnect() {
     setConnecting(true);
+    setConnectError(null);
     setStatus({ kind: "idle" });
     try {
       setConnection(await connectDrive());
       setNeedsReconnect(false);
       setJustConnected(true);
       setTimeout(() => setJustConnected(false), 2500);
+      toast.success("Google Drive connected ✓");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google Drive authorization wasn't completed.");
+      const message =
+        error instanceof Error ? error.message : "Google Drive authorization wasn't completed.";
+      setConnectError(message);
+      toast.error(message);
     } finally {
       setConnecting(false);
     }
   }
+
 
   async function openRestore() {
     setRestoreOpen(true);
@@ -274,13 +282,30 @@ export function DriveCard({
         </p>
       )}
 
+      {connecting && !connection && (
+        <p className={`mt-3 text-sm text-muted-foreground ${fade}`}>Connecting to Google Drive…</p>
+      )}
+
+      {connectError && !connecting && (
+        <p className={`mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive ${fade}`} role="alert">
+          {connectError}
+        </p>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         {!connection || needsReconnect ? (
           <Button className={`h-11 gap-2 ${tap}`} disabled={connecting} onClick={() => void handleConnect()}>
             {connecting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CloudUpload className="size-4" aria-hidden="true" />}
-            {connecting ? "Connecting…" : needsReconnect ? "Reconnect Google Drive" : "Connect Google Drive"}
+            {connecting
+              ? "Connecting…"
+              : connectError
+                ? "Try again"
+                : needsReconnect
+                  ? "Reconnect Google Drive"
+                  : "Connect Google Drive"}
           </Button>
         ) : null}
+
 
         {connection && !needsReconnect && (
           <>
