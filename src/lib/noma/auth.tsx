@@ -96,6 +96,22 @@ function googleProvider() {
   return provider;
 }
 
+/**
+ * Popups are unreliable on mobile browsers and under the preview's
+ * Cross-Origin-Opener-Policy (Firebase can't observe window.closed, so the
+ * popup silently hangs). On mobile top-level windows we go straight to the
+ * redirect flow; embedded frames must keep the popup (a redirect would try to
+ * navigate the host page).
+ */
+function preferRedirect(): boolean {
+  if (typeof window === "undefined") return false;
+  const embedded = window.top !== window.self;
+  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const coopIsolated = !embedded && "crossOriginIsolated" in window;
+  return !embedded && (mobile || coopIsolated === false ? mobile : mobile);
+}
+
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(isFirebaseConfigured);
