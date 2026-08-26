@@ -13,6 +13,26 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   TH: new Set(["colspan", "rowspan"]),
 };
 
+/** Tags allowed to carry an inline `style` limited to colour declarations. */
+const STYLE_TAGS = new Set(["SPAN","P","H1","H2","H3","H4","LI","TD","TH","STRONG","EM","U","S","MARK","BLOCKQUOTE","DIV"]);
+
+const COLOR_VALUE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]+)$/i;
+
+/** Keeps only colour/background-colour declarations with safe values. */
+function safeStyle(value: string): string | null {
+  const kept: string[] = [];
+  for (const part of value.split(";")) {
+    const [rawProp, ...rest] = part.split(":");
+    if (!rawProp || rest.length === 0) continue;
+    const prop = rawProp.trim().toLowerCase();
+    const val = rest.join(":").trim();
+    if (prop !== "color" && prop !== "background-color") continue;
+    if (!COLOR_VALUE.test(val)) continue;
+    kept.push(`${prop}: ${val}`);
+  }
+  return kept.length ? kept.join("; ") : null;
+}
+
 function safeUrl(value: string, allowData: boolean): string | null {
   const trimmed = value.trim();
   if (/^(https?:|mailto:|#|\/)/i.test(trimmed)) return trimmed;
@@ -37,6 +57,12 @@ export function sanitizeHtml(html: string): string {
       for (const attr of Array.from(child.attributes)) {
         const allowed = ALLOWED_ATTRS[child.tagName];
         const name = attr.name.toLowerCase();
+        if (name === "style" && STYLE_TAGS.has(child.tagName)) {
+          const style = safeStyle(attr.value);
+          if (style) child.setAttribute("style", style);
+          else child.removeAttribute("style");
+          continue;
+        }
         if (!allowed?.has(name)) {
           child.removeAttribute(attr.name);
           continue;
