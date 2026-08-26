@@ -342,8 +342,18 @@ function SettingsPage() {
                 >
                   {auth.googleLinked ? "Unlink Google" : "Connect Google Account"}
                 </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => void auth.signOut()}>
-                  <LogOut className="size-4" /> Sign out
+                <Button
+                  variant="ghost"
+                  className="gap-2 transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+                  disabled={busy === "signout"}
+                  onClick={() => setConfirmSignOut(true)}
+                >
+                  {busy === "signout" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <LogOut className="size-4" aria-hidden="true" />
+                  )}
+                  {busy === "signout" ? "Signing out…" : "Sign out"}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
