@@ -5,6 +5,7 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
 import {
   Bold,
   Code2,
@@ -21,6 +22,8 @@ import {
   Minus,
   Quote,
   Strikethrough,
+  Baseline,
+  PaintBucket,
   Table as TableIcon,
   Underline as UnderlineIcon,
 } from "lucide-react";
@@ -28,6 +31,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Note } from "@/lib/noma/types";
 
 export type SaveState = "idle" | "saving" | "saved" | "offline";
@@ -69,6 +73,89 @@ function ToolbarButton({
   );
 }
 
+const TEXT_COLORS = [
+  { name: "Default", value: null },
+  { name: "Ink", value: "#1f1b16" },
+  { name: "Slate", value: "#4b5563" },
+  { name: "Red", value: "#b3261e" },
+  { name: "Amber", value: "#b45309" },
+  { name: "Green", value: "#15803d" },
+  { name: "Blue", value: "#1d4ed8" },
+  { name: "Violet", value: "#6d28d9" },
+];
+
+const BG_COLORS = [
+  { name: "None", value: null },
+  { name: "Sand", value: "#f4ead9" },
+  { name: "Rose", value: "#fbe0e0" },
+  { name: "Peach", value: "#fde4cf" },
+  { name: "Lemon", value: "#fbf1c7" },
+  { name: "Mint", value: "#dcf3e4" },
+  { name: "Sky", value: "#dde9fb" },
+  { name: "Lilac", value: "#e8e0fb" },
+];
+
+function ColorPicker({
+  label,
+  icon,
+  swatches,
+  current,
+  onPick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  swatches: { name: string; value: string | null }[];
+  current?: string;
+  onPick: (value: string | null) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          aria-label={label}
+          title={label}
+          className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {icon}
+          <span
+            aria-hidden
+            className="absolute bottom-1 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full border border-border"
+            style={{ backgroundColor: current ?? "transparent" }}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-52 p-3">
+        <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
+        <div className="grid grid-cols-4 gap-2">
+          {swatches.map((swatch) => {
+            const selected = (current ?? null) === swatch.value;
+            return (
+              <button
+                key={swatch.name}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onPick(swatch.value)}
+                title={swatch.name}
+                aria-label={swatch.name}
+                aria-pressed={selected}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-md border border-border transition-transform hover:scale-105",
+                  selected && "ring-2 ring-ring ring-offset-1 ring-offset-background",
+                )}
+                style={{ backgroundColor: swatch.value ?? "transparent" }}
+              >
+                {swatch.value === null && <span className="text-[10px] text-muted-foreground">/</span>}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Toolbar({ editor }: { editor: Editor }) {
   const addLink = () => {
     const previous = editor.getAttributes("link")["href"] as string | undefined;
@@ -103,6 +190,33 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Highlight" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleHighlight().run()}>
         <Highlighter className="size-4" />
       </ToolbarButton>
+
+      <ColorPicker
+        label="Font colour"
+        icon={<Baseline className="size-4" />}
+        swatches={TEXT_COLORS}
+        current={editor.getAttributes("textStyle")["color"] as string | undefined}
+        onPick={(value) =>
+          value
+            ? editor.chain().focus().setColor(value).run()
+            : editor.chain().focus().unsetColor().run()
+        }
+      />
+      <ColorPicker
+        label="Paragraph colour"
+        icon={<PaintBucket className="size-4" />}
+        swatches={BG_COLORS}
+        current={editor.getAttributes("textStyle")["backgroundColor"] as string | undefined}
+        onPick={(value) => {
+          const chain = editor.chain().focus().extendMarkRange("textStyle");
+          const { $from, $to } = editor.state.selection;
+          if (editor.state.selection.empty) {
+            chain.setTextSelection({ from: $from.start(), to: $to.end() });
+          }
+          if (value) chain.setBackgroundColor(value).run();
+          else chain.unsetBackgroundColor().run();
+        }}
+      />
 
       <Separator orientation="vertical" className="mx-1 !h-5" />
 
@@ -164,6 +278,9 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
       }),
+      TextStyle,
+      Color,
+      BackgroundColor,
       Highlight,
       Image.configure({ inline: false }),
       TaskList,
