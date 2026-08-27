@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SigninRouteImport } from './routes/signin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/signin': typeof SigninRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/signin': typeof SigninRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/signin': typeof SigninRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings'
+  fullPaths: '/' | '/settings' | '/signin'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings'
-  id: '__root__' | '/' | '/settings'
+  to: '/' | '/settings' | '/signin'
+  id: '__root__' | '/' | '/settings' | '/signin'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
+  SigninRoute: typeof SigninRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
+  SigninRoute: SigninRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

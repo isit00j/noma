@@ -39,7 +39,7 @@ function Step({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AuthScreen() {
+export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAccount?: () => void } = {}) {
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
   const [isNew, setIsNew] = useState(false);
