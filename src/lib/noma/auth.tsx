@@ -165,19 +165,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         const auth = requireAuth();
-        if (preferRedirect()) {
-          await signInWithRedirect(auth, googleProvider());
-          return;
-        }
         try {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
           const code = (error as { code?: string }).code ?? "";
-          console.error("[noma-auth] google popup failed", code, error);
-          if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
+          console.error("[noma-auth] google popup failed", code, "host:", window.location.hostname, error);
+          if (!REDIRECT_FALLBACK_CODES.has(code) || !canRedirect()) throw error;
           await signInWithRedirect(auth, googleProvider());
         }
       },
+
 
       resetPassword: async (email) => {
         await sendPasswordResetEmail(requireAuth(), email.trim());
