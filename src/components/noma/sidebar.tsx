@@ -13,7 +13,9 @@ import {
   Settings as SettingsIcon,
   Star,
   Trash2,
+  UserRound,
 } from "lucide-react";
+import { useAuth } from "@/lib/noma/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
