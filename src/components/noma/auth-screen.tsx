@@ -135,9 +135,23 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
                 >
                   Continue with Email
                 </Button>
+                {onContinueWithoutAccount && (
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full text-muted-foreground transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+                    disabled={Boolean(busy)}
+                    onClick={onContinueWithoutAccount}
+                  >
+                    Continue without account
+                  </Button>
+                )}
+                <p className="pt-1 text-center text-xs text-muted-foreground">
+                  An account is optional — Noma keeps your notes on this device either way.
+                </p>
               </div>
             </Step>
           )}
+
 
           {mode === "reset-sent" && (
             <Step>
