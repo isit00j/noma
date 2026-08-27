@@ -39,7 +39,7 @@ function Step({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AuthScreen() {
+export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAccount?: () => void } = {}) {
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
   const [isNew, setIsNew] = useState(false);
@@ -135,9 +135,23 @@ export function AuthScreen() {
                 >
                   Continue with Email
                 </Button>
+                {onContinueWithoutAccount && (
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full text-muted-foreground transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+                    disabled={Boolean(busy)}
+                    onClick={onContinueWithoutAccount}
+                  >
+                    Continue without account
+                  </Button>
+                )}
+                <p className="pt-1 text-center text-xs text-muted-foreground">
+                  An account is optional — Noma keeps your notes on this device either way.
+                </p>
               </div>
             </Step>
           )}
+
 
           {mode === "reset-sent" && (
             <Step>

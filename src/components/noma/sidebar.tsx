@@ -13,7 +13,9 @@ import {
   Settings as SettingsIcon,
   Star,
   Trash2,
+  UserRound,
 } from "lucide-react";
+import { useAuth } from "@/lib/noma/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -90,6 +92,8 @@ export function NomaSidebar({
   onDeleteTag,
   onCollapse,
 }: SidebarProps) {
+  const auth = useAuth();
+  const accountLabel = auth.user ? "Account" : "Sign in";
   const live = notes.filter((note) => !note.deleted);
   const counts = {
     all: live.filter((note) => !note.archived).length,
@@ -229,10 +233,17 @@ export function NomaSidebar({
         </div>
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
+      <div className="space-y-0.5 border-t border-sidebar-border p-3">
+        <Link
+          to="/signin"
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground active:scale-[0.99] motion-reduce:active:scale-100"
+        >
+          <UserRound className="size-4" />
+          {accountLabel}
+        </Link>
         <Link
           to="/settings"
-          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground active:scale-[0.99] motion-reduce:active:scale-100"
         >
           <SettingsIcon className="size-4" />
           Settings

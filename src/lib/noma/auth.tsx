@@ -97,18 +97,23 @@ function googleProvider() {
 }
 
 /**
- * Popups are unreliable on mobile browsers and under the preview's
- * Cross-Origin-Opener-Policy (Firebase can't observe window.closed, so the
- * popup silently hangs). On mobile top-level windows we go straight to the
- * redirect flow; embedded frames must keep the popup (a redirect would try to
- * navigate the host page).
+ * Popup-first everywhere.
+ *
+ * On a custom production domain (e.g. mynoma.vercel.app) the Firebase
+ * `authDomain` (*.firebaseapp.com) is a THIRD-PARTY origin, so browser storage
+ * partitioning (Safari ITP, Chrome third-party cookie phase-out) breaks
+ * `signInWithRedirect` — it returns to the app with
+ * `auth/missing-initial-state` or with no user at all, which is exactly the
+ * "email works, Google doesn't, only in production" symptom. Popups keep the
+ * sign-in state in the opener, so they survive partitioning; redirect stays as
+ * a fallback for browsers that block popups outright, and inside embedded
+ * frames a redirect would navigate the host page, so popup is mandatory there.
  */
-function preferRedirect(): boolean {
+function canRedirect(): boolean {
   if (typeof window === "undefined") return false;
-  const embedded = window.top !== window.self;
-  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  return !embedded && mobile;
+  return window.top === window.self;
 }
+
 
 
 
@@ -160,19 +165,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         const auth = requireAuth();
-        if (preferRedirect()) {
-          await signInWithRedirect(auth, googleProvider());
-          return;
-        }
         try {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
           const code = (error as { code?: string }).code ?? "";
-          console.error("[noma-auth] google popup failed", code, error);
-          if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
+          console.error("[noma-auth] google popup failed", code, "host:", window.location.hostname, error);
+          if (!REDIRECT_FALLBACK_CODES.has(code) || !canRedirect()) throw error;
           await signInWithRedirect(auth, googleProvider());
         }
       },
+
 
       resetPassword: async (email) => {
         await sendPasswordResetEmail(requireAuth(), email.trim());
