@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/noma/auth";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
 
 function NotFoundComponent() {
   return (
