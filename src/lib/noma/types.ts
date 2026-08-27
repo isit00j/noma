@@ -80,7 +80,7 @@ export const BACKUP_FORMAT_VERSION = 1;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: "app",
-  theme: "dark",
+  theme: "system",
   fontSize: 17,
   editorWidth: 720,
   lineHeight: 1.7,
