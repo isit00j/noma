@@ -92,6 +92,8 @@ export function NomaSidebar({
   onDeleteTag,
   onCollapse,
 }: SidebarProps) {
+  const auth = useAuth();
+  const accountLabel = auth.user ? "Account" : "Sign in";
   const live = notes.filter((note) => !note.deleted);
   const counts = {
     all: live.filter((note) => !note.archived).length,
