@@ -77,7 +77,7 @@ export function backupObjectName(date = new Date()): string {
 export function getConnection(ownerId: string | null): DriveConnection | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STATE_KEY);
+    const raw = window.localStorage.getItem(ownerId ? `noma-drive-v1-${ownerId}` : "noma-drive-v1");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<DriveConnection>;
     return {
@@ -193,7 +193,8 @@ async function authorize(ownerId: string | null, prompt?: string): Promise<strin
       "Google Drive backup isn't configured yet. Add googleDriveClientId in src/config/firebaseConfig.ts.",
     );
   }
-  if (!prompt && accessToken && Date.now() < tokenExpiresAt) return accessToken;
+  if (!prompt && accessToken && Date.now() < tokenExpiresAt && activeTokenOwner === ownerId)
+    return accessToken;
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     throw new DriveError(
       "You're offline. Noma keeps working locally — reconnect Drive when you're back online.",

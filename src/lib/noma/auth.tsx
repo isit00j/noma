@@ -206,6 +206,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return Boolean(requireAuth().currentUser?.emailVerified);
       },
       signOut: async () => {
+        const current = requireAuth().currentUser;
+        if (current) {
+          const { disconnectDrive } = await import("./drive");
+          await disconnectDrive(current.uid);
+        }
         await fbSignOut(requireAuth());
       },
       linkGoogle: async () => {
