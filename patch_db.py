@@ -1,4 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode, useRef } from "react";
+import re
+
+with open("src/lib/noma/DatabaseContext.tsx", "r") as f:
+    content = f.read()
+
+new_content = """import { createContext, useContext, useEffect, useState, type ReactNode, useRef } from "react";
 import Dexie from "dexie";
 import { NomaDatabase, copyDatabase } from "./db";
 import { useAuth } from "./auth";
@@ -91,9 +96,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         let guestExists = false;
         try {
           guestExists = await Dexie.exists("noma_guest");
-        } catch (e) {
-          console.error("Dexie.exists failed", e);
-        }
+        } catch (e) {}
 
         if (!isMounted) return;
 
@@ -118,8 +121,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
               localGuestDb.close();
               localGuestDb = null;
             }
-          } catch (err) {
-            console.error("Guest migration check failed", err);
+          } catch(err) {
+             console.error("Guest migration check failed", err);
           }
         }
       }
@@ -175,3 +178,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     </DatabaseContext.Provider>
   );
 }
+"""
+
+with open("src/lib/noma/DatabaseContext.tsx", "w") as f:
+    f.write(new_content)
