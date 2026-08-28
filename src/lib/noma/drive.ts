@@ -64,7 +64,7 @@ export class DriveError extends Error {
 
 /** Short-lived token, memory only — never persisted, never logged. */
 let accessToken: string | null = null;
-const activeTokenOwner: string | null | undefined = undefined;
+let activeTokenOwner: string | null | undefined = undefined;
 let tokenExpiresAt = 0;
 
 export function backupObjectName(date = new Date()): string {
@@ -399,6 +399,7 @@ export async function connectDrive(ownerId: string | null): Promise<DriveConnect
 }
 
 export async function disconnectDrive(ownerId: string | null): Promise<void> {
+  activeTokenOwner = undefined;
   if (accessToken && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
     try {
       window.google.accounts.oauth2.revoke(accessToken);
