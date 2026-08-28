@@ -43,7 +43,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useOnline, useSettings } from "@/hooks/use-noma";
-import { db } from "@/lib/noma/db";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   createFolder,
   createNote,
@@ -78,9 +78,10 @@ interface Confirmation {
 }
 
 export function Workspace() {
-  const notes = useLiveQuery(() => db().notes.toArray(), [], undefined);
-  const folders = useLiveQuery(() => db().folders.orderBy("name").toArray(), [], undefined);
-  const tags = useLiveQuery(() => db().tags.orderBy("name").toArray(), [], undefined);
+  const { db, loading: dbLoading } = useDatabase();
+  const notes = useLiveQuery(() => db?.notes.toArray() ?? [], [db], undefined);
+  const folders = useLiveQuery(() => db?.folders.orderBy("name").toArray() ?? [], [db], undefined);
+  const tags = useLiveQuery(() => db?.tags.orderBy("name").toArray() ?? [], [db], undefined);
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
 
@@ -104,20 +105,28 @@ export function Workspace() {
   const activeNote: Note | null =
     storedNote && draft?.id === storedNote.id ? { ...storedNote, ...draft } : storedNote;
 
-  const flushSave = useCallback(async (id: string, patch: { title?: string; content?: string }) => {
-    try {
-      await updateNote(id, patch);
-      setSaveState(navigator.onLine ? "saved" : "offline");
-    } catch {
-      setSaveState("idle");
-      toast.error("Noma couldn't save to this device's storage.");
-    }
-  }, []);
+  const flushSave = useCallback(
+    async (id: string, patch: { title?: string; content?: string }) => {
+      if (!db) return;
+      try {
+        await updateNote(db!, id, patch);
+        setSaveState(navigator.onLine ? "saved" : "offline");
+      } catch {
+        setSaveState("idle");
+        toast.error("Noma couldn't save to this device's storage.");
+      }
+    },
+    [db],
+  );
 
   const handleChange = useCallback(
     (patch: { title?: string; content?: string }) => {
       if (!activeNoteId) return;
-      setDraft((current) => ({ ...(current?.id === activeNoteId ? current : { id: activeNoteId }), id: activeNoteId, ...patch }));
+      setDraft((current) => ({
+        ...(current?.id === activeNoteId ? current : { id: activeNoteId }),
+        id: activeNoteId,
+        ...patch,
+      }));
       setSaveState("saving");
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void flushSave(activeNoteId, patch), 400);
@@ -138,7 +147,7 @@ export function Workspace() {
   }, []);
 
   const handleNewNote = useCallback(async () => {
-    const note = await createNote({
+    const note = await createNote(db!, {
       folderId: view.kind === "folder" ? (view.id ?? null) : null,
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
@@ -166,23 +175,23 @@ export function Workspace() {
 
   const actions: NoteActions = {
     open: openNote,
-    togglePin: (note) => void togglePinned(note),
-    toggleFavorite: (note) => void toggleFavorite(note),
-    setArchived: (note, archived) => void setArchived(note, archived),
+    togglePin: (note) => void togglePinned(db!, note),
+    toggleFavorite: (note) => void toggleFavorite(db!, note),
+    setArchived: (note, archived) => void setArchived(db!, note, archived),
     duplicate: async (note) => {
-      const copy = await duplicateNote(note.id);
+      const copy = await duplicateNote(db!, note.id);
       if (copy) toast.success("Note duplicated");
     },
-    move: (note, folderId) => void moveNote(note.id, folderId),
+    move: (note, folderId) => void moveNote(db!, note.id, folderId),
     trash: (note) => {
-      void trashNote(note.id);
+      void trashNote(db!, note.id);
       if (activeNoteId === note.id) setActiveNoteId(null);
       toast.success("Moved to Trash", {
-        action: { label: "Undo", onClick: () => void restoreNote(note.id) },
+        action: { label: "Undo", onClick: () => void restoreNote(db!, note.id) },
       });
     },
     restore: (note) => {
-      void restoreNote(note.id);
+      void restoreNote(db!, note.id);
       toast.success("Note restored");
     },
     deleteForever: (note) =>
@@ -191,7 +200,7 @@ export function Workspace() {
         description: `“${noteTitle(note)}” and its attachments will be removed from this device. This can't be undone.`,
         actionLabel: "Delete permanently",
         onConfirm: async () => {
-          await deleteNoteForever(note.id);
+          await deleteNoteForever(db!, note.id);
           if (activeNoteId === note.id) setActiveNoteId(null);
           toast.success("Note deleted");
         },
@@ -199,7 +208,15 @@ export function Workspace() {
   };
 
   const searchResults = useMemo(
-    () => (searchOpen ? searchNotes(query, allNotes.filter((note) => !note.deleted), allFolders, allTags) : []),
+    () =>
+      searchOpen
+        ? searchNotes(
+            query,
+            allNotes.filter((note) => !note.deleted),
+            allFolders,
+            allTags,
+          )
+        : [],
     [searchOpen, query, allNotes, allFolders, allTags],
   );
 
@@ -220,7 +237,7 @@ export function Workspace() {
           title: "New folder",
           confirmLabel: "Create",
           onConfirm: async (name) => {
-            await createFolder(name);
+            await createFolder(db!, name);
           },
         })
       }
@@ -229,7 +246,7 @@ export function Workspace() {
           title: "Rename folder",
           initialValue: folder.name,
           onConfirm: async (name) => {
-            await renameFolder(folder.id, name);
+            await renameFolder(db!, folder.id, name);
           },
         })
       }
@@ -239,7 +256,7 @@ export function Workspace() {
           description: "Notes inside stay in Noma and move out of this folder.",
           actionLabel: "Delete folder",
           onConfirm: async () => {
-            await deleteFolder(folder.id);
+            await deleteFolder(db!, folder.id);
             setView({ kind: "all" });
           },
         })
@@ -249,7 +266,7 @@ export function Workspace() {
           title: "New tag",
           confirmLabel: "Create",
           onConfirm: async (name) => {
-            await createTag(name);
+            await createTag(db!, name);
           },
         })
       }
@@ -258,7 +275,7 @@ export function Workspace() {
           title: "Rename tag",
           initialValue: tag.name,
           onConfirm: async (name) => {
-            await renameTag(tag.id, name);
+            await renameTag(db!, tag.id, name);
           },
         })
       }
@@ -268,7 +285,7 @@ export function Workspace() {
           description: "The tag is removed from every note. Your notes stay untouched.",
           actionLabel: "Delete tag",
           onConfirm: async () => {
-            await deleteTag(tag.id);
+            await deleteTag(db!, tag.id);
             setView({ kind: "all" });
           },
         })
@@ -280,7 +297,9 @@ export function Workspace() {
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       {!settings.sidebarCollapsed && (
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">{sidebar}</aside>
+        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
+          {sidebar}
+        </aside>
       )}
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -292,7 +311,13 @@ export function Workspace() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-5">
-          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label="Open navigation"
+            onClick={() => setMobileNavOpen(true)}
+          >
             <Menu className="size-5" />
           </Button>
           {settings.sidebarCollapsed && (
@@ -309,7 +334,12 @@ export function Workspace() {
 
           {activeNote ? (
             <>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setActiveNoteId(null)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => setActiveNoteId(null)}
+              >
                 <ArrowLeft className="size-4" />
                 <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
               </Button>
@@ -336,7 +366,7 @@ export function Workspace() {
                 variant="ghost"
                 size="icon"
                 aria-label={activeNote.pinned ? "Unpin note" : "Pin note"}
-                onClick={() => void togglePinned(activeNote)}
+                onClick={() => void togglePinned(db!, activeNote)}
                 className={cn(activeNote.pinned && "text-foreground")}
               >
                 <Pin className={cn("size-4", activeNote.pinned && "fill-current")} />
@@ -345,7 +375,7 @@ export function Workspace() {
                 variant="ghost"
                 size="icon"
                 aria-label={activeNote.favorite ? "Remove favorite" : "Add favorite"}
-                onClick={() => void toggleFavorite(activeNote)}
+                onClick={() => void toggleFavorite(db!, activeNote)}
               >
                 <Star className={cn("size-4", activeNote.favorite && "fill-current")} />
               </Button>
@@ -356,7 +386,9 @@ export function Workspace() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tags</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Tags
+                  </DropdownMenuLabel>
                   {allTags.length === 0 && (
                     <DropdownMenuItem
                       onClick={() =>
@@ -364,8 +396,8 @@ export function Workspace() {
                           title: "New tag",
                           confirmLabel: "Create",
                           onConfirm: async (name) => {
-                            const tag = await createTag(name);
-                            await setNoteTags(activeNote.id, [...activeNote.tagIds, tag.id]);
+                            const tag = await createTag(db!, name);
+                            await setNoteTags(db!, activeNote.id, [...activeNote.tagIds, tag.id]);
                           },
                         })
                       }
@@ -379,6 +411,7 @@ export function Workspace() {
                       checked={activeNote.tagIds.includes(tag.id)}
                       onCheckedChange={(checked) =>
                         void setNoteTags(
+                          db!,
                           activeNote.id,
                           checked
                             ? [...activeNote.tagIds, tag.id]
@@ -390,18 +423,28 @@ export function Workspace() {
                     </DropdownMenuCheckboxItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Folder</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => void moveNote(activeNote.id, null)}>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Folder
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => void moveNote(db!, activeNote.id, null)}>
                     {activeNote.folderId === null && <Check className="size-4" />} No folder
                   </DropdownMenuItem>
                   {allFolders.map((folder) => (
-                    <DropdownMenuItem key={folder.id} onClick={() => void moveNote(activeNote.id, folder.id)}>
-                      {activeNote.folderId === folder.id && <Check className="size-4" />} {folder.name}
+                    <DropdownMenuItem
+                      key={folder.id}
+                      onClick={() => void moveNote(db!, activeNote.id, folder.id)}
+                    >
+                      {activeNote.folderId === folder.id && <Check className="size-4" />}{" "}
+                      {folder.name}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>Duplicate</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => actions.setArchived(activeNote, !activeNote.archived)}>
+                  <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => actions.setArchived(activeNote, !activeNote.archived)}
+                  >
                     {activeNote.archived ? "Unarchive" : "Archive"}
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -415,15 +458,24 @@ export function Workspace() {
             </>
           ) : (
             <>
-              <h1 className="truncate font-serif text-lg font-medium">{viewTitle(view, allFolders, allTags)}</h1>
-              <span className="ml-1 text-xs text-muted-foreground tabular-nums">{visibleNotes.length}</span>
+              <h1 className="truncate font-serif text-lg font-medium">
+                {viewTitle(view, allFolders, allTags)}
+              </h1>
+              <span className="ml-1 text-xs text-muted-foreground tabular-nums">
+                {visibleNotes.length}
+              </span>
               <div className="ml-auto flex items-center gap-1">
                 {!online && (
                   <span className="mr-1 hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                     <WifiOff className="size-3.5" /> Offline
                   </span>
                 )}
-                <Button variant="ghost" size="icon" aria-label="Search notes" onClick={() => setSearchOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Search notes"
+                  onClick={() => setSearchOpen(true)}
+                >
                   <Search className="size-4" />
                 </Button>
                 {view.kind === "trash" && visibleNotes.length > 0 && (
@@ -437,7 +489,7 @@ export function Workspace() {
                         description: `${visibleNotes.length} note(s) will be permanently deleted from this device.`,
                         actionLabel: "Empty Trash",
                         onConfirm: async () => {
-                          const count = await emptyTrash();
+                          const count = await emptyTrash(db!);
                           toast.success(`${count} note(s) deleted`);
                         },
                       })
@@ -488,7 +540,13 @@ export function Workspace() {
         </div>
       </main>
 
-      <Dialog open={searchOpen} onOpenChange={(open) => { setSearchOpen(open); if (!open) setQuery(""); }}>
+      <Dialog
+        open={searchOpen}
+        onOpenChange={(open) => {
+          setSearchOpen(open);
+          if (!open) setQuery("");
+        }}
+      >
         <DialogContent className="top-24 max-w-xl translate-y-0 p-0">
           <DialogHeader className="sr-only">
             <DialogTitle>Search notes</DialogTitle>
@@ -524,11 +582,16 @@ export function Workspace() {
                   }}
                   className="w-full rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent/60"
                 >
-                  <span className="block truncate font-serif text-[15px] font-medium">{noteTitle(note)}</span>
+                  <span className="block truncate font-serif text-[15px] font-medium">
+                    {noteTitle(note)}
+                  </span>
                   <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
                     {highlightTerms(snippet, query).map((part, index) =>
                       part.match ? (
-                        <mark key={index} className="rounded bg-transparent font-medium text-foreground">
+                        <mark
+                          key={index}
+                          className="rounded bg-transparent font-medium text-foreground"
+                        >
                           {part.text}
                         </mark>
                       ) : (
@@ -545,7 +608,10 @@ export function Workspace() {
 
       <PromptDialog request={prompt} onClose={() => setPrompt(null)} />
 
-      <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => !open && setConfirmation(null)}>
+      <AlertDialog
+        open={Boolean(confirmation)}
+        onOpenChange={(open) => !open && setConfirmation(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">{confirmation?.title}</AlertDialogTitle>

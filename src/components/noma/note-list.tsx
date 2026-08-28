@@ -49,11 +49,20 @@ interface NoteListProps {
 }
 
 const EMPTY_COPY: Record<string, { title: string; body: string }> = {
-  trash: { title: "Trash is empty", body: "Deleted notes will appear here before they're removed for good." },
-  archive: { title: "Nothing archived", body: "Archive notes you want out of the way but not deleted." },
+  trash: {
+    title: "Trash is empty",
+    body: "Deleted notes will appear here before they're removed for good.",
+  },
+  archive: {
+    title: "Nothing archived",
+    body: "Archive notes you want out of the way but not deleted.",
+  },
   pinned: { title: "No pinned notes", body: "Pin a note to keep it at the top of your list." },
   favorites: { title: "No favorites yet", body: "Star the notes you return to most." },
-  default: { title: "No notes here yet", body: "Start a new note — it saves to this device as you type." },
+  default: {
+    title: "No notes here yet",
+    body: "Start a new note — it saves to this device as you type.",
+  },
 };
 
 export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: NoteListProps) {
@@ -91,7 +100,9 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
             >
               <div className="flex items-center gap-2">
                 {note.pinned && <Pin className="size-3.5 shrink-0 text-muted-foreground" />}
-                {note.favorite && <Star className="size-3.5 shrink-0 fill-current text-muted-foreground" />}
+                {note.favorite && (
+                  <Star className="size-3.5 shrink-0 fill-current text-muted-foreground" />
+                )}
                 <h3 className="truncate font-serif text-[17px] font-medium">{noteTitle(note)}</h3>
               </div>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
@@ -99,7 +110,9 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{formatDistanceToNowStrict(note.updatedAt, { addSuffix: true })}</span>
-                {note.folderId && folderName.has(note.folderId) && <span>{folderName.get(note.folderId)}</span>}
+                {note.folderId && folderName.has(note.folderId) && (
+                  <span>{folderName.get(note.folderId)}</span>
+                )}
                 {note.tagIds
                   .filter((id) => tagName.has(id))
                   .slice(0, 3)
@@ -151,16 +164,25 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
                         <FolderInput className="size-4" /> Move to
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
-                        <DropdownMenuItem onClick={() => actions.move(note, null)}>No folder</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => actions.move(note, null)}>
+                          No folder
+                        </DropdownMenuItem>
                         {folders.map((folder) => (
-                          <DropdownMenuItem key={folder.id} onClick={() => actions.move(note, folder.id)}>
+                          <DropdownMenuItem
+                            key={folder.id}
+                            onClick={() => actions.move(note, folder.id)}
+                          >
                             {folder.name}
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
                     <DropdownMenuItem onClick={() => actions.setArchived(note, !note.archived)}>
-                      {note.archived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
+                      {note.archived ? (
+                        <ArchiveRestore className="size-4" />
+                      ) : (
+                        <Archive className="size-4" />
+                      )}
                       {note.archived ? "Unarchive" : "Archive"}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

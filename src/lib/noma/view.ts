@@ -1,14 +1,7 @@
 import type { Folder, Note, Tag } from "./types";
 
 export type ViewKind =
-  | "all"
-  | "recent"
-  | "pinned"
-  | "favorites"
-  | "archive"
-  | "trash"
-  | "folder"
-  | "tag";
+  "all" | "recent" | "pinned" | "favorites" | "archive" | "trash" | "folder" | "tag";
 
 export interface ViewState {
   kind: ViewKind;

@@ -47,7 +47,12 @@ export function PromptDialog({
             onClose();
           }}
         >
-          <Input autoFocus value={value} onChange={(event) => setValue(event.target.value)} className="h-10" />
+          <Input
+            autoFocus
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="h-10"
+          />
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel

@@ -81,7 +81,10 @@ export function friendlyAuthError(error: unknown): string {
     case "auth/network-request-failed":
       return "You appear to be offline. Your notes still work — try again when you're connected.";
     default:
-      return (error as Error)?.message?.replace(/^Firebase:\s*/, "") || "Something went wrong. Please try again.";
+      return (
+        (error as Error)?.message?.replace(/^Firebase:\s*/, "") ||
+        "Something went wrong. Please try again."
+      );
   }
 }
 
@@ -117,9 +120,6 @@ function canRedirect(): boolean {
   if (typeof window === "undefined") return false;
   return window.top === window.self;
 }
-
-
-
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -161,7 +161,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       googleLinked: providers.includes("google.com"),
       needsEmailVerification: Boolean(user) && passwordOnly && !user?.emailVerified,
       signUp: async (email, password) => {
-        const credential = await createUserWithEmailAndPassword(requireAuth(), email.trim(), password);
+        const credential = await createUserWithEmailAndPassword(
+          requireAuth(),
+          email.trim(),
+          password,
+        );
         await sendEmailVerification(credential.user, { url: window.location.origin });
       },
       signIn: async (email, password) => {
@@ -173,12 +177,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
           const code = (error as { code?: string }).code ?? "";
-          console.error("[noma-auth] google popup failed", code, "host:", window.location.hostname, error);
+          console.error(
+            "[noma-auth] google popup failed",
+            code,
+            "host:",
+            window.location.hostname,
+            error,
+          );
           if (!REDIRECT_FALLBACK_CODES.has(code) || !canRedirect()) throw error;
           await signInWithRedirect(auth, googleProvider());
         }
       },
-
 
       resetPassword: async (email) => {
         await sendPasswordResetEmail(requireAuth(), email.trim());
@@ -197,6 +206,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return Boolean(requireAuth().currentUser?.emailVerified);
       },
       signOut: async () => {
+        const current = requireAuth().currentUser;
+        if (current) {
+          const { disconnectDrive } = await import("./drive");
+          await disconnectDrive(current.uid);
+        }
         await fbSignOut(requireAuth());
       },
       linkGoogle: async () => {
@@ -208,7 +222,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await linkWithPopup(current, googleProvider());
         } catch (error) {
           const code = (error as { code?: string }).code ?? "";
-          console.error("[noma-auth] google link popup failed", code, "host:", window.location.hostname, error);
+          console.error(
+            "[noma-auth] google link popup failed",
+            code,
+            "host:",
+            window.location.hostname,
+            error,
+          );
           if (!REDIRECT_FALLBACK_CODES.has(code) || !canRedirect()) throw error;
           await linkWithRedirect(current, googleProvider());
           return;
@@ -219,7 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = requireAuth().currentUser;
         if (!current) throw new Error("You need to be signed in to unlink Google.");
         if (current.providerData.length < 2) {
-          throw new Error("Google is your only sign-in method — add a password before unlinking it.");
+          throw new Error(
+            "Google is your only sign-in method — add a password before unlinking it.",
+          );
         }
         await unlink(current, "google.com");
         setUser({ ...current } as User);

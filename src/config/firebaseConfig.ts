@@ -25,4 +25,5 @@ export const firebaseConfig = {
  * the Google Cloud OAuth 2.0 Web client ID used only for Google Drive backups
  * (scope: https://www.googleapis.com/auth/drive.file). Leave empty to disable.
  */
-export const googleDriveClientId = "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";
+export const googleDriveClientId =
+  "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";

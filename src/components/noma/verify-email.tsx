@@ -79,8 +79,8 @@ export function VerifyEmail() {
         <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">Verify your email</h1>
         <p className="mt-3 text-sm text-muted-foreground">
           We sent a verification link to{" "}
-          <span className="font-medium text-foreground">{auth.email ?? "your email address"}</span>. Open it, then come
-          back here.
+          <span className="font-medium text-foreground">{auth.email ?? "your email address"}</span>.
+          Open it, then come back here.
         </p>
 
         {notDetected && (
@@ -88,8 +88,8 @@ export function VerifyEmail() {
             role="status"
             className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground animate-in fade-in duration-200 motion-reduce:animate-none"
           >
-            Verification hasn't been detected yet. Click the link in the email (check spam too), then tap “I've verified
-            my email”.
+            Verification hasn't been detected yet. Click the link in the email (check spam too),
+            then tap “I've verified my email”.
           </p>
         )}
 
@@ -109,7 +109,11 @@ export function VerifyEmail() {
             onClick={() => void resend()}
           >
             {sending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            {sending ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend verification email"}
+            {sending
+              ? "Sending…"
+              : cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : "Resend verification email"}
           </Button>
           <Button
             variant="ghost"

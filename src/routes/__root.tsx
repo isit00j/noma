@@ -15,6 +15,39 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/noma/auth";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
 
+import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+function GuestMigrationDialog() {
+  const { guestMigrationPending, migrateGuestData, skipGuestData } = useDatabase();
+  return (
+    <AlertDialog open={guestMigrationPending}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="font-serif">Migrate local notes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have notes created in Local Mode. Would you like to move them into this account, or
+            start fresh? Starting fresh will hide the local notes until you sign out again.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => void skipGuestData()}>Start fresh</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void migrateGuestData()}>Move notes</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -83,12 +116,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Noma — Calm, offline-first notes" },
       {
         name: "description",
-        content: "A minimalist note-taking app that works offline and keeps your notes on your device.",
+        content:
+          "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
       { property: "og:title", content: "Noma — Calm, offline-first notes" },
       {
         property: "og:description",
-        content: "A minimalist note-taking app that works offline and keeps your notes on your device.",
+        content:
+          "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -137,9 +172,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="bottom-center" />
+        <DatabaseProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <GuestMigrationDialog />
+          <Toaster position="bottom-center" />
+        </DatabaseProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

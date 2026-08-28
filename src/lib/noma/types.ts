@@ -73,6 +73,8 @@ export interface BackupManifest {
   folderCount: number;
   tagCount: number;
   attachmentCount: number;
+  ownerId?: string | null;
+  libraryId?: string | null;
 }
 
 export const NOMA_VERSION = "1.0.0";

@@ -24,10 +24,22 @@ function maskEmail(value: string): string {
 function GoogleMark() {
   return (
     <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z" />
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
-      <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z" />
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" />
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
+      />
     </svg>
   );
 }
@@ -35,11 +47,15 @@ function GoogleMark() {
 /** Wraps each auth step so switching modes crossfades instead of snapping. */
 function Step({ children }: { children: React.ReactNode }) {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">{children}</div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none">
+      {children}
+    </div>
   );
 }
 
-export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAccount?: () => void } = {}) {
+export function AuthScreen({
+  onContinueWithoutAccount,
+}: { onContinueWithoutAccount?: () => void } = {}) {
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>("choose");
   const [isNew, setIsNew] = useState(false);
@@ -56,7 +72,11 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  const run = async (kind: "google" | "email" | "reset", action: () => Promise<void>, onDone?: () => void) => {
+  const run = async (
+    kind: "google" | "email" | "reset",
+    action: () => Promise<void>,
+    onDone?: () => void,
+  ) => {
     if (busy) return;
     setBusy(kind);
     setError(null);
@@ -98,14 +118,14 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
           <p className="mt-2 text-sm text-muted-foreground">A quiet place for your thoughts.</p>
         </div>
 
-
         {!auth.configured && (
           <div className="mt-8 rounded-lg border border-border bg-card p-4 text-sm">
             <p className="font-medium">Authentication isn't configured yet</p>
             <p className="mt-1 text-muted-foreground">
               Paste your Firebase Web App values into{" "}
-              <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable Noma accounts. Until
-              then Noma runs in local-only mode — your notes are still saved on this device.
+              <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable Noma
+              accounts. Until then Noma runs in local-only mode — your notes are still saved on this
+              device.
             </p>
           </div>
         )}
@@ -120,7 +140,11 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
                   disabled={Boolean(busy) || !auth.configured}
                   onClick={() => void run("google", auth.signInWithGoogle)}
                 >
-                  {busy === "google" ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <GoogleMark />}
+                  {busy === "google" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <GoogleMark />
+                  )}
                   {busy === "google" ? "Connecting…" : "Continue with Google"}
                 </Button>
                 <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
@@ -152,7 +176,6 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
             </Step>
           )}
 
-
           {mode === "reset-sent" && (
             <Step>
               <div className="text-center">
@@ -160,11 +183,13 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
                   className="mx-auto size-8 text-muted-foreground animate-in zoom-in-75 fade-in duration-300 motion-reduce:animate-none"
                   aria-hidden="true"
                 />
-                <h2 className="mt-4 font-serif text-2xl font-semibold tracking-tight">Check your inbox</h2>
+                <h2 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
+                  Check your inbox
+                </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   We've sent a password reset link to{" "}
-                  <span className="font-medium text-foreground">{maskEmail(email)}</span>. It can take a minute to
-                  arrive — check spam too.
+                  <span className="font-medium text-foreground">{maskEmail(email)}</span>. It can
+                  take a minute to arrive — check spam too.
                 </p>
                 <div aria-live="polite" className="mt-6 space-y-3">
                   <Button
@@ -173,8 +198,14 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
                     disabled={busy === "reset" || cooldown > 0}
                     onClick={() => sendReset(true)}
                   >
-                    {busy === "reset" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-                    {busy === "reset" ? "Sending…" : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend link"}
+                    {busy === "reset" && (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    )}
+                    {busy === "reset"
+                      ? "Sending…"
+                      : cooldown > 0
+                        ? `Resend in ${cooldown}s`
+                        : "Resend link"}
                   </Button>
                   <Button
                     variant="ghost"
@@ -215,7 +246,9 @@ export function AuthScreen({ onContinueWithoutAccount }: { onContinueWithoutAcco
                     setError("Those passwords don't match yet.");
                     return;
                   }
-                  void run("email", () => (isNew ? auth.signUp(email, password) : auth.signIn(email, password)));
+                  void run("email", () =>
+                    isNew ? auth.signUp(email, password) : auth.signIn(email, password),
+                  );
                 }}
               >
                 <div className="space-y-2">
