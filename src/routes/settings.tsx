@@ -342,6 +342,8 @@ function SettingsPage() {
                   // Brief, intentional beat before the screen crossfades back to auth.
                   await new Promise((resolve) => setTimeout(resolve, 220));
                   await auth.signOut();
+                  toast.success("Signed out — Noma is in Local Mode.");
+                  setBusy(null);
                 } catch (error) {
                   toast.error(friendlyAuthError(error));
                   setBusy(null);
