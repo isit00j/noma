@@ -29,7 +29,7 @@ import {
   recordBackup,
   type BackupPayload,
 } from "@/lib/noma/backup";
-import { db } from "@/lib/noma/db";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { DriveCard } from "@/components/noma/drive-card";
 
 export const Route = createFileRoute("/settings")({
@@ -76,31 +76,29 @@ function Section({
 function SettingsPage() {
   const { settings, update } = useSettings();
   const auth = useAuth();
+  const { db } = useDatabase();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   const backups = useLiveQuery(
-    () => db().backups.orderBy("createdAt").reverse().limit(5).toArray(),
-    [],
+    () => (db ? db.backups.orderBy("createdAt").reverse().limit(5).toArray() : []),
+    [db],
     [],
   );
   const noteCount = useLiveQuery(
-    () =>
-      db()
-        .notes.filter((n) => !n.deleted)
-        .count(),
-    [],
+    () => (db ? db.notes.filter((n) => !n.deleted).count() : 0),
+    [db],
     0,
   );
 
   async function handleExport() {
     setBusy("export");
     try {
-      const { blob, payload } = await buildBackupZip();
+      const { blob, payload } = await buildBackupZip(db!, auth.user?.uid ?? null);
       downloadBlob(blob, backupFileName());
-      await recordBackup("local", "success", payload.notes.length);
+      await recordBackup(db!, "local", "success", payload.notes.length);
       toast.success("Backup downloaded");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed");
@@ -112,7 +110,7 @@ function SettingsPage() {
   async function handleFile(file: File) {
     setBusy("import");
     try {
-      setPendingImport(await readBackupZip(file));
+      setPendingImport(await readBackupZip(file, auth.user?.uid ?? null));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "That file isn't a Noma backup.");
     } finally {
@@ -125,7 +123,7 @@ function SettingsPage() {
     if (!pendingImport) return;
     setBusy("import");
     try {
-      await applyBackup(pendingImport, mode);
+      await applyBackup(db!, pendingImport, mode);
       toast.success(
         mode === "merge" ? "Backup merged into your library" : "Library replaced from backup",
       );

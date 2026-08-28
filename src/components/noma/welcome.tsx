@@ -1,19 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Button } from "@/components/ui/button";
-import { db } from "@/lib/noma/db";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
+import type { Note } from "@/lib/noma/types";
 
 /**
  * First-run decision on a new device. Nothing is deleted here — local notes are
  * always preserved, this only points the user at restore if they want it.
  */
 export function Welcome({ email, onStart }: { email: string | null; onStart: () => void }) {
+  const { db } = useDatabase();
   const noteCount = useLiveQuery(
-    () =>
-      db()
-        .notes.filter((n) => !n.deleted)
-        .count(),
-    [],
+    () => (db ? db.notes.filter((n: Note) => !n.deleted).count() : 0),
+    [db],
     0,
   );
 

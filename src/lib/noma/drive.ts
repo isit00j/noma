@@ -423,13 +423,13 @@ export async function listDriveBackups(): Promise<DriveBackupFile[]> {
     }));
 }
 
-export async function backupNow(): Promise<{
-  connection: DriveConnection;
-  manifest: BackupManifest;
-}> {
+export async function backupNow(
+  db: import("./db").NomaDatabase,
+  ownerId: string | null,
+): Promise<{ connection: DriveConnection; manifest: BackupManifest }> {
   const token = await authorize();
   const folderId = await ensureFolder(token);
-  const { blob, payload } = await buildBackupZip();
+  const { blob, payload } = await buildBackupZip(db, ownerId);
 
   const metadata = { name: backupObjectName(), mimeType: "application/zip", parents: [folderId] };
   const form = new FormData();
@@ -442,16 +442,22 @@ export async function backupNow(): Promise<{
       body: form,
     });
   } catch (error) {
-    await recordBackup("google-drive", "failed", payload.notes.length, (error as Error).message);
+    await recordBackup(
+      db,
+      "google-drive",
+      "failed",
+      payload.notes.length,
+      (error as Error).message,
+    );
     throw error;
   }
 
   const connection = patchConnection({
     lastBackupAt: Date.now(),
     folderId,
-    lastSignature: await librarySignature(),
+    lastSignature: await librarySignature(db),
   });
-  await recordBackup("google-drive", "success", payload.notes.length);
+  await recordBackup(db, "google-drive", "success", payload.notes.length);
   return { connection, manifest: payload.manifest };
 }
 
@@ -462,9 +468,8 @@ export async function fetchDriveBackup(fileId: string): Promise<BackupPayload> {
 }
 
 /** Cheap fingerprint of the local library, used to skip redundant uploads. */
-export async function librarySignature(): Promise<string> {
-  const { db } = await import("./db");
-  const d = db();
+export async function librarySignature(db: import("./db").NomaDatabase): Promise<string> {
+  const d = db;
   const [notes, folders, tags, attachments] = await Promise.all([
     d.notes.toArray(),
     d.folders.count(),
@@ -475,8 +480,8 @@ export async function librarySignature(): Promise<string> {
   return `${notes.length}:${folders}:${tags}:${attachments}:${latest}`;
 }
 
-export async function hasUnbackedChanges(): Promise<boolean> {
+export async function hasUnbackedChanges(db: import("./db").NomaDatabase): Promise<boolean> {
   const connection = getConnection();
   if (!connection) return false;
-  return (await librarySignature()) !== connection.lastSignature;
+  return (await librarySignature(db)) !== connection.lastSignature;
 }

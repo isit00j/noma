@@ -30,7 +30,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { applyBackup, type BackupPayload } from "@/lib/noma/backup";
+import { applyBackup, type BackupPayload, recordBackup } from "@/lib/noma/backup";
+import { useAuth } from "@/lib/noma/auth";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   backupNow,
   connectDrive,
@@ -38,10 +40,11 @@ import {
   fetchDriveBackup,
   getConnection,
   hasUnbackedChanges,
-  isDriveConfigured,
+  librarySignature,
   listDriveBackups,
   type DriveBackupFile,
   type DriveConnection,
+  isDriveConfigured,
 } from "@/lib/noma/drive";
 
 type Status =
@@ -80,6 +83,8 @@ export function DriveCard({
   onAutoBackupChange: (value: boolean) => void;
   onRestored?: () => void;
 }) {
+  const auth = useAuth();
+  const { db } = useDatabase();
   const [connection, setConnection] = useState<DriveConnection | null>(() =>
     typeof window === "undefined" ? null : getConnection(),
   );
@@ -112,7 +117,7 @@ export function DriveCard({
     async (silent = false) => {
       setStatus({ kind: "working", label: silent ? "Backing up…" : "Preparing backup…" });
       try {
-        const { connection: next, manifest } = await backupNow();
+        const { connection: next, manifest } = await backupNow(db!, auth.user?.uid ?? null);
         setConnection(next);
         setNeedsReconnect(false);
         setStatus({
@@ -134,7 +139,7 @@ export function DriveCard({
     const tick = async () => {
       if (cancelled || (typeof navigator !== "undefined" && !navigator.onLine)) return;
       try {
-        if (await hasUnbackedChanges()) await runBackup(true);
+        if (await hasUnbackedChanges(db!)) await runBackup(true);
       } catch {
         /* auto-backup never interrupts writing */
       }
@@ -200,7 +205,7 @@ export function DriveCard({
     if (!preview) return;
     setRestoring(true);
     try {
-      await applyBackup(preview.payload, mode);
+      await applyBackup(db!, preview.payload, mode);
       setRestoreOpen(false);
       setPreview(null);
       setConfirmReplace(false);

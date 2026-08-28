@@ -43,7 +43,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useOnline, useSettings } from "@/hooks/use-noma";
-import { db } from "@/lib/noma/db";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   createFolder,
   createNote,
@@ -78,9 +78,10 @@ interface Confirmation {
 }
 
 export function Workspace() {
-  const notes = useLiveQuery(() => db().notes.toArray(), [], undefined);
-  const folders = useLiveQuery(() => db().folders.orderBy("name").toArray(), [], undefined);
-  const tags = useLiveQuery(() => db().tags.orderBy("name").toArray(), [], undefined);
+  const { db, loading: dbLoading } = useDatabase();
+  const notes = useLiveQuery(() => db?.notes.toArray() ?? [], [db], undefined);
+  const folders = useLiveQuery(() => db?.folders.orderBy("name").toArray() ?? [], [db], undefined);
+  const tags = useLiveQuery(() => db?.tags.orderBy("name").toArray() ?? [], [db], undefined);
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
 
@@ -106,7 +107,7 @@ export function Workspace() {
 
   const flushSave = useCallback(async (id: string, patch: { title?: string; content?: string }) => {
     try {
-      await updateNote(id, patch);
+      await updateNote(db!, id, patch);
       setSaveState(navigator.onLine ? "saved" : "offline");
     } catch {
       setSaveState("idle");
@@ -142,7 +143,7 @@ export function Workspace() {
   }, []);
 
   const handleNewNote = useCallback(async () => {
-    const note = await createNote({
+    const note = await createNote(db!, {
       folderId: view.kind === "folder" ? (view.id ?? null) : null,
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
@@ -170,23 +171,23 @@ export function Workspace() {
 
   const actions: NoteActions = {
     open: openNote,
-    togglePin: (note) => void togglePinned(note),
-    toggleFavorite: (note) => void toggleFavorite(note),
-    setArchived: (note, archived) => void setArchived(note, archived),
+    togglePin: (note) => void togglePinned(db!, note),
+    toggleFavorite: (note) => void toggleFavorite(db!, note),
+    setArchived: (note, archived) => void setArchived(db!, note, archived),
     duplicate: async (note) => {
-      const copy = await duplicateNote(note.id);
+      const copy = await duplicateNote(db!, note.id);
       if (copy) toast.success("Note duplicated");
     },
-    move: (note, folderId) => void moveNote(note.id, folderId),
+    move: (note, folderId) => void moveNote(db!, note.id, folderId),
     trash: (note) => {
-      void trashNote(note.id);
+      void trashNote(db!, note.id);
       if (activeNoteId === note.id) setActiveNoteId(null);
       toast.success("Moved to Trash", {
-        action: { label: "Undo", onClick: () => void restoreNote(note.id) },
+        action: { label: "Undo", onClick: () => void restoreNote(db!, note.id) },
       });
     },
     restore: (note) => {
-      void restoreNote(note.id);
+      void restoreNote(db!, note.id);
       toast.success("Note restored");
     },
     deleteForever: (note) =>
@@ -195,7 +196,7 @@ export function Workspace() {
         description: `“${noteTitle(note)}” and its attachments will be removed from this device. This can't be undone.`,
         actionLabel: "Delete permanently",
         onConfirm: async () => {
-          await deleteNoteForever(note.id);
+          await deleteNoteForever(db!, note.id);
           if (activeNoteId === note.id) setActiveNoteId(null);
           toast.success("Note deleted");
         },
@@ -232,7 +233,7 @@ export function Workspace() {
           title: "New folder",
           confirmLabel: "Create",
           onConfirm: async (name) => {
-            await createFolder(name);
+            await createFolder(db!, name);
           },
         })
       }
@@ -241,7 +242,7 @@ export function Workspace() {
           title: "Rename folder",
           initialValue: folder.name,
           onConfirm: async (name) => {
-            await renameFolder(folder.id, name);
+            await renameFolder(db!, folder.id, name);
           },
         })
       }
@@ -251,7 +252,7 @@ export function Workspace() {
           description: "Notes inside stay in Noma and move out of this folder.",
           actionLabel: "Delete folder",
           onConfirm: async () => {
-            await deleteFolder(folder.id);
+            await deleteFolder(db!, folder.id);
             setView({ kind: "all" });
           },
         })
@@ -261,7 +262,7 @@ export function Workspace() {
           title: "New tag",
           confirmLabel: "Create",
           onConfirm: async (name) => {
-            await createTag(name);
+            await createTag(db!, name);
           },
         })
       }
@@ -270,7 +271,7 @@ export function Workspace() {
           title: "Rename tag",
           initialValue: tag.name,
           onConfirm: async (name) => {
-            await renameTag(tag.id, name);
+            await renameTag(db!, tag.id, name);
           },
         })
       }
@@ -280,7 +281,7 @@ export function Workspace() {
           description: "The tag is removed from every note. Your notes stay untouched.",
           actionLabel: "Delete tag",
           onConfirm: async () => {
-            await deleteTag(tag.id);
+            await deleteTag(db!, tag.id);
             setView({ kind: "all" });
           },
         })
@@ -361,7 +362,7 @@ export function Workspace() {
                 variant="ghost"
                 size="icon"
                 aria-label={activeNote.pinned ? "Unpin note" : "Pin note"}
-                onClick={() => void togglePinned(activeNote)}
+                onClick={() => void togglePinned(db!, activeNote)}
                 className={cn(activeNote.pinned && "text-foreground")}
               >
                 <Pin className={cn("size-4", activeNote.pinned && "fill-current")} />
@@ -370,7 +371,7 @@ export function Workspace() {
                 variant="ghost"
                 size="icon"
                 aria-label={activeNote.favorite ? "Remove favorite" : "Add favorite"}
-                onClick={() => void toggleFavorite(activeNote)}
+                onClick={() => void toggleFavorite(db!, activeNote)}
               >
                 <Star className={cn("size-4", activeNote.favorite && "fill-current")} />
               </Button>
@@ -391,8 +392,8 @@ export function Workspace() {
                           title: "New tag",
                           confirmLabel: "Create",
                           onConfirm: async (name) => {
-                            const tag = await createTag(name);
-                            await setNoteTags(activeNote.id, [...activeNote.tagIds, tag.id]);
+                            const tag = await createTag(db!, name);
+                            await setNoteTags(db!, activeNote.id, [...activeNote.tagIds, tag.id]);
                           },
                         })
                       }
@@ -406,6 +407,7 @@ export function Workspace() {
                       checked={activeNote.tagIds.includes(tag.id)}
                       onCheckedChange={(checked) =>
                         void setNoteTags(
+                          db!,
                           activeNote.id,
                           checked
                             ? [...activeNote.tagIds, tag.id]
@@ -420,13 +422,13 @@ export function Workspace() {
                   <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                     Folder
                   </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => void moveNote(activeNote.id, null)}>
+                  <DropdownMenuItem onClick={() => void moveNote(db!, activeNote.id, null)}>
                     {activeNote.folderId === null && <Check className="size-4" />} No folder
                   </DropdownMenuItem>
                   {allFolders.map((folder) => (
                     <DropdownMenuItem
                       key={folder.id}
-                      onClick={() => void moveNote(activeNote.id, folder.id)}
+                      onClick={() => void moveNote(db!, activeNote.id, folder.id)}
                     >
                       {activeNote.folderId === folder.id && <Check className="size-4" />}{" "}
                       {folder.name}
@@ -483,7 +485,7 @@ export function Workspace() {
                         description: `${visibleNotes.length} note(s) will be permanently deleted from this device.`,
                         actionLabel: "Empty Trash",
                         onConfirm: async () => {
-                          const count = await emptyTrash();
+                          const count = await emptyTrash(db!);
                           toast.success(`${count} note(s) deleted`);
                         },
                       })

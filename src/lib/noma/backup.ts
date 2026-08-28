@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { db, newId } from "./db";
+import { type NomaDatabase, newId } from "./db";
 import { sanitizeHtml } from "./sanitize";
 import {
   BACKUP_FORMAT_VERSION,
@@ -35,7 +35,11 @@ export function backupFileName(date = new Date()): string {
 
 /* ---------------- Export ---------------- */
 
-export async function collectBackup(options: ExportOptions = {}): Promise<BackupPayload> {
+export async function collectBackup(
+  db: NomaDatabase,
+  ownerId: string | null,
+  options: ExportOptions = {},
+): Promise<BackupPayload> {
   const {
     noteIds,
     folderId,
@@ -45,21 +49,23 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
     includeSettings = true,
   } = options;
 
-  let notes = await db().notes.toArray();
+  let notes = await db.notes.toArray();
   if (noteIds?.length) notes = notes.filter((n) => noteIds.includes(n.id));
   else if (folderId !== undefined) notes = notes.filter((n) => n.folderId === folderId);
 
-  const folders = includeFolders ? await db().folders.toArray() : [];
-  const tags = includeTags ? await db().tags.toArray() : [];
+  const folders = includeFolders ? await db.folders.toArray() : [];
+  const tags = includeTags ? await db.tags.toArray() : [];
   const noteIdSet = new Set(notes.map((n) => n.id));
   const attachments = includeAttachments
-    ? (await db().attachments.toArray()).filter((a) => noteIdSet.has(a.noteId))
+    ? (await db.attachments.toArray()).filter((a) => noteIdSet.has(a.noteId))
     : [];
-  const settings = includeSettings ? ((await db().settings.get("app")) ?? null) : null;
+  const settings = includeSettings ? ((await db.settings.get("app")) ?? null) : null;
 
   return {
     manifest: {
       backupFormatVersion: BACKUP_FORMAT_VERSION,
+      ownerId: ownerId,
+      libraryId: db.name,
       nomaVersion: NOMA_VERSION,
       createdAt: new Date().toISOString(),
       noteCount: notes.length,
@@ -76,9 +82,11 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
 }
 
 export async function buildBackupZip(
+  db: NomaDatabase,
+  ownerId: string | null,
   options: ExportOptions = {},
 ): Promise<{ blob: Blob; payload: BackupPayload }> {
-  const payload = await collectBackup(options);
+  const payload = await collectBackup(db, ownerId, options);
   const zip = new JSZip();
   zip.file("manifest.json", JSON.stringify(payload.manifest, null, 2));
   zip.file("folders.json", JSON.stringify(payload.folders, null, 2));
@@ -135,7 +143,10 @@ async function readJson<T>(zip: JSZip, path: string): Promise<T | null> {
   }
 }
 
-export async function readBackupZip(file: Blob): Promise<BackupPayload> {
+export async function readBackupZip(
+  file: Blob,
+  ownerId: string | null = null,
+): Promise<BackupPayload> {
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(file);
@@ -146,6 +157,12 @@ export async function readBackupZip(file: Blob): Promise<BackupPayload> {
   const manifest = await readJson<BackupManifest>(zip, "manifest.json");
   if (!manifest || typeof manifest.backupFormatVersion !== "number") {
     throw new BackupError("This archive has no Noma manifest, so it can't be imported.");
+  }
+
+  if (ownerId && manifest.ownerId && manifest.ownerId !== ownerId) {
+    throw new BackupError(
+      "This backup belongs to a different account. You cannot restore it here.",
+    );
   }
   if (manifest.backupFormatVersion > BACKUP_FORMAT_VERSION) {
     throw new BackupError(
@@ -189,49 +206,50 @@ export async function readBackupZip(file: Blob): Promise<BackupPayload> {
 }
 
 export async function applyBackup(
+  db: NomaDatabase,
   payload: BackupPayload,
   mode: "merge" | "replace",
 ): Promise<void> {
-  const d = db();
-  await d.transaction("rw", d.notes, d.folders, d.tags, d.attachments, async () => {
+  await db.transaction("rw", db.notes, db.folders, db.tags, db.attachments, async () => {
     if (mode === "replace") {
       await Promise.all([
-        d.notes.clear(),
-        d.folders.clear(),
-        d.tags.clear(),
-        d.attachments.clear(),
+        db.notes.clear(),
+        db.folders.clear(),
+        db.tags.clear(),
+        db.attachments.clear(),
       ]);
-      await d.folders.bulkPut(payload.folders);
-      await d.tags.bulkPut(payload.tags);
-      await d.notes.bulkPut(payload.notes);
-      await d.attachments.bulkPut(payload.attachments);
+      await db.folders.bulkPut(payload.folders);
+      await db.tags.bulkPut(payload.tags);
+      await db.notes.bulkPut(payload.notes);
+      await db.attachments.bulkPut(payload.attachments);
       return;
     }
 
     for (const folder of payload.folders) {
-      if (!(await d.folders.get(folder.id))) await d.folders.put(folder);
+      if (!(await db.folders.get(folder.id))) await db.folders.put(folder);
     }
     for (const tag of payload.tags) {
-      if (!(await d.tags.get(tag.id))) await d.tags.put(tag);
+      if (!(await db.tags.get(tag.id))) await db.tags.put(tag);
     }
     for (const note of payload.notes) {
-      const existing = await d.notes.get(note.id);
+      const existing = await db.notes.get(note.id);
       // Deterministic conflict handling: newest updatedAt wins.
-      if (!existing || note.updatedAt > existing.updatedAt) await d.notes.put(note);
+      if (!existing || note.updatedAt > existing.updatedAt) await db.notes.put(note);
     }
     for (const attachment of payload.attachments) {
-      if (!(await d.attachments.get(attachment.id))) await d.attachments.put(attachment);
+      if (!(await db.attachments.get(attachment.id))) await db.attachments.put(attachment);
     }
   });
 }
 
 export async function recordBackup(
+  db: NomaDatabase,
   source: "local" | "google-drive",
   status: "success" | "failed",
   noteCount: number,
   message?: string,
 ): Promise<void> {
-  await db().backups.put({
+  await db.backups.put({
     id: newId(),
     createdAt: Date.now(),
     source,
