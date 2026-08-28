@@ -89,14 +89,15 @@ export function DriveCard({
     typeof window === "undefined" ? null : getConnection(auth.user?.uid ?? null),
   );
 
-  useEffect(() => {
-    setConnection(getConnection(auth.user?.uid ?? null));
-  }, [auth.user?.uid]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
 
   const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  useEffect(() => {
+    setConnection(getConnection(auth.user?.uid ?? null));
+  }, [auth.user?.uid]);
 
   const [justConnected, setJustConnected] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
