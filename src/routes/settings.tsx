@@ -310,7 +310,15 @@ function SettingsPage() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">You're signed out.</p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                You're in Local Mode — notes, folders, tags and settings live in this browser only. An account is
+                optional; signing in never deletes or overwrites what's already here.
+              </p>
+              <Button asChild variant="outline" className="gap-2">
+                <Link to="/signin">Sign in or create an account</Link>
+              </Button>
+            </div>
           )}
         </Section>
       </div>
@@ -334,6 +342,8 @@ function SettingsPage() {
                   // Brief, intentional beat before the screen crossfades back to auth.
                   await new Promise((resolve) => setTimeout(resolve, 220));
                   await auth.signOut();
+                  toast.success("Signed out — Noma is in Local Mode.");
+                  setBusy(null);
                 } catch (error) {
                   toast.error(friendlyAuthError(error));
                   setBusy(null);

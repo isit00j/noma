@@ -64,9 +64,13 @@ export function friendlyAuthError(error: unknown): string {
     case "auth/cancelled-popup-request":
       return "The Google window was closed before finishing.";
     case "auth/unauthorized-domain":
-      return "This site's domain isn't authorized in Firebase Authentication. Add this exact hostname under Firebase console → Authentication → Settings → Authorized domains.";
+      return `This site's domain (${typeof window === "undefined" ? "unknown" : window.location.hostname}) isn't authorized in Firebase Authentication. Add this exact hostname under Firebase console → Authentication → Settings → Authorized domains.`;
     case "auth/operation-not-allowed":
       return "Google sign-in is disabled for this Firebase project. Enable the Google provider under Firebase console → Authentication → Sign-in method.";
+    case "auth/missing-initial-state":
+      return "Your browser blocked the sign-in state from returning to Noma. Try Continue with Google again — it will now open a window instead of redirecting.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the Google sign-in window. Allow popups for this site, then try again.";
     case "auth/operation-not-supported-in-this-environment":
       return "This browser blocked the Google sign-in window. Retrying with a full-page redirect…";
     case "auth/credential-already-in-use":
@@ -200,17 +204,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = auth.currentUser;
         if (!current) throw new Error("You need to be signed in to link Google.");
         // Provider linking keeps ONE Noma account with two sign-in methods.
-        if (preferRedirect()) {
-          await linkWithRedirect(current, googleProvider());
-          return;
-        }
         try {
           await linkWithPopup(current, googleProvider());
         } catch (error) {
-
           const code = (error as { code?: string }).code ?? "";
-          console.error("[noma-auth] google link popup failed", code, error);
-          if (!REDIRECT_FALLBACK_CODES.has(code)) throw error;
+          console.error("[noma-auth] google link popup failed", code, "host:", window.location.hostname, error);
+          if (!REDIRECT_FALLBACK_CODES.has(code) || !canRedirect()) throw error;
           await linkWithRedirect(current, googleProvider());
           return;
         }
