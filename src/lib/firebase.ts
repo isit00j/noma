@@ -4,7 +4,9 @@ import { firebaseConfig, googleDriveClientId as driveClientId } from "@/config/f
 
 const config = firebaseConfig;
 
-export const isFirebaseConfigured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
+export const isFirebaseConfigured = Boolean(
+  config.apiKey && config.authDomain && config.projectId && config.appId,
+);
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;

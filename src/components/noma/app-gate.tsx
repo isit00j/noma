@@ -29,7 +29,9 @@ export function AppGate({ children }: { children: ReactNode }) {
   if (auth.configured && auth.loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground animate-pulse motion-reduce:animate-none">Opening Noma…</p>
+        <p className="text-sm text-muted-foreground animate-pulse motion-reduce:animate-none">
+          Opening Noma…
+        </p>
       </div>
     );
   }
@@ -45,5 +47,7 @@ export function AppGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <div className="animate-in fade-in duration-200 motion-reduce:animate-none">{children}</div>;
+  return (
+    <div className="animate-in fade-in duration-200 motion-reduce:animate-none">{children}</div>
+  );
 }

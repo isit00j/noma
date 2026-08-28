@@ -83,12 +83,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Noma — Calm, offline-first notes" },
       {
         name: "description",
-        content: "A minimalist note-taking app that works offline and keeps your notes on your device.",
+        content:
+          "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
       { property: "og:title", content: "Noma — Calm, offline-first notes" },
       {
         property: "og:description",
-        content: "A minimalist note-taking app that works offline and keeps your notes on your device.",
+        content:
+          "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

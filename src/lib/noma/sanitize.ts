@@ -1,6 +1,36 @@
 const ALLOWED_TAGS = new Set([
-  "P","BR","H1","H2","H3","H4","STRONG","B","EM","I","U","S","MARK","CODE","PRE","BLOCKQUOTE",
-  "UL","OL","LI","A","IMG","HR","TABLE","THEAD","TBODY","TR","TH","TD","SPAN","DIV","LABEL","INPUT",
+  "P",
+  "BR",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "STRONG",
+  "B",
+  "EM",
+  "I",
+  "U",
+  "S",
+  "MARK",
+  "CODE",
+  "PRE",
+  "BLOCKQUOTE",
+  "UL",
+  "OL",
+  "LI",
+  "A",
+  "IMG",
+  "HR",
+  "TABLE",
+  "THEAD",
+  "TBODY",
+  "TR",
+  "TH",
+  "TD",
+  "SPAN",
+  "DIV",
+  "LABEL",
+  "INPUT",
 ]);
 
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
@@ -14,7 +44,24 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
 };
 
 /** Tags allowed to carry an inline `style` limited to colour declarations. */
-const STYLE_TAGS = new Set(["SPAN","P","H1","H2","H3","H4","LI","TD","TH","STRONG","EM","U","S","MARK","BLOCKQUOTE","DIV"]);
+const STYLE_TAGS = new Set([
+  "SPAN",
+  "P",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "LI",
+  "TD",
+  "TH",
+  "STRONG",
+  "EM",
+  "U",
+  "S",
+  "MARK",
+  "BLOCKQUOTE",
+  "DIV",
+]);
 
 const COLOR_VALUE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]+)$/i;
 

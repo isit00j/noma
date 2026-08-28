@@ -15,7 +15,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Noma — Calm, offline-first notes" },
       {
         property: "og:description",
-        content: "Write without distraction. Notes live on your device and sync to backups when you choose.",
+        content:
+          "Write without distraction. Notes live on your device and sync to backups when you choose.",
       },
     ],
   }),

@@ -146,7 +146,9 @@ function ColorPicker({
                 )}
                 style={{ backgroundColor: swatch.value ?? "transparent" }}
               >
-                {swatch.value === null && <span className="text-[10px] text-muted-foreground">/</span>}
+                {swatch.value === null && (
+                  <span className="text-[10px] text-muted-foreground">/</span>
+                )}
               </button>
             );
           })}
@@ -175,19 +177,39 @@ function Toolbar({ editor }: { editor: Editor }) {
 
   return (
     <div className="noma-scroll flex items-center gap-0.5 overflow-x-auto">
-      <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
+      <ToolbarButton
+        label="Bold"
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
         <Bold className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
+      <ToolbarButton
+        label="Italic"
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
         <Italic className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+      <ToolbarButton
+        label="Underline"
+        active={editor.isActive("underline")}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+      >
         <UnderlineIcon className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
+      <ToolbarButton
+        label="Strikethrough"
+        active={editor.isActive("strike")}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
         <Strikethrough className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Highlight" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleHighlight().run()}>
+      <ToolbarButton
+        label="Highlight"
+        active={editor.isActive("highlight")}
+        onClick={() => editor.chain().focus().toggleHighlight().run()}
+      >
         <Highlighter className="size-4" />
       </ToolbarButton>
 
@@ -220,31 +242,63 @@ function Toolbar({ editor }: { editor: Editor }) {
 
       <Separator orientation="vertical" className="mx-1 !h-5" />
 
-      <ToolbarButton label="Heading 1" active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+      <ToolbarButton
+        label="Heading 1"
+        active={editor.isActive("heading", { level: 1 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+      >
         <Heading1 className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+      <ToolbarButton
+        label="Heading 2"
+        active={editor.isActive("heading", { level: 2 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+      >
         <Heading2 className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+      <ToolbarButton
+        label="Heading 3"
+        active={editor.isActive("heading", { level: 3 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+      >
         <Heading3 className="size-4" />
       </ToolbarButton>
 
       <Separator orientation="vertical" className="mx-1 !h-5" />
 
-      <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+      <ToolbarButton
+        label="Bullet list"
+        active={editor.isActive("bulletList")}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+      >
         <List className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+      <ToolbarButton
+        label="Numbered list"
+        active={editor.isActive("orderedList")}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+      >
         <ListOrdered className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Checklist" active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}>
+      <ToolbarButton
+        label="Checklist"
+        active={editor.isActive("taskList")}
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+      >
         <ListTodo className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Quote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+      <ToolbarButton
+        label="Quote"
+        active={editor.isActive("blockquote")}
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+      >
         <Quote className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Code block" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+      <ToolbarButton
+        label="Code block"
+        active={editor.isActive("codeBlock")}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+      >
         <Code2 className="size-4" />
       </ToolbarButton>
 
@@ -256,10 +310,18 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Image" onClick={addImage}>
         <ImageIcon className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>
+      <ToolbarButton
+        label="Table"
+        onClick={() =>
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+        }
+      >
         <TableIcon className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Divider" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+      <ToolbarButton
+        label="Divider"
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+      >
         <Minus className="size-4" />
       </ToolbarButton>
     </div>
@@ -276,7 +338,11 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
+        link: {
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
+        },
       }),
       TextStyle,
       Color,

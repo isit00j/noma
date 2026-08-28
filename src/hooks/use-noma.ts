@@ -24,7 +24,6 @@ export function useSettings() {
   return { settings, update, ready: result !== undefined };
 }
 
-
 export function useOnline(): boolean {
   const [online, setOnline] = useState(true);
   useEffect(() => {

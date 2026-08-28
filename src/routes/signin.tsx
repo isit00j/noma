@@ -11,10 +11,14 @@ export const Route = createFileRoute("/signin")({
       { title: "Sign in — Noma" },
       {
         name: "description",
-        content: "Sign in to your Noma account with Google or email, or keep writing without an account in Local Mode.",
+        content:
+          "Sign in to your Noma account with Google or email, or keep writing without an account in Local Mode.",
       },
       { property: "og:title", content: "Sign in — Noma" },
-      { property: "og:description", content: "Optional Noma account — your notes always stay on this device." },
+      {
+        property: "og:description",
+        content: "Optional Noma account — your notes always stay on this device.",
+      },
     ],
   }),
   component: SignInPage,

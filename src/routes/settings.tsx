@@ -32,15 +32,20 @@ import {
 import { db } from "@/lib/noma/db";
 import { DriveCard } from "@/components/noma/drive-card";
 
-
 export const Route = createFileRoute("/settings")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "Settings — Noma" },
-      { name: "description", content: "Tune Noma's reading comfort, manage backups, and connect Google Drive." },
+      {
+        name: "description",
+        content: "Tune Noma's reading comfort, manage backups, and connect Google Drive.",
+      },
       { property: "og:title", content: "Settings — Noma" },
-      { property: "og:description", content: "Appearance, backups, Google Drive and account settings for Noma." },
+      {
+        property: "og:description",
+        content: "Appearance, backups, Google Drive and account settings for Noma.",
+      },
     ],
   }),
   component: () => (
@@ -50,7 +55,15 @@ export const Route = createFileRoute("/settings")({
   ),
 });
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="border-b border-border py-8 last:border-0">
       <h2 className="font-serif text-xl font-medium">{title}</h2>
@@ -67,9 +80,20 @@ function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
-  
-  const backups = useLiveQuery(() => db().backups.orderBy("createdAt").reverse().limit(5).toArray(), [], []);
-  const noteCount = useLiveQuery(() => db().notes.filter((n) => !n.deleted).count(), [], 0);
+
+  const backups = useLiveQuery(
+    () => db().backups.orderBy("createdAt").reverse().limit(5).toArray(),
+    [],
+    [],
+  );
+  const noteCount = useLiveQuery(
+    () =>
+      db()
+        .notes.filter((n) => !n.deleted)
+        .count(),
+    [],
+    0,
+  );
 
   async function handleExport() {
     setBusy("export");
@@ -102,7 +126,9 @@ function SettingsPage() {
     setBusy("import");
     try {
       await applyBackup(pendingImport, mode);
-      toast.success(mode === "merge" ? "Backup merged into your library" : "Library replaced from backup");
+      toast.success(
+        mode === "merge" ? "Backup merged into your library" : "Library replaced from backup",
+      );
       setPendingImport(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Restore failed");
@@ -110,9 +136,6 @@ function SettingsPage() {
       setBusy(null);
     }
   }
-
-
-
 
   return (
     <div className="noma-scroll min-h-dvh overflow-y-auto bg-background">
@@ -161,14 +184,18 @@ function SettingsPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <Label>Line height</Label>
-              <span className="text-muted-foreground tabular-nums">{settings.lineHeight.toFixed(1)}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {settings.lineHeight.toFixed(1)}
+              </span>
             </div>
             <Slider
               min={1.4}
               max={2.2}
               step={0.1}
               value={[settings.lineHeight]}
-              onValueChange={(value) => void update({ lineHeight: value[0] ?? settings.lineHeight })}
+              onValueChange={(value) =>
+                void update({ lineHeight: value[0] ?? settings.lineHeight })
+              }
             />
           </div>
 
@@ -182,7 +209,9 @@ function SettingsPage() {
               max={960}
               step={20}
               value={[settings.editorWidth]}
-              onValueChange={(value) => void update({ editorWidth: value[0] ?? settings.editorWidth })}
+              onValueChange={(value) =>
+                void update({ editorWidth: value[0] ?? settings.editorWidth })
+              }
             />
           </div>
         </Section>
@@ -192,10 +221,20 @@ function SettingsPage() {
           description={`${noteCount} note(s) stored on this device. Backups are ZIP files containing JSON, Markdown and attachments.`}
         >
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="gap-2" disabled={busy === "export"} onClick={handleExport}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={busy === "export"}
+              onClick={handleExport}
+            >
               <Download className="size-4" /> {busy === "export" ? "Preparing…" : "Export backup"}
             </Button>
-            <Button variant="outline" className="gap-2" disabled={busy === "import"} onClick={() => fileInput.current?.click()}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={busy === "import"}
+              onClick={() => fileInput.current?.click()}
+            >
               <Upload className="size-4" /> Restore from file
             </Button>
             <input
@@ -215,23 +254,28 @@ function SettingsPage() {
               {backups.map((backup) => (
                 <li key={backup.id} className="flex justify-between gap-3">
                   <span>
-                    {backup.source === "google-drive" ? "Google Drive" : "Local file"} · {backup.noteCount} note(s)
+                    {backup.source === "google-drive" ? "Google Drive" : "Local file"} ·{" "}
+                    {backup.noteCount} note(s)
                     {backup.status === "failed" && " · failed"}
                   </span>
-                  <span className="tabular-nums">{new Date(backup.createdAt).toLocaleString()}</span>
+                  <span className="tabular-nums">
+                    {new Date(backup.createdAt).toLocaleString()}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </Section>
 
-        <Section title="Google Drive" description="Optional, and independent from how you sign in to Noma.">
+        <Section
+          title="Google Drive"
+          description="Optional, and independent from how you sign in to Noma."
+        >
           <DriveCard
             autoBackup={settings.autoBackup}
             onAutoBackupChange={(autoBackup) => void update({ autoBackup })}
           />
         </Section>
-
 
         <Section
           title="Account"
@@ -242,8 +286,8 @@ function SettingsPage() {
               <p className="font-medium">Authentication isn't configured</p>
               <p className="mt-1 text-muted-foreground">
                 Paste your six Firebase Web App values into{" "}
-                <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable Noma accounts. Your
-                notes keep working on this device in the meantime.
+                <code className="font-mono text-xs">src/config/firebaseConfig.ts</code> to enable
+                Noma accounts. Your notes keep working on this device in the meantime.
               </p>
             </div>
           ) : auth.user ? (
@@ -253,7 +297,9 @@ function SettingsPage() {
                 <p className="text-muted-foreground">
                   Sign-in methods:{" "}
                   {auth.providers
-                    .map((id) => (id === "google.com" ? "Google" : id === "password" ? "Email & password" : id))
+                    .map((id) =>
+                      id === "google.com" ? "Google" : id === "password" ? "Email & password" : id,
+                    )
                     .join(", ") || "—"}
                 </p>
                 <p className="text-muted-foreground">
@@ -281,7 +327,9 @@ function SettingsPage() {
                     }
                   }}
                 >
-                  {busy === "link" && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                  {busy === "link" && (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  )}
                   {busy === "link"
                     ? auth.googleLinked
                       ? "Unlinking…"
@@ -305,15 +353,15 @@ function SettingsPage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Linking adds a second way into this same Noma account — it never creates a new one. Google Drive backup
-                is authorized separately above.
+                Linking adds a second way into this same Noma account — it never creates a new one.
+                Google Drive backup is authorized separately above.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                You're in Local Mode — notes, folders, tags and settings live in this browser only. An account is
-                optional; signing in never deletes or overwrites what's already here.
+                You're in Local Mode — notes, folders, tags and settings live in this browser only.
+                An account is optional; signing in never deletes or overwrites what's already here.
               </p>
               <Button asChild variant="outline" className="gap-2">
                 <Link to="/signin">Sign in or create an account</Link>
@@ -356,21 +404,31 @@ function SettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={Boolean(pendingImport)} onOpenChange={(open) => !open && setPendingImport(null)}>
+      <AlertDialog
+        open={Boolean(pendingImport)}
+        onOpenChange={(open) => !open && setPendingImport(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Restore this backup?</AlertDialogTitle>
             <AlertDialogDescription>
-              The backup holds {pendingImport?.notes.length ?? 0} note(s). Merge keeps your current notes and adds
-              anything newer. Replace deletes everything on this device first.
+              The backup holds {pendingImport?.notes.length ?? 0} note(s). Merge keeps your current
+              notes and adds anything newer. Replace deletes everything on this device first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button variant="outline" disabled={busy === "import"} onClick={() => void runImport("merge")}>
+            <Button
+              variant="outline"
+              disabled={busy === "import"}
+              onClick={() => void runImport("merge")}
+            >
               Merge
             </Button>
-            <AlertDialogAction disabled={busy === "import"} onClick={() => void runImport("replace")}>
+            <AlertDialogAction
+              disabled={busy === "import"}
+              onClick={() => void runImport("replace")}
+            >
               Replace
             </AlertDialogAction>
           </AlertDialogFooter>

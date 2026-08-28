@@ -39,7 +39,11 @@ declare global {
             client_id: string;
             scope: string;
             prompt?: string;
-            callback: (response: { access_token?: string; error?: string; error_description?: string }) => void;
+            callback: (response: {
+              access_token?: string;
+              error?: string;
+              error_description?: string;
+            }) => void;
             error_callback?: (error: { type?: string; message?: string }) => void;
           }) => TokenClient;
           revoke: (token: string, done?: () => void) => void;
@@ -117,7 +121,9 @@ function waitForGis(timeoutMs: number): Promise<void> {
     const tick = () => {
       if (window.google?.accounts?.oauth2) return resolve();
       if (Date.now() - started > timeoutMs) {
-        return reject(new DriveError("Google authorization couldn't start. Reload Noma and try again."));
+        return reject(
+          new DriveError("Google authorization couldn't start. Reload Noma and try again."),
+        );
       }
       window.setTimeout(tick, 100);
     };
@@ -126,9 +132,12 @@ function waitForGis(timeoutMs: number): Promise<void> {
 }
 
 async function loadGis(): Promise<void> {
-  if (typeof window === "undefined") throw new DriveError("Google Drive is only available in the browser.");
+  if (typeof window === "undefined")
+    throw new DriveError("Google Drive is only available in the browser.");
   if (window.google?.accounts?.oauth2) return;
-  const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+  const existing = document.querySelector<HTMLScriptElement>(
+    'script[src="https://accounts.google.com/gsi/client"]',
+  );
   if (!existing) {
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -141,7 +150,6 @@ async function loadGis(): Promise<void> {
   await waitForGis(15_000);
   log("GIS ready");
 }
-
 
 function authorizeErrorMessage(code?: string, description?: string): string {
   switch (code) {
@@ -179,7 +187,9 @@ async function authorize(prompt?: string): Promise<string> {
   }
   if (!prompt && accessToken && Date.now() < tokenExpiresAt) return accessToken;
   if (typeof navigator !== "undefined" && !navigator.onLine) {
-    throw new DriveError("You're offline. Noma keeps working locally — reconnect Drive when you're back online.");
+    throw new DriveError(
+      "You're offline. Noma keeps working locally — reconnect Drive when you're back online.",
+    );
   }
   await loadGis();
   const clientId: string = googleDriveClientId;
@@ -220,7 +230,12 @@ async function authorize(prompt?: string): Promise<string> {
           });
           if (!response.access_token) {
             finish(() =>
-              reject(new DriveError(authorizeErrorMessage(response.error, response.error_description), true)),
+              reject(
+                new DriveError(
+                  authorizeErrorMessage(response.error, response.error_description),
+                  true,
+                ),
+              ),
             );
             return;
           }
@@ -228,7 +243,10 @@ async function authorize(prompt?: string): Promise<string> {
           if (granted && !granted.includes("drive.file")) {
             finish(() =>
               reject(
-                new DriveError("Google Drive access wasn't granted. Please allow the Drive permission and try again.", true),
+                new DriveError(
+                  "Google Drive access wasn't granted. Please allow the Drive permission and try again.",
+                  true,
+                ),
               ),
             );
             return;
@@ -239,13 +257,17 @@ async function authorize(prompt?: string): Promise<string> {
         },
         error_callback: (error) => {
           log("token error_callback", error);
-          finish(() => reject(new DriveError(authorizeErrorMessage(error.type, error.message), true)));
+          finish(() =>
+            reject(new DriveError(authorizeErrorMessage(error.type, error.message), true)),
+          );
         },
       });
     } catch (error) {
       log("initTokenClient threw", error);
       finish(() =>
-        reject(new DriveError("Google authorization couldn't start. Reload Noma and try again.", true)),
+        reject(
+          new DriveError("Google authorization couldn't start. Reload Noma and try again.", true),
+        ),
       );
       return;
     }
@@ -294,7 +316,10 @@ async function driveFetch(path: string, token: string, init: RequestInit = {}): 
         `The Google Drive API isn't enabled for this Google Cloud project. Enable it, then try again.${detail ? ` (${detail})` : ""}`,
       );
     }
-    if (response.status === 403 && /insufficient(Permissions|Scope)|ACCESS_TOKEN_SCOPE/i.test(body)) {
+    if (
+      response.status === 403 &&
+      /insufficient(Permissions|Scope)|ACCESS_TOKEN_SCOPE/i.test(body)
+    ) {
       throw new DriveError(
         `Google Drive denied the request for the drive.file scope${detail ? `: ${detail}` : "."}`,
         true,
@@ -306,7 +331,9 @@ async function driveFetch(path: string, token: string, init: RequestInit = {}): 
     );
   }
   if (response.status === 429 || response.status >= 500) {
-    throw new DriveError("Google Drive is temporarily unavailable. Your notes are safe on this device — try again.");
+    throw new DriveError(
+      "Google Drive is temporarily unavailable. Your notes are safe on this device — try again.",
+    );
   }
   if (!response.ok) {
     const detail = googleErrorText(await response.text());
@@ -316,7 +343,6 @@ async function driveFetch(path: string, token: string, init: RequestInit = {}): 
   }
   return response;
 }
-
 
 /** Finds (or creates once) the dedicated Noma Backups folder and caches its id. */
 async function ensureFolder(token: string): Promise<string> {
@@ -356,13 +382,13 @@ export async function connectDrive(): Promise<DriveConnection> {
   // Verification request — the connection is only "connected" once a real
   // authenticated Drive call succeeds, not merely because consent completed.
   const info = await driveFetch("drive/v3/about?fields=user(emailAddress)", token);
-  const email = ((await info.json()) as { user?: { emailAddress?: string } }).user?.emailAddress ?? null;
+  const email =
+    ((await info.json()) as { user?: { emailAddress?: string } }).user?.emailAddress ?? null;
   log("Drive API verification ok", { hasEmail: Boolean(email) });
   const folderId = await ensureFolder(token);
   log("Noma Backups folder ready", folderId);
   return patchConnection({ email, connectedAt: Date.now(), folderId });
 }
-
 
 export async function disconnectDrive(): Promise<void> {
   if (accessToken && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
@@ -397,7 +423,10 @@ export async function listDriveBackups(): Promise<DriveBackupFile[]> {
     }));
 }
 
-export async function backupNow(): Promise<{ connection: DriveConnection; manifest: BackupManifest }> {
+export async function backupNow(): Promise<{
+  connection: DriveConnection;
+  manifest: BackupManifest;
+}> {
   const token = await authorize();
   const folderId = await ensureFolder(token);
   const { blob, payload } = await buildBackupZip();
@@ -408,7 +437,10 @@ export async function backupNow(): Promise<{ connection: DriveConnection; manife
   form.append("file", blob);
 
   try {
-    await driveFetch("upload/drive/v3/files?uploadType=multipart&fields=id", token, { method: "POST", body: form });
+    await driveFetch("upload/drive/v3/files?uploadType=multipart&fields=id", token, {
+      method: "POST",
+      body: form,
+    });
   } catch (error) {
     await recordBackup("google-drive", "failed", payload.notes.length, (error as Error).message);
     throw error;

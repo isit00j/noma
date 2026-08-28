@@ -117,7 +117,11 @@ export function Workspace() {
   const handleChange = useCallback(
     (patch: { title?: string; content?: string }) => {
       if (!activeNoteId) return;
-      setDraft((current) => ({ ...(current?.id === activeNoteId ? current : { id: activeNoteId }), id: activeNoteId, ...patch }));
+      setDraft((current) => ({
+        ...(current?.id === activeNoteId ? current : { id: activeNoteId }),
+        id: activeNoteId,
+        ...patch,
+      }));
       setSaveState("saving");
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void flushSave(activeNoteId, patch), 400);
@@ -199,7 +203,15 @@ export function Workspace() {
   };
 
   const searchResults = useMemo(
-    () => (searchOpen ? searchNotes(query, allNotes.filter((note) => !note.deleted), allFolders, allTags) : []),
+    () =>
+      searchOpen
+        ? searchNotes(
+            query,
+            allNotes.filter((note) => !note.deleted),
+            allFolders,
+            allTags,
+          )
+        : [],
     [searchOpen, query, allNotes, allFolders, allTags],
   );
 
@@ -280,7 +292,9 @@ export function Workspace() {
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       {!settings.sidebarCollapsed && (
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">{sidebar}</aside>
+        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
+          {sidebar}
+        </aside>
       )}
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -292,7 +306,13 @@ export function Workspace() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-5">
-          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label="Open navigation"
+            onClick={() => setMobileNavOpen(true)}
+          >
             <Menu className="size-5" />
           </Button>
           {settings.sidebarCollapsed && (
@@ -309,7 +329,12 @@ export function Workspace() {
 
           {activeNote ? (
             <>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setActiveNoteId(null)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => setActiveNoteId(null)}
+              >
                 <ArrowLeft className="size-4" />
                 <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
               </Button>
@@ -356,7 +381,9 @@ export function Workspace() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tags</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Tags
+                  </DropdownMenuLabel>
                   {allTags.length === 0 && (
                     <DropdownMenuItem
                       onClick={() =>
@@ -390,18 +417,28 @@ export function Workspace() {
                     </DropdownMenuCheckboxItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Folder</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Folder
+                  </DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => void moveNote(activeNote.id, null)}>
                     {activeNote.folderId === null && <Check className="size-4" />} No folder
                   </DropdownMenuItem>
                   {allFolders.map((folder) => (
-                    <DropdownMenuItem key={folder.id} onClick={() => void moveNote(activeNote.id, folder.id)}>
-                      {activeNote.folderId === folder.id && <Check className="size-4" />} {folder.name}
+                    <DropdownMenuItem
+                      key={folder.id}
+                      onClick={() => void moveNote(activeNote.id, folder.id)}
+                    >
+                      {activeNote.folderId === folder.id && <Check className="size-4" />}{" "}
+                      {folder.name}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>Duplicate</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => actions.setArchived(activeNote, !activeNote.archived)}>
+                  <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => actions.setArchived(activeNote, !activeNote.archived)}
+                  >
                     {activeNote.archived ? "Unarchive" : "Archive"}
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -415,15 +452,24 @@ export function Workspace() {
             </>
           ) : (
             <>
-              <h1 className="truncate font-serif text-lg font-medium">{viewTitle(view, allFolders, allTags)}</h1>
-              <span className="ml-1 text-xs text-muted-foreground tabular-nums">{visibleNotes.length}</span>
+              <h1 className="truncate font-serif text-lg font-medium">
+                {viewTitle(view, allFolders, allTags)}
+              </h1>
+              <span className="ml-1 text-xs text-muted-foreground tabular-nums">
+                {visibleNotes.length}
+              </span>
               <div className="ml-auto flex items-center gap-1">
                 {!online && (
                   <span className="mr-1 hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                     <WifiOff className="size-3.5" /> Offline
                   </span>
                 )}
-                <Button variant="ghost" size="icon" aria-label="Search notes" onClick={() => setSearchOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Search notes"
+                  onClick={() => setSearchOpen(true)}
+                >
                   <Search className="size-4" />
                 </Button>
                 {view.kind === "trash" && visibleNotes.length > 0 && (
@@ -488,7 +534,13 @@ export function Workspace() {
         </div>
       </main>
 
-      <Dialog open={searchOpen} onOpenChange={(open) => { setSearchOpen(open); if (!open) setQuery(""); }}>
+      <Dialog
+        open={searchOpen}
+        onOpenChange={(open) => {
+          setSearchOpen(open);
+          if (!open) setQuery("");
+        }}
+      >
         <DialogContent className="top-24 max-w-xl translate-y-0 p-0">
           <DialogHeader className="sr-only">
             <DialogTitle>Search notes</DialogTitle>
@@ -524,11 +576,16 @@ export function Workspace() {
                   }}
                   className="w-full rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent/60"
                 >
-                  <span className="block truncate font-serif text-[15px] font-medium">{noteTitle(note)}</span>
+                  <span className="block truncate font-serif text-[15px] font-medium">
+                    {noteTitle(note)}
+                  </span>
                   <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
                     {highlightTerms(snippet, query).map((part, index) =>
                       part.match ? (
-                        <mark key={index} className="rounded bg-transparent font-medium text-foreground">
+                        <mark
+                          key={index}
+                          className="rounded bg-transparent font-medium text-foreground"
+                        >
                           {part.text}
                         </mark>
                       ) : (
@@ -545,7 +602,10 @@ export function Workspace() {
 
       <PromptDialog request={prompt} onClose={() => setPrompt(null)} />
 
-      <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => !open && setConfirmation(null)}>
+      <AlertDialog
+        open={Boolean(confirmation)}
+        onOpenChange={(open) => !open && setConfirmation(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">{confirmation?.title}</AlertDialogTitle>

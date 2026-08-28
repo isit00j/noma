@@ -50,10 +50,16 @@ export function searchNotes(
   return results.sort((a, b) => b.score - a.score || b.note.updatedAt - a.note.updatedAt);
 }
 
-export function highlightTerms(text: string, query: string): Array<{ text: string; match: boolean }> {
+export function highlightTerms(
+  text: string,
+  query: string,
+): Array<{ text: string; match: boolean }> {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return [{ text, match: false }];
-  const pattern = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+  const pattern = new RegExp(
+    `(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+    "gi",
+  );
   return text
     .split(pattern)
     .filter((part) => part !== "")

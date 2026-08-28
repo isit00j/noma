@@ -75,7 +75,9 @@ export async function collectBackup(options: ExportOptions = {}): Promise<Backup
   };
 }
 
-export async function buildBackupZip(options: ExportOptions = {}): Promise<{ blob: Blob; payload: BackupPayload }> {
+export async function buildBackupZip(
+  options: ExportOptions = {},
+): Promise<{ blob: Blob; payload: BackupPayload }> {
   const payload = await collectBackup(options);
   const zip = new JSZip();
   zip.file("manifest.json", JSON.stringify(payload.manifest, null, 2));
@@ -84,11 +86,19 @@ export async function buildBackupZip(options: ExportOptions = {}): Promise<{ blo
   zip.file("settings.json", JSON.stringify(payload.settings, null, 2));
 
   const notesFolder = zip.folder("notes")!;
-  for (const note of payload.notes) notesFolder.file(`${note.id}.json`, JSON.stringify(note, null, 2));
+  for (const note of payload.notes)
+    notesFolder.file(`${note.id}.json`, JSON.stringify(note, null, 2));
 
   if (payload.attachments.length) {
     const attachmentsFolder = zip.folder("attachments")!;
-    attachmentsFolder.file("index.json", JSON.stringify(payload.attachments.map(({ data: _d, ...m }) => m), null, 2));
+    attachmentsFolder.file(
+      "index.json",
+      JSON.stringify(
+        payload.attachments.map(({ data: _d, ...m }) => m),
+        null,
+        2,
+      ),
+    );
     for (const attachment of payload.attachments) {
       const base64 = attachment.data.split(",")[1] ?? "";
       attachmentsFolder.file(`${attachment.id}-${attachment.name}`, base64, { base64: true });
@@ -178,11 +188,19 @@ export async function readBackupZip(file: Blob): Promise<BackupPayload> {
   };
 }
 
-export async function applyBackup(payload: BackupPayload, mode: "merge" | "replace"): Promise<void> {
+export async function applyBackup(
+  payload: BackupPayload,
+  mode: "merge" | "replace",
+): Promise<void> {
   const d = db();
   await d.transaction("rw", d.notes, d.folders, d.tags, d.attachments, async () => {
     if (mode === "replace") {
-      await Promise.all([d.notes.clear(), d.folders.clear(), d.tags.clear(), d.attachments.clear()]);
+      await Promise.all([
+        d.notes.clear(),
+        d.folders.clear(),
+        d.tags.clear(),
+        d.attachments.clear(),
+      ]);
       await d.folders.bulkPut(payload.folders);
       await d.tags.bulkPut(payload.tags);
       await d.notes.bulkPut(payload.notes);

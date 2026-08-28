@@ -39,7 +39,10 @@ export async function duplicateNote(id: string): Promise<Note | null> {
   const source = await db().notes.get(id);
   if (!source) return null;
   const { id: _drop, ...rest } = source;
-  return createNote({ ...rest, title: source.title ? `${source.title} (copy)` : "Untitled (copy)" });
+  return createNote({
+    ...rest,
+    title: source.title ? `${source.title} (copy)` : "Untitled (copy)",
+  });
 }
 
 export const togglePinned = (n: Note) => updateNote(n.id, { pinned: !n.pinned });
@@ -59,7 +62,9 @@ export async function deleteNoteForever(id: string): Promise<void> {
 }
 
 export async function emptyTrash(): Promise<number> {
-  const trashed = await db().notes.filter((n) => n.deleted).toArray();
+  const trashed = await db()
+    .notes.filter((n) => n.deleted)
+    .toArray();
   for (const note of trashed) await deleteNoteForever(note.id);
   return trashed.length;
 }
@@ -68,7 +73,13 @@ export async function emptyTrash(): Promise<number> {
 
 export async function createFolder(name: string): Promise<Folder> {
   const now = Date.now();
-  const folder: Folder = { id: newId(), name: name.trim() || "Untitled folder", parentId: null, createdAt: now, updatedAt: now };
+  const folder: Folder = {
+    id: newId(),
+    name: name.trim() || "Untitled folder",
+    parentId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
   await db().folders.put(folder);
   return folder;
 }
@@ -84,13 +95,16 @@ export async function deleteFolder(id: string): Promise<void> {
   });
 }
 
-export const moveNote = (noteId: string, folderId: string | null) => updateNote(noteId, { folderId });
+export const moveNote = (noteId: string, folderId: string | null) =>
+  updateNote(noteId, { folderId });
 
 /* Tags */
 
 export async function createTag(name: string): Promise<Tag> {
   const clean = name.trim().replace(/^#/, "");
-  const existing = await db().tags.filter((t) => t.name.toLowerCase() === clean.toLowerCase()).first();
+  const existing = await db()
+    .tags.filter((t) => t.name.toLowerCase() === clean.toLowerCase())
+    .first();
   if (existing) return existing;
   const tag: Tag = { id: newId(), name: clean || "untitled", createdAt: Date.now() };
   await db().tags.put(tag);
@@ -102,7 +116,9 @@ export const renameTag = (id: string, name: string) =>
 
 export async function deleteTag(id: string): Promise<void> {
   await db().transaction("rw", db().tags, db().notes, async () => {
-    const notes = await db().notes.filter((n) => n.tagIds.includes(id)).toArray();
+    const notes = await db()
+      .notes.filter((n) => n.tagIds.includes(id))
+      .toArray();
     for (const note of notes) {
       await db().notes.update(note.id, { tagIds: note.tagIds.filter((t) => t !== id) });
     }

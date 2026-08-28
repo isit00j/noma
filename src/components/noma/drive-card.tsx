@@ -68,7 +68,8 @@ function formatSize(bytes: number | null): string | null {
 }
 
 const fade = "animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none";
-const tap = "transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100";
+const tap =
+  "transition-transform active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export function DriveCard({
   autoBackup,
@@ -92,7 +93,9 @@ export function DriveCard({
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreFiles, setRestoreFiles] = useState<DriveBackupFile[] | null>(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
-  const [preview, setPreview] = useState<{ file: DriveBackupFile; payload: BackupPayload } | null>(null);
+  const [preview, setPreview] = useState<{ file: DriveBackupFile; payload: BackupPayload } | null>(
+    null,
+  );
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,7 +132,7 @@ export function DriveCard({
     if (!autoBackup || !connection || needsReconnect) return;
     let cancelled = false;
     const tick = async () => {
-      if (cancelled || typeof navigator !== "undefined" && !navigator.onLine) return;
+      if (cancelled || (typeof navigator !== "undefined" && !navigator.onLine)) return;
       try {
         if (await hasUnbackedChanges()) await runBackup(true);
       } catch {
@@ -164,7 +167,6 @@ export function DriveCard({
       setConnecting(false);
     }
   }
-
 
   async function openRestore() {
     setRestoreOpen(true);
@@ -202,7 +204,9 @@ export function DriveCard({
       setRestoreOpen(false);
       setPreview(null);
       setConfirmReplace(false);
-      toast.success(mode === "merge" ? "Backup merged into your library" : "Library replaced from backup");
+      toast.success(
+        mode === "merge" ? "Backup merged into your library" : "Library replaced from backup",
+      );
       onRestored?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Restore failed");
@@ -216,9 +220,10 @@ export function DriveCard({
       <div className="rounded-xl border border-border bg-card p-5">
         <h3 className="font-serif text-base font-medium">Google Drive</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Optional. Add <code className="text-xs">googleDriveClientId</code> (a Google Cloud OAuth 2.0 <em>Web</em>{" "}
-          client ID) in <code className="text-xs">src/config/firebaseConfig.ts</code> to enable Drive backups. It is
-          separate from Firebase Google Sign-In.
+          Optional. Add <code className="text-xs">googleDriveClientId</code> (a Google Cloud OAuth
+          2.0 <em>Web</em> client ID) in{" "}
+          <code className="text-xs">src/config/firebaseConfig.ts</code> to enable Drive backups. It
+          is separate from Firebase Google Sign-In.
         </p>
       </div>
     );
@@ -287,15 +292,26 @@ export function DriveCard({
       )}
 
       {connectError && !connecting && (
-        <p className={`mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive ${fade}`} role="alert">
+        <p
+          className={`mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive ${fade}`}
+          role="alert"
+        >
           {connectError}
         </p>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {!connection || needsReconnect ? (
-          <Button className={`h-11 gap-2 ${tap}`} disabled={connecting} onClick={() => void handleConnect()}>
-            {connecting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CloudUpload className="size-4" aria-hidden="true" />}
+          <Button
+            className={`h-11 gap-2 ${tap}`}
+            disabled={connecting}
+            onClick={() => void handleConnect()}
+          >
+            {connecting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CloudUpload className="size-4" aria-hidden="true" />
+            )}
             {connecting
               ? "Connecting…"
               : connectError
@@ -306,7 +322,6 @@ export function DriveCard({
           </Button>
         ) : null}
 
-
         {connection && !needsReconnect && (
           <>
             <Button
@@ -316,14 +331,22 @@ export function DriveCard({
             >
               <CloudUpload className="size-4" aria-hidden="true" /> Backup now
             </Button>
-            <Button variant="outline" className={`h-11 gap-2 ${tap}`} onClick={() => void openRestore()}>
+            <Button
+              variant="outline"
+              className={`h-11 gap-2 ${tap}`}
+              onClick={() => void openRestore()}
+            >
               <HardDriveDownload className="size-4" aria-hidden="true" /> Restore backup
             </Button>
           </>
         )}
 
         {status.kind === "failed" && connection && !needsReconnect && (
-          <Button variant="outline" className={`h-11 gap-2 ${tap}`} onClick={() => void runBackup()}>
+          <Button
+            variant="outline"
+            className={`h-11 gap-2 ${tap}`}
+            onClick={() => void runBackup()}
+          >
             <RefreshCw className="size-4" aria-hidden="true" /> Try again
           </Button>
         )}
@@ -336,7 +359,9 @@ export function DriveCard({
       </div>
 
       {connection && !needsReconnect && (
-        <div className={`mt-5 flex items-center justify-between gap-4 border-t border-border pt-4 ${fade}`}>
+        <div
+          className={`mt-5 flex items-center justify-between gap-4 border-t border-border pt-4 ${fade}`}
+        >
           <div>
             <Label htmlFor="noma-auto-backup">Automatic backup</Label>
             <p className="text-xs text-muted-foreground">
@@ -348,12 +373,15 @@ export function DriveCard({
       )}
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Your notes are stored locally on this device. Google Drive is optional — when connected, Noma backs up your data
-        to your own Google Drive, and Noma never stores it anywhere else.
+        Your notes are stored locally on this device. Google Drive is optional — when connected,
+        Noma backs up your data to your own Google Drive, and Noma never stores it anywhere else.
       </p>
 
       {/* Restore flow */}
-      <Dialog open={restoreOpen} onOpenChange={(open) => !open && (setRestoreOpen(false), setPreview(null))}>
+      <Dialog
+        open={restoreOpen}
+        onOpenChange={(open) => !open && (setRestoreOpen(false), setPreview(null))}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">
@@ -375,7 +403,9 @@ export function DriveCard({
           {!restoreLoading && !preview && (
             <ul className="max-h-72 space-y-2 overflow-y-auto">
               {(restoreFiles ?? []).length === 0 && (
-                <li className="py-4 text-sm text-muted-foreground">No Noma backups found in your Drive yet.</li>
+                <li className="py-4 text-sm text-muted-foreground">
+                  No Noma backups found in your Drive yet.
+                </li>
               )}
               {(restoreFiles ?? []).map((file) => (
                 <li key={file.id}>
@@ -384,7 +414,9 @@ export function DriveCard({
                     onClick={() => void loadPreview(file)}
                     className={`w-full rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50 ${tap}`}
                   >
-                    <span className="block text-sm font-medium">{new Date(file.modifiedTime).toLocaleString()}</span>
+                    <span className="block text-sm font-medium">
+                      {new Date(file.modifiedTime).toLocaleString()}
+                    </span>
                     <span className="block text-xs text-muted-foreground">
                       {file.name}
                       {formatSize(file.size) ? ` · ${formatSize(file.size)}` : ""}
@@ -397,7 +429,9 @@ export function DriveCard({
 
           {!restoreLoading && preview && (
             <div className={`space-y-1 text-sm text-muted-foreground ${fade}`}>
-              <p className="text-foreground">{new Date(preview.payload.manifest.createdAt).toLocaleString()}</p>
+              <p className="text-foreground">
+                {new Date(preview.payload.manifest.createdAt).toLocaleString()}
+              </p>
               <p>Notes: {preview.payload.manifest.noteCount}</p>
               <p>Folders: {preview.payload.manifest.folderCount}</p>
               <p>Tags: {preview.payload.manifest.tagCount}</p>
@@ -415,10 +449,19 @@ export function DriveCard({
                 Back
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" disabled={restoring} onClick={() => void runRestore("merge")}>
-                  {restoring && <Loader2 className="size-4 animate-spin" aria-hidden="true" />} Merge
+                <Button
+                  variant="outline"
+                  disabled={restoring}
+                  onClick={() => void runRestore("merge")}
+                >
+                  {restoring && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}{" "}
+                  Merge
                 </Button>
-                <Button variant="destructive" disabled={restoring} onClick={() => setConfirmReplace(true)}>
+                <Button
+                  variant="destructive"
+                  disabled={restoring}
+                  onClick={() => setConfirmReplace(true)}
+                >
                   Replace
                 </Button>
               </div>
@@ -432,12 +475,15 @@ export function DriveCard({
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Replace local notes?</AlertDialogTitle>
             <AlertDialogDescription>
-              Everything currently on this device will be replaced by this backup. This can't be undone.
+              Everything currently on this device will be replaced by this backup. This can't be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void runRestore("replace")}>Replace library</AlertDialogAction>
+            <AlertDialogAction onClick={() => void runRestore("replace")}>
+              Replace library
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -447,8 +493,8 @@ export function DriveCard({
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Disconnect Google Drive?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your local Noma notes will remain on this device, and your existing Drive backups are kept.
-              Disconnecting only stops Noma from accessing your Drive for backups.
+              Your local Noma notes will remain on this device, and your existing Drive backups are
+              kept. Disconnecting only stops Noma from accessing your Drive for backups.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

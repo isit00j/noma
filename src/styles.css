@@ -143,12 +143,11 @@
   --sidebar-border: oklch(0.714 0.143 255 / 14%);
   --sidebar-ring: oklch(0.623 0.188 260);
   --noma-gradient: linear-gradient(135deg, oklch(0.623 0.188 260), oklch(0.541 0.247 293));
-  --noma-glow: 0 0 0 1px oklch(0.714 0.143 255 / 12%), 0 18px 45px -20px oklch(0.541 0.247 293 / 45%);
+  --noma-glow:
+    0 0 0 1px oklch(0.714 0.143 255 / 12%), 0 18px 45px -20px oklch(0.541 0.247 293 / 45%);
   --noma-wash-1: oklch(0.623 0.188 260 / 12%);
   --noma-wash-2: oklch(0.541 0.247 293 / 12%);
 }
-
-
 
 @layer base {
   * {
@@ -187,7 +186,10 @@
   background-image: var(--noma-gradient);
   color: oklch(0.985 0.008 268);
   box-shadow: var(--noma-glow);
-  transition: filter 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 .noma-cta:hover {
   filter: brightness(1.08);
@@ -195,7 +197,6 @@
 .noma-cta:active {
   transform: scale(0.985);
 }
-
 
 /* Editor surface — driven by Settings > Editor. */
 .noma-editor .tiptap {
@@ -221,17 +222,29 @@
   margin-top: 1.6em;
 }
 
-.noma-editor .tiptap h1 { font-size: 1.7em; }
-.noma-editor .tiptap h2 { font-size: 1.4em; }
-.noma-editor .tiptap h3 { font-size: 1.18em; }
+.noma-editor .tiptap h1 {
+  font-size: 1.7em;
+}
+.noma-editor .tiptap h2 {
+  font-size: 1.4em;
+}
+.noma-editor .tiptap h3 {
+  font-size: 1.18em;
+}
 
 .noma-editor .tiptap ul,
 .noma-editor .tiptap ol {
   padding-left: 1.4em;
 }
-.noma-editor .tiptap ul { list-style: disc; }
-.noma-editor .tiptap ol { list-style: decimal; }
-.noma-editor .tiptap li > p { margin: 0; }
+.noma-editor .tiptap ul {
+  list-style: disc;
+}
+.noma-editor .tiptap ol {
+  list-style: decimal;
+}
+.noma-editor .tiptap li > p {
+  margin: 0;
+}
 
 .noma-editor .tiptap ul[data-type="taskList"] {
   list-style: none;
@@ -271,7 +284,10 @@
   overflow-x: auto;
   font-size: 0.88em;
 }
-.noma-editor .tiptap pre code { background: none; padding: 0; }
+.noma-editor .tiptap pre code {
+  background: none;
+  padding: 0;
+}
 
 .noma-editor .tiptap mark {
   background: oklch(0.623 0.188 260 / 32%);
@@ -326,7 +342,9 @@
   pointer-events: none;
 }
 
-.noma-scroll::-webkit-scrollbar { width: 10px; }
+.noma-scroll::-webkit-scrollbar {
+  width: 10px;
+}
 .noma-scroll::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 999px;
