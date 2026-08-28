@@ -86,8 +86,24 @@ export function DriveCard({
   const auth = useAuth();
   const { db } = useDatabase();
   const [connection, setConnection] = useState<DriveConnection | null>(() =>
-    typeof window === "undefined" ? null : getConnection(),
+    typeof window === "undefined" ? null : getConnection(auth.user?.uid ?? null),
   );
+
+  useEffect(() => {
+    setConnection(getConnection(auth.user?.uid ?? null));
+  }, [auth.user?.uid]);
+
+  useEffect(() => {
+    setConnection(getConnection(auth.user?.uid ?? null));
+  }, [auth.user?.uid]);
+
+  useEffect(() => {
+    setConnection(getConnection(auth.user?.uid ?? null));
+  }, [auth.user?.uid]);
+
+  useEffect(() => {
+    setConnection(getConnection(auth.user?.uid ?? null));
+  }, [auth.user?.uid]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -140,7 +156,7 @@ export function DriveCard({
     const tick = async () => {
       if (cancelled || (typeof navigator !== "undefined" && !navigator.onLine)) return;
       try {
-        if (await hasUnbackedChanges(db!)) await runBackup(true);
+        if (await hasUnbackedChanges(db!, auth.user?.uid ?? null)) await runBackup(true);
       } catch {
         /* auto-backup never interrupts writing */
       }
@@ -159,7 +175,7 @@ export function DriveCard({
     setConnectError(null);
     setStatus({ kind: "idle" });
     try {
-      setConnection(await connectDrive());
+      setConnection(await connectDrive(auth.user?.uid ?? null));
       setNeedsReconnect(false);
       setJustConnected(true);
       setTimeout(() => setJustConnected(false), 2500);
@@ -180,7 +196,7 @@ export function DriveCard({
     setRestoreFiles(null);
     setRestoreLoading(true);
     try {
-      setRestoreFiles(await listDriveBackups());
+      setRestoreFiles(await listDriveBackups(auth.user?.uid ?? null));
     } catch (error) {
       setRestoreOpen(false);
       handleFailure(error, "Couldn't list your Drive backups.");
@@ -192,7 +208,7 @@ export function DriveCard({
   async function loadPreview(file: DriveBackupFile) {
     setRestoreLoading(true);
     try {
-      const payload = await fetchDriveBackup(file.id);
+      const payload = await fetchDriveBackup(file.id, auth.user?.uid ?? null);
       setPreview({ file, payload });
     } catch (error) {
       handleFailure(error, "That backup couldn't be read.");
@@ -507,7 +523,7 @@ export function DriveCard({
             <AlertDialogCancel>Keep connected</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
-                await disconnectDrive();
+                await disconnectDrive(auth.user?.uid ?? null);
                 setConnection(null);
                 setNeedsReconnect(false);
                 setStatus({ kind: "idle" });

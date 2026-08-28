@@ -64,6 +64,7 @@ export class DriveError extends Error {
 
 /** Short-lived token, memory only — never persisted, never logged. */
 let accessToken: string | null = null;
+const activeTokenOwner: string | null | undefined = undefined;
 let tokenExpiresAt = 0;
 
 export function backupObjectName(date = new Date()): string {
@@ -73,7 +74,7 @@ export function backupObjectName(date = new Date()): string {
   )}-${pad(date.getMinutes())}.zip`;
 }
 
-export function getConnection(): DriveConnection | null {
+export function getConnection(ownerId: string | null): DriveConnection | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(STATE_KEY);
@@ -91,22 +92,29 @@ export function getConnection(): DriveConnection | null {
   }
 }
 
-function setConnection(connection: DriveConnection | null): DriveConnection | null {
+function setConnection(
+  ownerId: string | null,
+  connection: DriveConnection | null,
+): DriveConnection | null {
   if (typeof window === "undefined") return connection;
-  if (connection) window.localStorage.setItem(STATE_KEY, JSON.stringify(connection));
-  else window.localStorage.removeItem(STATE_KEY);
+  if (connection)
+    window.localStorage.setItem(
+      ownerId ? `noma-drive-v1-${ownerId}` : "noma-drive-v1",
+      JSON.stringify(connection),
+    );
+  else window.localStorage.removeItem(ownerId ? `noma-drive-v1-${ownerId}` : "noma-drive-v1");
   return connection;
 }
 
-function patchConnection(patch: Partial<DriveConnection>): DriveConnection {
-  const base = getConnection() ?? {
+function patchConnection(ownerId: string | null, patch: Partial<DriveConnection>): DriveConnection {
+  const base = getConnection(ownerId) ?? {
     email: null,
     connectedAt: Date.now(),
     lastBackupAt: null,
     folderId: null,
     lastSignature: null,
   };
-  return setConnection({ ...base, ...patch })!;
+  return setConnection(ownerId, { ...base, ...patch })!;
 }
 
 const DEV = import.meta.env.DEV;
@@ -179,7 +187,7 @@ function authorizeErrorMessage(code?: string, description?: string): string {
 /** Failsafe so the token callback can never leave the UI spinning forever. */
 const AUTHORIZE_TIMEOUT_MS = 120_000;
 
-async function authorize(prompt?: string): Promise<string> {
+async function authorize(ownerId: string | null, prompt?: string): Promise<string> {
   if (!googleDriveClientId) {
     throw new DriveError(
       "Google Drive backup isn't configured yet. Add googleDriveClientId in src/config/firebaseConfig.ts.",
@@ -345,8 +353,8 @@ async function driveFetch(path: string, token: string, init: RequestInit = {}): 
 }
 
 /** Finds (or creates once) the dedicated Noma Backups folder and caches its id. */
-async function ensureFolder(token: string): Promise<string> {
-  const cached = getConnection()?.folderId;
+async function ensureFolder(token: string, ownerId: string | null): Promise<string> {
+  const cached = getConnection(ownerId)?.folderId;
   if (cached) {
     try {
       await driveFetch(`drive/v3/files/${cached}?fields=id,trashed`, token);
@@ -372,12 +380,12 @@ async function ensureFolder(token: string): Promise<string> {
     ).json()) as { id: string };
     folderId = created.id;
   }
-  patchConnection({ folderId });
+  patchConnection(ownerId, { folderId });
   return folderId;
 }
 
-export async function connectDrive(): Promise<DriveConnection> {
-  const token = await authorize("consent");
+export async function connectDrive(ownerId: string | null): Promise<DriveConnection> {
+  const token = await authorize(ownerId, "consent");
   log("access token acquired, verifying with Drive API…");
   // Verification request — the connection is only "connected" once a real
   // authenticated Drive call succeeds, not merely because consent completed.
@@ -385,12 +393,12 @@ export async function connectDrive(): Promise<DriveConnection> {
   const email =
     ((await info.json()) as { user?: { emailAddress?: string } }).user?.emailAddress ?? null;
   log("Drive API verification ok", { hasEmail: Boolean(email) });
-  const folderId = await ensureFolder(token);
+  const folderId = await ensureFolder(token, ownerId);
   log("Noma Backups folder ready", folderId);
-  return patchConnection({ email, connectedAt: Date.now(), folderId });
+  return patchConnection(ownerId, { email, connectedAt: Date.now(), folderId });
 }
 
-export async function disconnectDrive(): Promise<void> {
+export async function disconnectDrive(ownerId: string | null): Promise<void> {
   if (accessToken && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
     try {
       window.google.accounts.oauth2.revoke(accessToken);
@@ -400,12 +408,12 @@ export async function disconnectDrive(): Promise<void> {
   }
   accessToken = null;
   tokenExpiresAt = 0;
-  setConnection(null);
+  setConnection(ownerId, null);
 }
 
-export async function listDriveBackups(): Promise<DriveBackupFile[]> {
-  const token = await authorize();
-  const folderId = await ensureFolder(token);
+export async function listDriveBackups(ownerId: string | null): Promise<DriveBackupFile[]> {
+  const token = await authorize(ownerId);
+  const folderId = await ensureFolder(token, ownerId);
   const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const data = (await (
     await driveFetch(
@@ -427,8 +435,8 @@ export async function backupNow(
   db: import("./db").NomaDatabase,
   ownerId: string | null,
 ): Promise<{ connection: DriveConnection; manifest: BackupManifest }> {
-  const token = await authorize();
-  const folderId = await ensureFolder(token);
+  const token = await authorize(ownerId);
+  const folderId = await ensureFolder(token, ownerId);
   const { blob, payload } = await buildBackupZip(db, ownerId);
 
   const metadata = { name: backupObjectName(), mimeType: "application/zip", parents: [folderId] };
@@ -452,7 +460,7 @@ export async function backupNow(
     throw error;
   }
 
-  const connection = patchConnection({
+  const connection = patchConnection(ownerId, {
     lastBackupAt: Date.now(),
     folderId,
     lastSignature: await librarySignature(db),
@@ -461,10 +469,13 @@ export async function backupNow(
   return { connection, manifest: payload.manifest };
 }
 
-export async function fetchDriveBackup(fileId: string): Promise<BackupPayload> {
-  const token = await authorize();
+export async function fetchDriveBackup(
+  fileId: string,
+  ownerId: string | null,
+): Promise<BackupPayload> {
+  const token = await authorize(ownerId);
   const response = await driveFetch(`drive/v3/files/${fileId}?alt=media`, token);
-  return readBackupZip(await response.blob());
+  return readBackupZip(await response.blob(), ownerId);
 }
 
 /** Cheap fingerprint of the local library, used to skip redundant uploads. */
@@ -480,8 +491,11 @@ export async function librarySignature(db: import("./db").NomaDatabase): Promise
   return `${notes.length}:${folders}:${tags}:${attachments}:${latest}`;
 }
 
-export async function hasUnbackedChanges(db: import("./db").NomaDatabase): Promise<boolean> {
-  const connection = getConnection();
+export async function hasUnbackedChanges(
+  db: import("./db").NomaDatabase,
+  ownerId: string | null,
+): Promise<boolean> {
+  const connection = getConnection(ownerId);
   if (!connection) return false;
   return (await librarySignature(db)) !== connection.lastSignature;
 }
