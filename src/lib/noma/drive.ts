@@ -64,8 +64,8 @@ export class DriveError extends Error {
 
 /** Short-lived token, memory only — never persisted, never logged. */
 let accessToken: string | null = null;
-let activeTokenOwner: string | null | undefined = undefined;
 let tokenExpiresAt = 0;
+let activeTokenOwner: string | null | undefined = undefined;
 
 export function backupObjectName(date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -193,7 +193,15 @@ async function authorize(ownerId: string | null, prompt?: string): Promise<strin
       "Google Drive backup isn't configured yet. Add googleDriveClientId in src/config/firebaseConfig.ts.",
     );
   }
-  if (!prompt && accessToken && Date.now() < tokenExpiresAt) return accessToken;
+
+  if (activeTokenOwner !== ownerId) {
+    accessToken = null;
+    tokenExpiresAt = 0;
+    activeTokenOwner = ownerId;
+  }
+
+  if (!prompt && accessToken && Date.now() < tokenExpiresAt && activeTokenOwner === ownerId)
+    return accessToken;
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     throw new DriveError(
       "You're offline. Noma keeps working locally — reconnect Drive when you're back online.",
@@ -261,6 +269,7 @@ async function authorize(ownerId: string | null, prompt?: string): Promise<strin
           }
           accessToken = response.access_token;
           tokenExpiresAt = Date.now() + 50 * 60 * 1000;
+          activeTokenOwner = ownerId;
           finish(() => resolve(response.access_token!));
         },
         error_callback: (error) => {

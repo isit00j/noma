@@ -159,7 +159,7 @@ export async function readBackupZip(
     throw new BackupError("This archive has no Noma manifest, so it can't be imported.");
   }
 
-  if (ownerId && manifest.ownerId !== ownerId) {
+  if (ownerId && (!manifest.ownerId || manifest.ownerId !== ownerId)) {
     throw new BackupError(
       "This backup belongs to a different account. You cannot restore it here.",
     );
