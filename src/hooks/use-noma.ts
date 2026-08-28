@@ -23,10 +23,13 @@ export function useSettings() {
     if (!result.row) void db?.settings.put(DEFAULT_SETTINGS);
   }, [result]);
 
-  const update = useCallback(async (patch: Partial<AppSettings>) => {
-    if (!db) return;
-    await saveSettings(db!, patch);
-  }, []);
+  const update = useCallback(
+    async (patch: Partial<AppSettings>) => {
+      if (!db) return;
+      await saveSettings(db!, patch);
+    },
+    [db],
+  );
 
   return { settings, update, ready: result !== undefined };
 }

@@ -105,15 +105,19 @@ export function Workspace() {
   const activeNote: Note | null =
     storedNote && draft?.id === storedNote.id ? { ...storedNote, ...draft } : storedNote;
 
-  const flushSave = useCallback(async (id: string, patch: { title?: string; content?: string }) => {
-    try {
-      await updateNote(db!, id, patch);
-      setSaveState(navigator.onLine ? "saved" : "offline");
-    } catch {
-      setSaveState("idle");
-      toast.error("Noma couldn't save to this device's storage.");
-    }
-  }, []);
+  const flushSave = useCallback(
+    async (id: string, patch: { title?: string; content?: string }) => {
+      if (!db) return;
+      try {
+        await updateNote(db!, id, patch);
+        setSaveState(navigator.onLine ? "saved" : "offline");
+      } catch {
+        setSaveState("idle");
+        toast.error("Noma couldn't save to this device's storage.");
+      }
+    },
+    [db],
+  );
 
   const handleChange = useCallback(
     (patch: { title?: string; content?: string }) => {

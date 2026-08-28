@@ -374,7 +374,8 @@ function SettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Sign out of Noma?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your notes stay on this device. You'll need to sign in again to use your Noma account.
+              Your notes will remain safely stored on this device, but they will be hidden until you
+              sign back in. Noma will switch to Local Mode.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -115,6 +115,7 @@ export function DriveCard({
 
   const runBackup = useCallback(
     async (silent = false) => {
+      if (!db) return;
       setStatus({ kind: "working", label: silent ? "Backing up…" : "Preparing backup…" });
       try {
         const { connection: next, manifest } = await backupNow(db!, auth.user?.uid ?? null);
@@ -129,7 +130,7 @@ export function DriveCard({
         handleFailure(error, "Backup couldn't be completed.");
       }
     },
-    [handleFailure],
+    [handleFailure, db, auth.user?.uid],
   );
 
   // Automatic backup: batched, and skipped entirely when nothing changed.
