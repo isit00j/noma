@@ -51,6 +51,9 @@ export default defineConfig({
   <link rel="icon" href="/noma-icon-192.png" type="image/png" sizes="192x192" />
   <link rel="icon" href="/noma-icon-512.png" type="image/png" sizes="512x512" />
   <link rel="apple-touch-icon" href="/noma-icon-180.png" sizes="180x180" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" />
   ${clientCssFile ? `<link rel="stylesheet" href="${clientCssFile}">` : ""}
   ${clientJsFile ? `<script type="module" src="${clientJsFile}"></script>` : ""}
 </head>
