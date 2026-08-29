@@ -247,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ ...current } as User);
       },
     };
-  }, [user, loading, version]);
+  }, [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

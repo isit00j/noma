@@ -21,7 +21,7 @@ export function useSettings() {
   useEffect(() => {
     if (!result) return;
     if (!result.row) void db?.settings.put(DEFAULT_SETTINGS);
-  }, [result]);
+  }, [result, db?.settings]);
 
   const update = useCallback(
     async (patch: Partial<AppSettings>) => {
