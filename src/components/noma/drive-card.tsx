@@ -158,7 +158,7 @@ export function DriveCard({
       if (autoTimer.current) clearTimeout(autoTimer.current);
       clearInterval(interval);
     };
-  }, [autoBackup, connection, needsReconnect, runBackup]);
+  }, [autoBackup, connection, needsReconnect, runBackup, db, auth.user?.uid]);
 
   async function handleConnect() {
     setConnecting(true);

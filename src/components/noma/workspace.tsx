@@ -96,9 +96,9 @@ export function Workspace() {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const allNotes = notes ?? [];
-  const allFolders = folders ?? [];
-  const allTags = tags ?? [];
+  const allNotes = useMemo(() => notes ?? [], [notes]);
+  const allFolders = useMemo(() => folders ?? [], [folders]);
+  const allTags = useMemo(() => tags ?? [], [tags]);
 
   const visibleNotes = useMemo(() => filterNotes(allNotes, view), [allNotes, view]);
   const storedNote = allNotes.find((note) => note.id === activeNoteId) ?? null;
@@ -147,13 +147,14 @@ export function Workspace() {
   }, []);
 
   const handleNewNote = useCallback(async () => {
+    if (!db) return;
     const note = await createNote(db!, {
       folderId: view.kind === "folder" ? (view.id ?? null) : null,
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
     setMobileNavOpen(false);
     openNote(note);
-  }, [openNote, view]);
+  }, [openNote, view, db]);
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -219,6 +220,19 @@ export function Workspace() {
         : [],
     [searchOpen, query, allNotes, allFolders, allTags],
   );
+
+  if (dbLoading || !db) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" />
+          <p className="text-sm text-muted-foreground animate-pulse motion-reduce:animate-none">
+            Loading workspace…
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const sidebar = (
     <NomaSidebar
