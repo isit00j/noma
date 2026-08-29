@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/noma/auth";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
+import { PWAReloadPrompt } from "@/components/noma/pwa-reload-prompt";
 
 import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
 import {
@@ -130,6 +131,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#0B0F1A" },
     ],
     links: [
+      { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -177,6 +179,7 @@ function RootComponent() {
           <Outlet />
           <GuestMigrationDialog />
           <Toaster position="bottom-center" />
+          <PWAReloadPrompt />
         </DatabaseProvider>
       </AuthProvider>
     </QueryClientProvider>
