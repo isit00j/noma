@@ -15,9 +15,17 @@ export default defineConfig({
         },
         injectRegister: false,
         outDir: ".output/public",
-        // We omit Workbox navigateFallback and runtimeCaching here because we generate the final SW later via workbox-cli
-        // after our build-pwa script generates the index.html.
-        // We can just rely on workbox-cli for everything, or we can use VitePWA just for the manifest.
+        // We set navigateFallback to false because we haven't generated index.html yet.
+        // Wait, navigateFallback doesn't accept false. We can use navigateFallback: undefined.
+        // Wait, if we use navigateFallback: null, it skips it.
+        // Actually, workbox-cli overrides sw.js so it doesn't matter what generatesSW does, as long as it doesn't fail!
+        // It failed previously because navigateFallback was '/index.html' which didn't exist.
+        // So we can just omit navigateFallback entirely here!
+        workbox: {
+          globDirectory: ".output/public",
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
+          globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
+        },
         manifest: {
           name: "Noma",
           short_name: "Noma",

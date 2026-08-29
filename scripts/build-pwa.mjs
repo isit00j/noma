@@ -47,7 +47,7 @@ async function main() {
   console.log(`Successfully wrote .output/public/index.html (${html.length} bytes)`);
 
   console.log("\n=== Stage 3: Generating Workbox Service Worker ===");
-  execSync("npx workbox-cli generateSW workbox-config.cjs", { stdio: "inherit" });
+  execSync("npx workbox generateSW workbox-config.cjs", { stdio: "inherit" });
 
   console.log("\n=== Stage 4: Validating Output ===");
   const swContent = fs.readFileSync(".output/public/sw.js", "utf8");
