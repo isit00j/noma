@@ -55,6 +55,15 @@ export async function saveSettings(
 }
 
 export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): Promise<void> {
+  const [notes, folders, tags, attachments, settings, backups] = await Promise.all([
+    source.notes.toArray(),
+    source.folders.toArray(),
+    source.tags.toArray(),
+    source.attachments.toArray(),
+    source.settings.toArray(),
+    source.backups.toArray(),
+  ]);
+
   await target.transaction(
     "rw",
     [
@@ -66,13 +75,6 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       target.backups,
     ],
     async () => {
-      const notes = await source.notes.toArray();
-      const folders = await source.folders.toArray();
-      const tags = await source.tags.toArray();
-      const attachments = await source.attachments.toArray();
-      const settings = await source.settings.toArray();
-      const backups = await source.backups.toArray();
-
       if (notes.length) await target.notes.bulkPut(notes);
       if (folders.length) await target.folders.bulkPut(folders);
       if (tags.length) await target.tags.bulkPut(tags);

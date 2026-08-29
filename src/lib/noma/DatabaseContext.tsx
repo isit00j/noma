@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, useRef } from "react";
 import Dexie from "dexie";
+import { toast } from "sonner";
 import { NomaDatabase, copyDatabase } from "./db";
 import { useAuth } from "./auth";
 
@@ -152,8 +153,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       await Dexie.delete("noma_guest");
       setGuestMigrationPending(false);
       setPendingGuestDb(null);
+      toast.success("Local notes moved to this account.");
     } catch (err) {
       console.error("Failed to migrate guest data", err);
+      toast.error("Failed to move local notes. Please try again.");
     } finally {
       setLoading(false);
     }
