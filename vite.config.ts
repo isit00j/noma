@@ -1,9 +1,20 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Override environment variables to convince @lovable.dev/vite-tanstack-config
+// that we are NOT in the sandbox. This allows TanStack Start's Nitro build
+// to natively generate the necessary index.html file for offline PWA functionality
+// instead of forcing it to skip rendering the shell and falling back to SSR.
+process.env["LOVABLE_SANDBOX"] = "0";
+delete process.env["DEV_SERVER__PROJECT_PATH"];
+
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
+    prerender: {
+      routes: ["/"],
+      crawlLinks: true,
+    },
   },
   vite: {
     plugins: [
@@ -14,43 +25,14 @@ export default defineConfig({
           enabled: false,
         },
         injectRegister: false,
-        // Make sure it runs properly for the Tanstack build directory structure
         outDir: ".output/public",
         workbox: {
           globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
-          navigateFallback: "/",
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "gstatic-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-          ],
+          navigateFallback: "/index.html",
+          // Explicity precache the prerendered HTML shell
+          additionalManifestEntries: [{ url: "/index.html", revision: null }],
         },
         manifest: {
           name: "Noma",
