@@ -28,7 +28,7 @@ export default defineConfig({
           globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
-          navigateFallback: "/index.html",
+          navigateFallback: "index.html",
           manifestTransforms: [
             async (manifestEntries, compilation) => {
               // We filter out manifest.webmanifest here to prevent duplicates

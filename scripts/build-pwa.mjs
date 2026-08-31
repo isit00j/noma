@@ -7,15 +7,15 @@ async function fetchWithRetry(url, maxRetries = 20, delayMs = 500) {
     try {
       const response = await fetch(url, {
         headers: {
-          accept: 'text/html',
-          'X-TSS_SHELL': 'true',
-        }
+          accept: "text/html",
+          "X-TSS_SHELL": "true",
+        },
       });
       if (response.ok) return response;
     } catch (e) {
       // ignore connection refused
     }
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   throw new Error("Server did not become ready in time");
 }
@@ -54,13 +54,12 @@ async function main() {
 
   try {
     for (let i = 0; i < 30; i++) {
-        if (serverReady) break;
-        await new Promise(r => setTimeout(r, 200));
+      if (serverReady) break;
+      await new Promise((r) => setTimeout(r, 200));
     }
 
     if (!serverReady) {
-        // Fallback: try fetching anyway in case logging was suppressed or changed
-        console.log("Server didn't log ready string, attempting to fetch anyway...");
+      console.log("Server didn't log ready string, attempting to fetch anyway...");
     }
 
     const url = `http://localhost:${port}/`;
@@ -70,17 +69,29 @@ async function main() {
     const html = await res.text();
 
     if (!html.includes("<html") || !html.includes("assets/")) {
-      throw new Error(`Failed to generate a valid HTML shell. Output: ${html.substring(0, 100)}...`);
+      throw new Error(
+        `Failed to generate a valid HTML shell. Output: ${html.substring(0, 100)}...`,
+      );
     }
 
     fs.writeFileSync(".output/public/index.html", html);
 
     if (fs.existsSync(".vercel/output/static")) {
-       fs.writeFileSync(".vercel/output/static/index.html", html);
+      fs.writeFileSync(".vercel/output/static/index.html", html);
+    }
+
+    // Crucially missing: Copying sw.js and workbox scripts to the .vercel/output/static dir!
+    if (fs.existsSync(".output/public/sw.js")) {
+      fs.copyFileSync(".output/public/sw.js", ".vercel/output/static/sw.js");
+    }
+    const files = fs.readdirSync(".output/public");
+    for (const file of files) {
+      if (file.startsWith("workbox-") && file.endsWith(".js")) {
+        fs.copyFileSync(`.output/public/${file}`, `.vercel/output/static/${file}`);
+      }
     }
 
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
-
   } finally {
     console.log("Shutting down temporary preview server...");
     serverProcess.kill("SIGTERM");
@@ -100,7 +111,7 @@ async function main() {
 main().catch((err) => {
   console.error("Build failed:", err);
   if (err.output) {
-      console.error(err.output.toString());
+    console.error(err.output.toString());
   }
   process.exit(1);
 });
