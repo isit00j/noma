@@ -21,6 +21,8 @@ async function fetchWithRetry(url, maxRetries = 20, delayMs = 500) {
 }
 
 async function main() {
+  const vercelStaticDir = ".vercel/output/static";
+
   console.log("=== Stage 1: Building TanStack Start Application ===");
   execSync("npm run build:vite", { stdio: "inherit" });
 
@@ -74,23 +76,46 @@ async function main() {
       );
     }
 
-    fs.writeFileSync(".output/public/index.html", html);
-
-    if (fs.existsSync(".vercel/output/static")) {
-      fs.writeFileSync(".vercel/output/static/index.html", html);
+    if (fs.existsSync(".output/public")) {
+      fs.writeFileSync(".output/public/index.html", html);
     }
 
-    // Crucially missing: Copying sw.js and workbox scripts to the .vercel/output/static dir!
-    if (fs.existsSync(".output/public/sw.js")) {
-      fs.copyFileSync(".output/public/sw.js", ".vercel/output/static/sw.js");
+    if (fs.existsSync(vercelStaticDir)) {
+      fs.writeFileSync(`${vercelStaticDir}/index.html`, html);
     }
-    const files = fs.readdirSync(".output/public");
+
+    const swSourceCandidates = [vercelStaticDir, ".output/public"];
+    const swSourceDir = swSourceCandidates.find((dir) => fs.existsSync(`${dir}/sw.js`));
+
+    if (!swSourceDir) {
+      throw new Error(`sw.js was not generated in any expected directory: ${swSourceCandidates.join(", ")}`);
+    }
+
+    if (!fs.existsSync(vercelStaticDir)) {
+      throw new Error(`Expected Vercel static dir not found: ${vercelStaticDir}`);
+    }
+
+    if (swSourceDir !== vercelStaticDir) {
+      fs.copyFileSync(`${swSourceDir}/sw.js`, `${vercelStaticDir}/sw.js`);
+    }
+
+    const files = fs.readdirSync(swSourceDir);
     for (const file of files) {
-      if (file.startsWith("workbox-") && file.endsWith(".js")) {
-        fs.copyFileSync(`.output/public/${file}`, `.vercel/output/static/${file}`);
+      if (file.startsWith("workbox-") && file.endsWith(".js") && swSourceDir !== vercelStaticDir) {
+        fs.copyFileSync(`${swSourceDir}/${file}`, `${vercelStaticDir}/${file}`);
       }
     }
 
+    const finalWorkboxFiles = fs
+      .readdirSync(vercelStaticDir)
+      .filter((file) => file.startsWith("workbox-") && file.endsWith(".js"));
+
+    if (!fs.existsSync(`${vercelStaticDir}/sw.js`) || finalWorkboxFiles.length === 0) {
+      throw new Error(`Post-build static output is missing PWA files in ${vercelStaticDir}`);
+    }
+
+    console.log(`SW source directory: ${swSourceDir}`);
+    console.log(`Final workbox files in ${vercelStaticDir}: ${finalWorkboxFiles.join(", ")}`);
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
 
   } finally {
@@ -99,7 +124,7 @@ async function main() {
   }
 
   console.log("\n=== Stage 3: Verifying Workbox Service Worker ===");
-  const swContent = fs.readFileSync(".output/public/sw.js", "utf8");
+  const swContent = fs.readFileSync(`${vercelStaticDir}/sw.js`, "utf8");
   if (!swContent.includes("index.html")) {
     console.error("Error: sw.js does not contain index.html in precache or fallback.");
     process.exit(1);
