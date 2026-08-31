@@ -1,10 +1,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Bypass Lovable sandbox lockdown so the build statically generates the application shell
-process.env["LOVABLE_SANDBOX"] = "0";
-delete process.env["DEV_SERVER__PROJECT_PATH"];
-
 // In order to provide a content-based revision for index.html when injecting it manually
 // into Workbox (because VitePWA runs before Nitro generates index.html), we extract a
 // unique build identifier.
@@ -14,12 +10,9 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
     prerender: {
-      routes: ["/"],
-      crawlLinks: false, // strictly only prerender the root shell
+      routes: [], // Disabled prerender config so the Lovable wrapper doesn't corrupt .vercel/output
+      crawlLinks: false,
     },
-    // We must explicitly list the page and enable prerender because `crawlLinks: false`
-    // would otherwise disable the prerender logic completely.
-    pages: [{ path: "/", prerender: { enabled: true } }],
   },
   vite: {
     plugins: [
@@ -35,7 +28,7 @@ export default defineConfig({
           globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
-          navigateFallback: "/index.html",
+          navigateFallback: "index.html",
           manifestTransforms: [
             async (manifestEntries, compilation) => {
               // We filter out manifest.webmanifest here to prevent duplicates
@@ -44,7 +37,7 @@ export default defineConfig({
               );
 
               // Manually inject the root index.html. Because Workbox runs before
-              // Nitro emits the prerendered HTML, it misses the file during glob scan.
+              // the post-build script generates index.html, it misses the file during glob scan.
               filteredEntries.push({
                 url: "index.html", // URL must be relative to globDirectory in manifest
                 revision: buildRevision,
