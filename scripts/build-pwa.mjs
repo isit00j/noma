@@ -93,31 +93,6 @@ async function main() {
 
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
 
-    // Ensure Vercel knows to serve sw.js from the root without caching it aggressively
-    const configPath = ".vercel/output/config.json";
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      if (!config.routes) config.routes = [];
-
-      // Inject sw.js explicit routing at the top so it doesn't get swallowed
-      config.routes.unshift({
-        src: "/sw\\.js",
-        headers: {
-          "cache-control": "public, max-age=0, must-revalidate",
-        },
-      });
-
-      // Inject workbox file routing
-      config.routes.unshift({
-        src: "/workbox-(.*)\\.js",
-        headers: {
-          "cache-control": "public, max-age=31536000, immutable",
-        },
-      });
-
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      console.log("Updated Vercel routing config for PWA files.");
-    }
   } finally {
     console.log("Shutting down temporary preview server...");
     serverProcess.kill("SIGTERM");
