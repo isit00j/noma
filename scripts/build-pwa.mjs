@@ -105,7 +105,6 @@ async function main() {
         headers: {
           "cache-control": "public, max-age=0, must-revalidate",
         },
-        continue: true,
       });
 
       // Inject workbox file routing
@@ -114,7 +113,6 @@ async function main() {
         headers: {
           "cache-control": "public, max-age=31536000, immutable",
         },
-        continue: true,
       });
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
