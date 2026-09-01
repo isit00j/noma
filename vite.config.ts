@@ -23,11 +23,9 @@ export default defineConfig({
           enabled: false,
         },
         injectRegister: false,
-        // Generate SW/workbox directly into Nitro's Vercel static output so they are
-        // part of the primary artifact generation step (not only post-build copies).
-        outDir: ".vercel/output/static",
+        outDir: ".output/public",
         workbox: {
-          globDirectory: ".vercel/output/static",
+          globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
           navigateFallback: "index.html",
