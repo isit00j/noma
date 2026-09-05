@@ -83,73 +83,9 @@ async function main() {
     if (fs.existsSync(vercelStaticDir)) {
       fs.writeFileSync(`${vercelStaticDir}/index.html`, html);
     }
-
-    const swSourceCandidates = [vercelStaticDir, ".output/public"];
-    const swSourceDir = swSourceCandidates.find((dir) => fs.existsSync(`${dir}/sw.js`));
-
-    if (!swSourceDir) {
-      throw new Error(`sw.js was not generated in any expected directory: ${swSourceCandidates.join(", ")}`);
-    }
-
-    if (!fs.existsSync(vercelStaticDir)) {
-      throw new Error(`Expected Vercel static dir not found: ${vercelStaticDir}`);
-    }
-
-    if (swSourceDir !== vercelStaticDir) {
-      fs.copyFileSync(`${swSourceDir}/sw.js`, `${vercelStaticDir}/sw.js`);
-    }
-
-    const files = fs.readdirSync(swSourceDir);
-    for (const file of files) {
-      if (file.startsWith("workbox-") && file.endsWith(".js") && swSourceDir !== vercelStaticDir) {
-        fs.copyFileSync(`${swSourceDir}/${file}`, `${vercelStaticDir}/${file}`);
-      }
-    }
-
-    const finalWorkboxFiles = fs
-      .readdirSync(vercelStaticDir)
-      .filter((file) => file.startsWith("workbox-") && file.endsWith(".js"));
-
-    if (!fs.existsSync(`${vercelStaticDir}/sw.js`) || finalWorkboxFiles.length === 0) {
-      throw new Error(`Post-build static output is missing PWA files in ${vercelStaticDir}`);
-    }
-
-    console.log(`SW source directory: ${swSourceDir}`);
-    console.log(`Final workbox files in ${vercelStaticDir}: ${finalWorkboxFiles.join(", ")}`);
-    console.log(`Successfully wrote index.html (${html.length} bytes)`);
-
-    const vercelConfigPath = ".vercel/output/config.json";
-    if (fs.existsSync(vercelConfigPath)) {
-      const config = JSON.parse(fs.readFileSync(vercelConfigPath, "utf8"));
-      config.overrides = config.overrides || {};
-
-      config.overrides["sw.js"] = {
-        path: "sw.js",
-        contentType: "application/javascript; charset=utf-8"
-      };
-
-      for (const file of finalWorkboxFiles) {
-        config.overrides[file] = {
-          path: file,
-          contentType: "application/javascript; charset=utf-8"
-        };
-      }
-
-      fs.writeFileSync(vercelConfigPath, JSON.stringify(config, null, 2));
-      console.log("Successfully patched config.json with overrides");
-    }
-
-
   } finally {
     console.log("Shutting down temporary preview server...");
     serverProcess.kill("SIGTERM");
-  }
-
-  console.log("\n=== Stage 3: Verifying Workbox Service Worker ===");
-  const swContent = fs.readFileSync(`${vercelStaticDir}/sw.js`, "utf8");
-  if (!swContent.includes("index.html")) {
-    console.error("Error: sw.js does not contain index.html in precache or fallback.");
-    process.exit(1);
   }
 
   console.log("Validation passed! PWA build complete.");

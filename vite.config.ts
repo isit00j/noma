@@ -17,18 +17,19 @@ export default defineConfig({
   vite: {
     plugins: [
       VitePWA({
-        strategies: "generateSW",
+        strategies: "injectManifest",
+        srcDir: "public",
+        filename: "sw.js",
         registerType: "prompt",
         devOptions: {
           enabled: false,
         },
         injectRegister: false,
         outDir: ".output/public",
-        workbox: {
+        injectManifest: {
           globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,json,webmanifest}"],
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
-          navigateFallback: "index.html",
           manifestTransforms: [
             async (manifestEntries, compilation) => {
               // We filter out manifest.webmanifest here to prevent duplicates
@@ -45,36 +46,6 @@ export default defineConfig({
               });
 
               return { manifest: filteredEntries, warnings: [] };
-            },
-          ],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "gstatic-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
             },
           ],
         },
