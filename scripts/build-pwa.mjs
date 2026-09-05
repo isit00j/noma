@@ -118,6 +118,28 @@ async function main() {
     console.log(`Final workbox files in ${vercelStaticDir}: ${finalWorkboxFiles.join(", ")}`);
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
 
+    const vercelConfigPath = ".vercel/output/config.json";
+    if (fs.existsSync(vercelConfigPath)) {
+      const config = JSON.parse(fs.readFileSync(vercelConfigPath, "utf8"));
+      config.overrides = config.overrides || {};
+
+      config.overrides["sw.js"] = {
+        path: "sw.js",
+        contentType: "application/javascript; charset=utf-8"
+      };
+
+      for (const file of finalWorkboxFiles) {
+        config.overrides[file] = {
+          path: file,
+          contentType: "application/javascript; charset=utf-8"
+        };
+      }
+
+      fs.writeFileSync(vercelConfigPath, JSON.stringify(config, null, 2));
+      console.log("Successfully patched config.json with overrides");
+    }
+
+
   } finally {
     console.log("Shutting down temporary preview server...");
     serverProcess.kill("SIGTERM");
