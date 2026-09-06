@@ -18,8 +18,8 @@ export default defineConfig({
     plugins: [
       VitePWA({
         strategies: "injectManifest",
-        srcDir: "public",
-        filename: "sw.js",
+        srcDir: "src",
+        filename: "sw.ts",
         registerType: "prompt",
         devOptions: {
           enabled: false,
