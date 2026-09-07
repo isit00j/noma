@@ -1,0 +1,23 @@
+{
+  "name": "Noma",
+  "short_name": "Noma",
+  "description": "A quiet place for your thoughts.",
+  "theme_color": "#0B0F1A",
+  "background_color": "#0B0F1A",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/noma-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/noma-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
