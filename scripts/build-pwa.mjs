@@ -1,6 +1,12 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import { execSync } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
 async function fetchWithRetry(url, maxRetries = 20, delayMs = 500) {
   for (let i = 0; i < maxRetries; i++) {
@@ -21,10 +27,23 @@ async function fetchWithRetry(url, maxRetries = 20, delayMs = 500) {
 }
 
 async function main() {
-  const vercelStaticDir = ".vercel/output/static";
+  const isVercel = process.env.VERCEL === "1";
+  const outputPublicDir = path.resolve(rootDir, ".output/public");
+  const vercelStaticDir = path.resolve(rootDir, ".vercel/output/static");
+  const publicDir = path.resolve(rootDir, "public");
 
   console.log("=== Stage 1: Building TanStack Start Application ===");
   execSync("npm run build:vite", { stdio: "inherit" });
+
+  // Make absolutely sure manifest.json gets put into .output/public and .vercel/output/static
+  if (fs.existsSync(path.join(publicDir, "manifest.json"))) {
+      if (!fs.existsSync(outputPublicDir)) fs.mkdirSync(outputPublicDir, { recursive: true });
+      fs.copyFileSync(path.join(publicDir, "manifest.json"), path.join(outputPublicDir, "manifest.json"));
+      if (isVercel) {
+          if (!fs.existsSync(vercelStaticDir)) fs.mkdirSync(vercelStaticDir, { recursive: true });
+          fs.copyFileSync(path.join(publicDir, "manifest.json"), path.join(vercelStaticDir, "manifest.json"));
+      }
+  }
 
   console.log("\n=== Stage 2: Generating Application Shell ===");
 
@@ -76,46 +95,14 @@ async function main() {
       );
     }
 
-    if (fs.existsSync(".output/public")) {
-      fs.writeFileSync(".output/public/index.html", html);
+    if (fs.existsSync(outputPublicDir)) {
+      fs.writeFileSync(path.join(outputPublicDir, "index.html"), html);
     }
 
-    if (fs.existsSync(vercelStaticDir)) {
-      fs.writeFileSync(`${vercelStaticDir}/index.html`, html);
+    if (isVercel && fs.existsSync(vercelStaticDir)) {
+      fs.writeFileSync(path.join(vercelStaticDir, "index.html"), html);
     }
 
-    const swSourceCandidates = [vercelStaticDir, ".output/public"];
-    const swSourceDir = swSourceCandidates.find((dir) => fs.existsSync(`${dir}/sw.js`));
-
-    if (!swSourceDir) {
-      throw new Error(`sw.js was not generated in any expected directory: ${swSourceCandidates.join(", ")}`);
-    }
-
-    if (!fs.existsSync(vercelStaticDir)) {
-      throw new Error(`Expected Vercel static dir not found: ${vercelStaticDir}`);
-    }
-
-    if (swSourceDir !== vercelStaticDir) {
-      fs.copyFileSync(`${swSourceDir}/sw.js`, `${vercelStaticDir}/sw.js`);
-    }
-
-    const files = fs.readdirSync(swSourceDir);
-    for (const file of files) {
-      if (file.startsWith("workbox-") && file.endsWith(".js") && swSourceDir !== vercelStaticDir) {
-        fs.copyFileSync(`${swSourceDir}/${file}`, `${vercelStaticDir}/${file}`);
-      }
-    }
-
-    const finalWorkboxFiles = fs
-      .readdirSync(vercelStaticDir)
-      .filter((file) => file.startsWith("workbox-") && file.endsWith(".js"));
-
-    if (!fs.existsSync(`${vercelStaticDir}/sw.js`) || finalWorkboxFiles.length === 0) {
-      throw new Error(`Post-build static output is missing PWA files in ${vercelStaticDir}`);
-    }
-
-    console.log(`SW source directory: ${swSourceDir}`);
-    console.log(`Final workbox files in ${vercelStaticDir}: ${finalWorkboxFiles.join(", ")}`);
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
 
   } finally {
@@ -123,8 +110,36 @@ async function main() {
     serverProcess.kill("SIGTERM");
   }
 
-  console.log("\n=== Stage 3: Verifying Workbox Service Worker ===");
-  const swContent = fs.readFileSync(`${vercelStaticDir}/sw.js`, "utf8");
+  console.log("\n=== Stage 3: Bundling and Injecting Service Worker ===");
+  execSync("node scripts/build-sw.mjs", { stdio: "inherit" });
+
+  if (isVercel && fs.existsSync(vercelStaticDir)) {
+      console.log("Vercel mode: Copying service worker and manifest to vercel static dir to ensure availability.");
+      fs.copyFileSync(path.join(outputPublicDir, "sw.js"), path.join(vercelStaticDir, "sw.js"));
+
+      // Explicitly copy public/ files correctly
+      const publicFiles = fs.readdirSync(publicDir);
+      for (const file of publicFiles) {
+          const srcPath = path.join(publicDir, file);
+          const destPath = path.join(vercelStaticDir, file);
+          if (fs.statSync(srcPath).isFile() && !fs.existsSync(destPath)) {
+              fs.copyFileSync(srcPath, destPath);
+          }
+      }
+
+      // Enforce manifest.json copy
+      if (fs.existsSync(path.join(publicDir, "manifest.json"))) {
+          fs.copyFileSync(path.join(publicDir, "manifest.json"), path.join(vercelStaticDir, "manifest.json"));
+      }
+  }
+
+  console.log("\n=== Stage 4: Verifying Workbox Service Worker ===");
+  const swDest = outputPublicDir;
+  if (!fs.existsSync(path.join(swDest, "sw.js"))) {
+     console.error(`Error: sw.js was not generated at ${swDest}.`);
+     process.exit(1);
+  }
+  const swContent = fs.readFileSync(path.join(swDest, "sw.js"), "utf8");
   if (!swContent.includes("index.html")) {
     console.error("Error: sw.js does not contain index.html in precache or fallback.");
     process.exit(1);

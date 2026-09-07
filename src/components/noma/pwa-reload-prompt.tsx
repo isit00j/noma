@@ -1,28 +1,26 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Serwist } from "@serwist/window";
 
 export function PWAReloadPrompt() {
   const [offlineReady, setOfflineReady] = useState(false);
   const [needRefresh, setNeedRefresh] = useState(false);
-  const [updateSW, setUpdateSW] = useState<((reloadPage?: boolean) => Promise<void>) | undefined>();
+  const [serwist, setSerwist] = useState<Serwist | undefined>();
 
   useEffect(() => {
-    // Only import virtual:pwa-register if window is defined (browser environment)
-    if (typeof window !== "undefined") {
-      import("virtual:pwa-register")
-        .then(({ registerSW }) => {
-          const update = registerSW({
-            immediate: true,
-            onOfflineReady() {
-              setOfflineReady(true);
-            },
-            onNeedRefresh() {
-              setNeedRefresh(true);
-            },
-          });
-          setUpdateSW(() => update);
-        })
-        .catch(console.error);
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const serwist = new Serwist("/sw.js", { scope: "/", type: "classic" });
+      setSerwist(serwist);
+
+      serwist.addEventListener("installed", () => {
+        setOfflineReady(true);
+      });
+
+      serwist.addEventListener("waiting", () => {
+        setNeedRefresh(true);
+      });
+
+      serwist.register().catch(console.error);
     }
   }, []);
 
@@ -42,13 +40,16 @@ export function PWAReloadPrompt() {
         action: {
           label: "Reload",
           onClick: () => {
-            if (updateSW) updateSW(true);
+            if (serwist) {
+              serwist.messageSW({ type: "SKIP_WAITING" });
+              window.location.reload();
+            }
           },
         },
         duration: Infinity,
       });
     }
-  }, [needRefresh, updateSW]);
+  }, [needRefresh, serwist]);
 
   return null;
 }
