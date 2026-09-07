@@ -74,7 +74,7 @@ async function main() {
   });
 
   try {
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 150; i++) {
       if (serverReady) break;
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -86,7 +86,7 @@ async function main() {
     const url = `http://localhost:${port}/`;
     console.log(`Waiting for server to become ready at ${url}...`);
 
-    const res = await fetchWithRetry(url, 20, 500);
+    const res = await fetchWithRetry(url, 60, 500);
     const html = await res.text();
 
     if (!html.includes("<html") || !html.includes("assets/")) {
