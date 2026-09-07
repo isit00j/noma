@@ -57,8 +57,8 @@ async function main() {
 
   serverProcess.stdout.on("data", (data) => {
     const output = data.toString();
-    const match = output.match(/Listening on http:\/\/[^:]+:(\d+)/);
-    if (match || output.includes("Listening on")) {
+    const match = output.match(/Ready on http:\/\/[^:]+:(\d+)/);
+    if (match || output.includes("Ready on")) {
       if (match) port = parseInt(match[1], 10);
       serverReady = true;
     }
@@ -66,8 +66,8 @@ async function main() {
 
   serverProcess.stderr.on("data", (data) => {
     const output = data.toString();
-    const match = output.match(/Listening on http:\/\/[^:]+:(\d+)/);
-    if (match || output.includes("Listening on")) {
+    const match = output.match(/Ready on http:\/\/[^:]+:(\d+)/);
+    if (match || output.includes("Ready on")) {
       if (match) port = parseInt(match[1], 10);
       serverReady = true;
     }
