@@ -50,28 +50,27 @@ async function main() {
   console.log("Starting temporary preview server...");
   const serverProcess = spawn("npx", ["nitro", "preview"], {
     stdio: "pipe",
+    env: { ...process.env, PORT: "3000" }
   });
 
   let port = 3000;
   let serverReady = false;
+  let serverLogs = "";
 
-  serverProcess.stdout.on("data", (data) => {
+  const handleData = (data) => {
     const output = data.toString();
-    const match = output.match(/Ready on http:\/\/[^:]+:(\d+)/);
-    if (match || output.includes("Ready on")) {
-      if (match) port = parseInt(match[1], 10);
+    serverLogs += output;
+    const match = output.match(/(?:Ready|Listening) on http:\/\/[a-zA-Z0-9.-]+:(\d+)/) || output.match(/(?:Ready|Listening) on http:\/\/(?:\[::\]|127\.0\.0\.1|localhost):(\d+)/);
+    if (match) {
+      port = parseInt(match[1], 10);
+      serverReady = true;
+    } else if (output.includes("Ready on") || output.includes("Listening on")) {
       serverReady = true;
     }
-  });
+  };
 
-  serverProcess.stderr.on("data", (data) => {
-    const output = data.toString();
-    const match = output.match(/Ready on http:\/\/[^:]+:(\d+)/);
-    if (match || output.includes("Ready on")) {
-      if (match) port = parseInt(match[1], 10);
-      serverReady = true;
-    }
-  });
+  serverProcess.stdout.on("data", handleData);
+  serverProcess.stderr.on("data", handleData);
 
   try {
     for (let i = 0; i < 150; i++) {
@@ -81,12 +80,22 @@ async function main() {
 
     if (!serverReady) {
       console.log("Server didn't log ready string, attempting to fetch anyway...");
+      console.log("--- Preview Server Logs ---");
+      console.log(serverLogs);
+      console.log("---------------------------");
     }
 
     const url = `http://localhost:${port}/`;
     console.log(`Waiting for server to become ready at ${url}...`);
 
-    const res = await fetchWithRetry(url, 60, 500);
+    let res;
+    try {
+        res = await fetchWithRetry(url, 60, 500);
+    } catch (e) {
+        console.log("Failed to fetch. Server Logs:");
+        console.log(serverLogs);
+        throw e;
+    }
     const html = await res.text();
 
     if (!html.includes("<html") || !html.includes("assets/")) {
