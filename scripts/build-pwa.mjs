@@ -1,30 +1,11 @@
-import { spawn } from "child_process";
 import fs from "fs";
 import { execSync } from "child_process";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
-
-async function fetchWithRetry(url, maxRetries = 20, delayMs = 500) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          accept: "text/html",
-          "X-TSS_SHELL": "true",
-        },
-      });
-      if (response.ok) return response;
-    } catch (e) {
-      // ignore connection refused
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  throw new Error("Server did not become ready in time");
-}
 
 async function main() {
   const isVercel = process.env.VERCEL === "1";
@@ -46,57 +27,64 @@ async function main() {
   }
 
   console.log("\n=== Stage 2: Generating Application Shell ===");
-
-  console.log("Starting temporary preview server...");
-  const serverProcess = spawn("npx", ["nitro", "preview"], {
-    stdio: "pipe",
-    env: { ...process.env, PORT: "3000" }
-  });
-
-  let port = 3000;
-  let serverReady = false;
-  let serverLogs = "";
-
-  const handleData = (data) => {
-    const output = data.toString();
-    serverLogs += output;
-    const match = output.match(/(?:Ready|Listening) on http:\/\/[a-zA-Z0-9.-]+:(\d+)/) || output.match(/(?:Ready|Listening) on http:\/\/(?:\[::\]|127\.0\.0\.1|localhost):(\d+)/);
-    if (match) {
-      port = parseInt(match[1], 10);
-      serverReady = true;
-    } else if (output.includes("Ready on") || output.includes("Listening on")) {
-      serverReady = true;
-    }
-  };
-
-  serverProcess.stdout.on("data", handleData);
-  serverProcess.stderr.on("data", handleData);
-
   try {
-    for (let i = 0; i < 150; i++) {
-      if (serverReady) break;
-      await new Promise((r) => setTimeout(r, 200));
-    }
+    const serverPath = isVercel
+        ? path.resolve(rootDir, ".vercel/output/functions/__server.func/index.mjs")
+        : path.resolve(rootDir, ".output/server/index.mjs");
 
-    if (!serverReady) {
-      console.log("Server didn't log ready string, attempting to fetch anyway...");
-      console.log("--- Preview Server Logs ---");
-      console.log(serverLogs);
-      console.log("---------------------------");
-    }
+    console.log("Loading server handler from", serverPath);
 
-    const url = `http://localhost:${port}/`;
-    console.log(`Waiting for server to become ready at ${url}...`);
+    // Import the compiled Nitro server handler directly
+    const app = await import(pathToFileURL(serverPath).href);
 
-    let res;
-    try {
-        res = await fetchWithRetry(url, 60, 500);
-    } catch (e) {
-        console.log("Failed to fetch. Server Logs:");
-        console.log(serverLogs);
-        throw e;
+    // Simulate a request to get the shell
+    const req = new Request('http://localhost/', {
+      headers: {
+        accept: 'text/html',
+        'X-TSS_SHELL': 'true'
+      }
+    });
+
+    console.log("Executing server handler to fetch shell...");
+
+    let html;
+
+    // Vercel edge/serverless handler vs Cloudflare worker handler
+    if (app.default && app.default.fetch) {
+        const env = {};
+        const ctx = {
+          waitUntil: () => {},
+          passThroughOnException: () => {}
+        };
+        const res = await app.default.fetch(req, env, ctx);
+        if (!res.ok) throw new Error(`Failed to fetch shell, status: ${res.status}`);
+        html = await res.text();
+    } else if (typeof app.default === 'function') {
+        // Fallback if it exports a standard request handler
+        const { Readable } = await import('stream');
+
+        const mockReq = {
+            url: '/',
+            method: 'GET',
+            headers: {
+                accept: 'text/html',
+                'x-tss_shell': 'true'
+            }
+        };
+
+        let responseBody = '';
+        const mockRes = {
+            statusCode: 200,
+            setHeader: () => {},
+            end: (chunk) => { if(chunk) responseBody += chunk; },
+            write: (chunk) => { if(chunk) responseBody += chunk; }
+        };
+
+        await app.default(mockReq, mockRes);
+        html = responseBody;
+    } else {
+        throw new Error("Unable to determine how to execute the server handler.");
     }
-    const html = await res.text();
 
     if (!html.includes("<html") || !html.includes("assets/")) {
       throw new Error(
@@ -113,10 +101,10 @@ async function main() {
     }
 
     console.log(`Successfully wrote index.html (${html.length} bytes)`);
-
-  } finally {
-    console.log("Shutting down temporary preview server...");
-    serverProcess.kill("SIGTERM");
+  } catch (e) {
+    console.error("Failed to generate application shell using direct handler invocation:");
+    console.error(e);
+    process.exit(1);
   }
 
   console.log("\n=== Stage 3: Bundling and Injecting Service Worker ===");
