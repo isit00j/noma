@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Noma</string>
+    <string name="title_activity_main">Noma</string>
+    <string name="package_name">app.noma.notes</string>
+    <string name="custom_url_scheme">app.noma.notes</string>
+</resources>
