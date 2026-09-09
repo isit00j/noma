@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package app.noma.notes;
 
 import static org.junit.Assert.*;
 
