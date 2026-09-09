@@ -27,11 +27,11 @@ Because the SHA-256 fingerprint for the production signing certificate could not
 
 # Firebase & Google OAuth Configuration
 
-To securely handle Firebase Authentication redirects across Capacitor, external system browsers, and modern browsers (which block cross-origin iframe storage via Safari ITP / 3rd-party cookie deprecation), this project proxies the Firebase Auth helper endpoints on the primary application domain.
+To securely handle Firebase Authentication redirects for the progressive web app (which blocks cross-origin iframe storage via Safari ITP / 3rd-party cookie deprecation), this project optionally proxies the Firebase Auth helper endpoints on the primary application domain.
 
-This prevents Android deep-links from getting stuck on "Connecting..." because Firebase can now natively retrieve its authentication session without violating cross-origin constraints.
+This prevents PWA users from getting stuck on "Connecting...", as Firebase can natively retrieve its authentication session without violating cross-origin constraints. Note that the Capacitor Android app uses the default `firebaseapp.com` authDomain precisely to ensure it opens in the external system browser instead of the internal WebView.
 
-You must manually update your Firebase and Google Cloud configurations to authorize this proxied domain:
+You must manually update your Firebase and Google Cloud configurations to authorize this proxied domain for the Web App:
 
 1. **Firebase Authorized Domains**
    - Go to the **Firebase Console**.
@@ -40,7 +40,7 @@ You must manually update your Firebase and Google Cloud configurations to author
    - Click **Add domain** and enter `mynoma.vercel.app`.
 
 2. **Google Cloud OAuth Redirect URIs**
-   Because the Firebase `authDomain` is now treated as `mynoma.vercel.app`, the authentication helper initiates the Google OAuth request with the proxied callback URL. Google will reject the request with `redirect_uri_mismatch` if this URL is not explicitly authorized.
+   Because the Web App's `authDomain` is overridden to `mynoma.vercel.app`, the authentication helper initiates the Google OAuth request with the proxied callback URL. Google will reject the request with `redirect_uri_mismatch` if this URL is not explicitly authorized.
    - Go to the **Google Cloud Console**.
    - Select your project.
    - Navigate to **APIs & Services** > **Credentials**.
