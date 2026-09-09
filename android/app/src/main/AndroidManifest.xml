@@ -24,6 +24,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="mynoma.vercel.app" android:pathPrefix="/signin" />
+                <data android:scheme="https" android:host="mynoma.vercel.app" android:pathPrefix="/settings" />
             </intent-filter>
         </activity>
 

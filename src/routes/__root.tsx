@@ -179,6 +179,8 @@ function useDeepLinks() {
       try {
         const urlObj = new URL(url);
         if (urlObj.hostname === "mynoma.vercel.app") {
+          // If the URL contains Firebase redirect parameters, we MUST reload the window
+          // so Firebase's getRedirectResult (which only runs on boot) can intercept them.
           if (
             urlObj.searchParams.has("apiKey") ||
             urlObj.searchParams.has("authType") ||
@@ -192,9 +194,13 @@ function useDeepLinks() {
       } catch (err) {
         console.error("Failed to parse app url", err);
       }
-    }).then((handle) => {
-      listenerHandle = handle;
-    });
+    })
+      .then((handle) => {
+        listenerHandle = handle;
+      })
+      .catch((err) => {
+        console.error("Failed to add appUrlOpen listener", err);
+      });
 
     return () => {
       if (listenerHandle) {
