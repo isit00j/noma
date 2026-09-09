@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -173,6 +174,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         const auth = requireAuth();
+        if (Capacitor.isNativePlatform()) {
+          // On Android, popup isn't reliable and blocks Google OAuth (disallowed_useragent).
+          // Fall straight to redirect, which forces Capacitor to open the system browser.
+          await signInWithRedirect(auth, googleProvider());
+          return;
+        }
+
         try {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
