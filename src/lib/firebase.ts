@@ -2,7 +2,15 @@ import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence, type Auth } from "firebase/auth";
 import { firebaseConfig, googleDriveClientId as driveClientId } from "@/config/firebaseConfig";
 
-const config = firebaseConfig;
+const config = { ...firebaseConfig };
+
+// To support Firebase Auth redirect flows securely on external environments
+// and mitigate cross-origin storage partitioning restrictions (e.g., Safari ITP),
+// we proxy /__/auth/ endpoints via Vercel to the Firebase project, and override
+// the authDomain to match the current app host.
+if (typeof window !== "undefined" && window.location.hostname) {
+  config.authDomain = window.location.hostname;
+}
 
 export const isFirebaseConfigured = Boolean(
   config.apiKey && config.authDomain && config.projectId && config.appId,

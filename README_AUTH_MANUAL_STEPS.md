@@ -25,15 +25,26 @@ Because the SHA-256 fingerprint for the production signing certificate could not
 
 3. Ensure this file is deployed to `https://mynoma.vercel.app/.well-known/assetlinks.json`.
 
-# Firebase Authorized Domains Configuration
+# Firebase & Google OAuth Configuration
 
-The Capacitor application is configured with `server.hostname` set to `mynoma.vercel.app`. This ensures that when Firebase initiates OAuth authentication within the app, it reports `https://mynoma.vercel.app` as the **origin URL**.
+To securely handle Firebase Authentication redirects across Capacitor, external system browsers, and modern browsers (which block cross-origin iframe storage via Safari ITP / 3rd-party cookie deprecation), this project proxies the Firebase Auth helper endpoints on the primary application domain.
 
-The actual Firebase `authDomain` remains `noma-note.firebaseapp.com`. Google will return authentication data to the helper page at `https://noma-note.firebaseapp.com/__/auth/handler`. The helper page will then redirect the system browser back to the **origin URL**, which is `https://mynoma.vercel.app/signin`.
+This prevents Android deep-links from getting stuck on "Connecting..." because Firebase can now natively retrieve its authentication session without violating cross-origin constraints.
 
-Because Firebase only allows this redirect flow if the **origin URL** is explicitly authorized, you must ensure that `mynoma.vercel.app` is added to your Firebase project's Authorized Domains:
+You must manually update your Firebase and Google Cloud configurations to authorize this proxied domain:
 
-1. Go to the Firebase Console.
-2. Select your project.
-3. Navigate to **Authentication** > **Settings** > **Authorized domains**.
-4. Click **Add domain** and enter `mynoma.vercel.app`.
+1. **Firebase Authorized Domains**
+   - Go to the **Firebase Console**.
+   - Select your project.
+   - Navigate to **Authentication** > **Settings** > **Authorized domains**.
+   - Click **Add domain** and enter `mynoma.vercel.app`.
+
+2. **Google Cloud OAuth Redirect URIs**
+   Because the Firebase `authDomain` is now treated as `mynoma.vercel.app`, the authentication helper initiates the Google OAuth request with the proxied callback URL. Google will reject the request with `redirect_uri_mismatch` if this URL is not explicitly authorized.
+   - Go to the **Google Cloud Console**.
+   - Select your project.
+   - Navigate to **APIs & Services** > **Credentials**.
+   - Under **OAuth 2.0 Client IDs**, select your existing Web client (the one used for Firebase Auth).
+   - Under **Authorized redirect URIs**, click **Add URI**.
+   - Enter exactly: `https://mynoma.vercel.app/__/auth/handler`
+   - Save your changes.
