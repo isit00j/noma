@@ -27,9 +27,11 @@ Because the SHA-256 fingerprint for the production signing certificate could not
 
 # Firebase Authorized Domains Configuration
 
-The Capacitor application is configured with `server.hostname` set to `mynoma.vercel.app`. This ensures that when Firebase initiates OAuth authentication within the app, it reports `https://mynoma.vercel.app` as the origin, allowing the Google OAuth flow to seamlessly redirect back to the app using the same hostname.
+The Capacitor application is configured with `server.hostname` set to `mynoma.vercel.app`. This ensures that when Firebase initiates OAuth authentication within the app, it reports `https://mynoma.vercel.app` as the **origin URL**.
 
-You must ensure that `mynoma.vercel.app` is added to your Firebase project's Authorized Domains:
+The actual Firebase `authDomain` remains `noma-note.firebaseapp.com`. Google will return authentication data to the helper page at `https://noma-note.firebaseapp.com/__/auth/handler`. The helper page will then redirect the system browser back to the **origin URL**, which is `https://mynoma.vercel.app/signin`.
+
+Because Firebase only allows this redirect flow if the **origin URL** is explicitly authorized, you must ensure that `mynoma.vercel.app` is added to your Firebase project's Authorized Domains:
 
 1. Go to the Firebase Console.
 2. Select your project.
