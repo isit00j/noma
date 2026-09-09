@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/__/auth/(.*)",
+      "destination": "https://noma-note.firebaseapp.com/__/auth/$1"
+    }
+  ]
+}

@@ -8,13 +8,6 @@ export default defineConfig({
       crawlLinks: false,
     },
   },
-  nitro: {
-    routeRules: {
-      "/__/auth/**": {
-        proxy: "https://noma-note.firebaseapp.com/__/auth/**",
-      },
-    },
-  },
   vite: {
     plugins: [],
   },
