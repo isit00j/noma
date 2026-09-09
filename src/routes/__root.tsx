@@ -179,13 +179,10 @@ function useDeepLinks() {
       try {
         const urlObj = new URL(url);
         if (urlObj.hostname === "mynoma.vercel.app") {
-          // If the URL contains Firebase redirect parameters, we MUST reload the window
-          // so Firebase's getRedirectResult (which only runs on boot) can intercept them.
-          if (
-            urlObj.searchParams.has("apiKey") ||
-            urlObj.searchParams.has("authType") ||
-            urlObj.searchParams.has("link")
-          ) {
+          // If the URL is the OAuth callback to /signin and it contains a payload,
+          // we MUST trigger a full page reload so Firebase's getRedirectResult()
+          // initializes correctly. Normal React Router navigation will not trigger it.
+          if (urlObj.pathname === "/signin" && (urlObj.search || urlObj.hash)) {
             window.location.assign(urlObj.pathname + urlObj.search + urlObj.hash);
           } else {
             router.navigate({ to: urlObj.pathname + urlObj.search + urlObj.hash, replace: true });
