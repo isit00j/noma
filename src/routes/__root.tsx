@@ -1,3 +1,4 @@
+import { App as CapacitorApp } from "@capacitor/app";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -168,8 +169,40 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function useDeepLinks() {
+  const router = useRouter();
+
+  useEffect(() => {
+    CapacitorApp.addListener("appUrlOpen", (event) => {
+      const url = event.url;
+      try {
+        const urlObj = new URL(url);
+        if (
+          urlObj.hostname === "mynoma.vercel.app" &&
+          (urlObj.pathname.startsWith("/auth/callback") ||
+            urlObj.pathname.startsWith("/signin") ||
+            urlObj.pathname.startsWith("/__/auth/handler"))
+        ) {
+          // If the auth flow redirects here, we need to let the router handle it
+          // or let Firebase handle the `__ /auth/handler` automatically if it's the iframe.
+          // Wait, if it redirects to `/signin` with state, it might have OAuth state in the URL
+          // that Firebase needs to read when AuthProvider mounts.
+          router.navigate({ to: urlObj.pathname + urlObj.search + urlObj.hash, replace: true });
+        }
+      } catch (err) {
+        console.error("Failed to parse app url", err);
+      }
+    });
+
+    return () => {
+      CapacitorApp.removeAllListeners();
+    };
+  }, [router]);
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useDeepLinks();
 
   return (
     <QueryClientProvider client={queryClient}>
