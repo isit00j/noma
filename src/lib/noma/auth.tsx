@@ -175,10 +175,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithEmailAndPassword(requireAuth(), email.trim(), password);
       },
       signInWithGoogle: async () => {
-const auth = requireAuth();
+        const auth = requireAuth();
         if (Capacitor.isNativePlatform()) {
-          // On Android, popup isn't reliable and blocks Google OAuth (disallowed_useragent).
-          // Fall straight to redirect, which forces Capacitor to open the system browser.
+          // Firebase signInWithRedirect attempts to use window.location.assign.
+          // On Capacitor Android, this navigates the WebView to the Google accounts page,
+          // which is blocked by Google (disallowed_useragent), causing a blank screen.
+          // To fix this cleanly without a separate auth system, we intercept the navigation
+          // and route it to the external system browser (Custom Tab) using @capacitor/browser.
+          // The WebView remains intact, preserving the Firebase IndexedDB session state.
+          const originalAssign = window.location.assign;
+          window.location.assign = (url: string | URL | Location) => {
+            window.location.assign = originalAssign; // Restore immediately
+            void Browser.open({ url: url.toString() });
+          };
+
           await signInWithRedirect(auth, googleProvider());
           return;
         }
