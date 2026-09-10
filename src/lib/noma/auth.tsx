@@ -240,9 +240,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = requireAuth().currentUser;
         if (!current) return false;
         await reload(current);
-        setVersion((v) => v + 1);
-        setUser(requireAuth().currentUser);
-        return Boolean(requireAuth().currentUser?.emailVerified);
+        const reloaded = requireAuth().currentUser;
+        if (reloaded) {
+          setUser({ ...reloaded } as User);
+        } else {
+          setUser(null);
+        }
+        return Boolean(reloaded?.emailVerified);
       },
       signOut: async () => {
         const current = requireAuth().currentUser;

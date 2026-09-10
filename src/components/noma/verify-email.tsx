@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2, MailCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ const COOLDOWN_SECONDS = 60;
 /** Blocks access to Noma until a password account's email address is verified. */
 export function VerifyEmail() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [checking, setChecking] = useState(false);
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
@@ -31,6 +33,7 @@ export function VerifyEmail() {
         const verified = await auth.refreshUser();
         if (verified) {
           if (announce) toast.success("Email verified — welcome to Noma.");
+          void navigate({ to: "/", replace: true });
           return;
         }
         setNotDetected(true);
@@ -42,7 +45,7 @@ export function VerifyEmail() {
         setChecking(false);
       }
     },
-    [auth],
+    [auth, navigate],
   );
 
   // Re-check when the tab regains focus — the user clicks the link elsewhere.
