@@ -125,6 +125,8 @@ function canRedirect(): boolean {
   return window.top === window.self;
 }
 
+let _googleAuthInitialized = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(isFirebaseConfigured);
@@ -189,12 +191,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               );
             }
 
-            // Note: GoogleAuth natively handles duplicate initialization requests safely on Android
-            GoogleAuth.initialize({
-              clientId: firebaseWebClientId,
-              scopes: ["profile", "email"],
-              grantOfflineAccess: true,
-            });
+            if (!_googleAuthInitialized) {
+              GoogleAuth.initialize({
+                clientId: firebaseWebClientId,
+                scopes: ["profile", "email"],
+                grantOfflineAccess: true,
+              });
+              _googleAuthInitialized = true;
+            }
             const result = await GoogleAuth.login();
             const idToken = result.idToken;
             if (!idToken) throw new Error("No ID token returned from Google Sign-In");
