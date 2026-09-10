@@ -36,9 +36,39 @@ jobs:
     - name: Sync Capacitor Android project
       run: npx cap sync android
 
+    - name: Setup Stable Debug Keystore
+      env:
+        DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+      run: |
+        if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+          mkdir -p ~/.android
+          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          echo "Stable debug keystore successfully configured."
+        else
+          echo "Warning: ANDROID_DEBUG_KEYSTORE_BASE64 secret is not set. A random debug keystore will be generated."
+        fi
+
     - name: Build Android debug APK
       working-directory: ./android
-      run: ./gradlew assembleDebug
+      env:
+        DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEYSTORE_PASSWORD }}
+        DEBUG_KEY_ALIAS: ${{ secrets.ANDROID_DEBUG_KEY_ALIAS }}
+      run: |
+        if [ -n "$DEBUG_KEYSTORE_PASSWORD" ] && [ -n "$DEBUG_KEY_ALIAS" ]; then
+          ./gradlew assembleDebug \
+            -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+            -Pandroid.injected.signing.store.password=$DEBUG_KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$DEBUG_KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
+        else
+          ./gradlew assembleDebug
+        fi
+
+    - name: Print APK Signing Certificate Fingerprint
+      working-directory: ./android
+      run: |
+        build_tools_dir=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+        $build_tools_dir/apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4

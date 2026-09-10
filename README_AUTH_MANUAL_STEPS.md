@@ -2,12 +2,25 @@
 
 Because the native Google Sign-In implementation relies on the official Google Identity Services framework for Android, you must explicitly configure a native Android OAuth client in Google Cloud Console.
 
-Before deploying the Android app to production, follow these steps:
+### CI Build & GitHub Actions Keystore Requirements
+
+By default, GitHub Actions runners generate a random ephemeral `debug.keystore` on every run, resulting in an unpredictable SHA-1 that causes Google Sign-In to fail with `DEVELOPER_ERROR`.
+To fix this, a stable debug keystore must be provisioned for CI.
+
+1. Generate a stable keystore (or encode your local `debug.keystore`) as base64:
+   ```bash
+   base64 -w 0 ~/.android/debug.keystore > keystore.b64
+   ```
+2. Navigate to your GitHub Repository **Settings > Secrets and variables > Actions**.
+3. Create a new Repository Secret named `ANDROID_DEBUG_KEYSTORE_BASE64` containing the base64 output.
+4. CI builds will now use this stable keystore, meaning the resulting APK will have a consistent, deterministic SHA-1.
+
+Before deploying the Android app to production or when configuring the development environment, follow these steps:
 
 1. **Obtain the SHA-1 Certificate Fingerprint**
-   Extract the SHA-1 fingerprint from your production release keystore using the following command:
+   Extract the SHA-1 fingerprint from your stable CI debug keystore (for development) or production release keystore (for release) using the following command:
    ```bash
-   keytool -list -v -keystore <path-to-your-release-keystore> -alias <your-key-alias>
+   keytool -list -v -keystore <path-to-your-keystore> -alias <your-key-alias>
    ```
 
 2. **Register the Android Client ID in Google Cloud Console**
