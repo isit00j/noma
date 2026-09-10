@@ -13,6 +13,7 @@ import {
   onAuthStateChanged,
   linkWithPopup,
   linkWithRedirect,
+  linkWithCredential,
   unlink,
   reload,
   GoogleAuthProvider,
@@ -256,6 +257,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = auth.currentUser;
         if (!current) throw new Error("You need to be signed in to link Google.");
         // Provider linking keeps ONE Noma account with two sign-in methods.
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const { firebaseWebClientId } = await import("@/config/firebaseConfig");
+            if (!firebaseWebClientId) {
+              throw new Error(
+                "Missing Firebase Web Client ID. Please configure it in src/config/firebaseConfig.ts",
+              );
+            }
+
+            if (!_googleAuthInitialized) {
+              await GoogleAuth.initialize({
+                clientId: firebaseWebClientId,
+                serverClientId: firebaseWebClientId,
+                scopes: ["profile", "email"],
+              });
+              _googleAuthInitialized = true;
+            }
+            const result = await GoogleAuth.login();
+            const idToken = result.idToken;
+            if (!idToken) throw new Error("No ID token returned from Google Sign-In");
+            const credential = GoogleAuthProvider.credential(idToken);
+            await linkWithCredential(current, credential);
+            setUser({ ...requireAuth().currentUser } as User);
+          } catch (e) {
+            console.error("Native Google Link Error:", e);
+            throw e;
+          }
+          return;
+        }
+
         try {
           await linkWithPopup(current, googleProvider());
         } catch (error) {
