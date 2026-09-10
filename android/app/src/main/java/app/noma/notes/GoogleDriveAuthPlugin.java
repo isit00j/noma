@@ -3,6 +3,10 @@ package app.noma.notes;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentSender;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -23,13 +27,24 @@ import java.util.Collections;
  * Native Capacitor Plugin for Google Drive Authorization using Google Identity Services
  * AuthorizationClient (Play Services Auth).
  *
- * This obtains a real OAuth 2.0 access token (ya29...) for Google Drive API requests
- * without opening an external browser / WebView origin_mismatch flow.
+ * Obtains a real OAuth 2.0 access token (ya29...) for Google Drive API requests
+ * using Capacitor 7's ActivityResultLauncher and StartIntentSenderForResult contract.
  */
 @CapacitorPlugin(name = "GoogleDriveAuth")
 public class GoogleDriveAuthPlugin extends Plugin {
 
     private static final String DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+    private ActivityResultLauncher<IntentSenderRequest> intentSenderLauncher;
+    private PluginCall activeCall;
+
+    @Override
+    public void load() {
+        super.load();
+        intentSenderLauncher = bridge.registerForActivityResult(
+            new ActivityResultContracts.StartIntentSenderForResult(),
+            this::handleActivityResult
+        );
+    }
 
     @PluginMethod
     public void authorize(PluginCall call) {
@@ -49,16 +64,12 @@ public class GoogleDriveAuthPlugin extends Plugin {
                 .addOnSuccessListener(result -> {
                     if (result.hasResolution()) {
                         try {
-                            saveCall(call);
-                            activity.startIntentSenderForResult(
-                                result.getPendingIntent().getIntentSender(),
-                                9823,
-                                null,
-                                0,
-                                0,
-                                0
-                            );
-                        } catch (IntentSender.SendIntentException e) {
+                            activeCall = call;
+                            IntentSender intentSender = result.getPendingIntent().getIntentSender();
+                            IntentSenderRequest requestLauncher = new IntentSenderRequest.Builder(intentSender).build();
+                            intentSenderLauncher.launch(requestLauncher);
+                        } catch (Exception e) {
+                            activeCall = null;
                             call.reject("Failed to launch Google authorization dialog: " + e.getMessage(), "INTENT_FAILED");
                         }
                     } else {
@@ -73,6 +84,7 @@ public class GoogleDriveAuthPlugin extends Plugin {
                     }
                 })
                 .addOnFailureListener(e -> {
+                    activeCall = null;
                     if (e instanceof ApiException) {
                         ApiException apiException = (ApiException) e;
                         if (apiException.getStatusCode() == CommonStatusCodes.CANCELED) {
@@ -83,33 +95,35 @@ public class GoogleDriveAuthPlugin extends Plugin {
                     call.reject("Google Drive authorization failed: " + e.getMessage(), "AUTH_FAILED");
                 });
         } catch (Exception e) {
+            activeCall = null;
             call.reject("Google Drive authorization failed: " + e.getMessage(), "UNEXPECTED_ERROR");
         }
     }
 
-    @Override
-    protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
-        super.handleOnActivityResult(requestCode, resultCode, data);
+    private void handleActivityResult(ActivityResult result) {
+        PluginCall call = activeCall;
+        activeCall = null;
 
-        if (requestCode != 9823) {
-            return;
-        }
-
-        PluginCall call = getSavedCall();
         if (call == null) {
             return;
         }
 
-        if (resultCode == Activity.RESULT_CANCELED) {
+        if (result == null || result.getResultCode() == Activity.RESULT_CANCELED) {
             call.reject("Authorization was cancelled or denied. Google Drive is still not connected.", "USER_CANCELLED");
             return;
         }
 
         try {
+            Intent data = result.getData();
+            if (data == null) {
+                call.reject("Authorization result data was empty.", "NO_DATA");
+                return;
+            }
+
             AuthorizationResult authResult = Identity.getAuthorizationClient(getActivity())
                 .getAuthorizationResultFromIntent(data);
 
-            String accessToken = authResult.getAccessToken();
+            String accessToken = authResult != null ? authResult.getAccessToken() : null;
             if (accessToken != null && !accessToken.isEmpty()) {
                 com.getcapacitor.JSObject res = new com.getcapacitor.JSObject();
                 res.put("accessToken", accessToken);
