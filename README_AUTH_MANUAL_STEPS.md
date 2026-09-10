@@ -41,6 +41,35 @@ Before deploying the Android app to production or when configuring the developme
 
 Note: Native Android Google Sign-In requires both the Android Client ID (to authenticate the app) and the Web Client ID (to generate the ID token) to successfully authenticate into Firebase natively.
 
+# Google Drive Authorization Architecture
+
+Noma uses incremental authorization to request Google Drive access only when the user explicitly chooses "Connect Google Drive".
+
+### Web / PWA Architecture
+- **Flow**: Google Identity Services (GIS) Web SDK token client (`window.google.accounts.oauth2.initTokenClient`).
+- **Scope**: `https://www.googleapis.com/auth/drive.file` (least-privileged scope; allows access only to backup files created by Noma).
+- **Requirements**:
+  - The hosting domain (e.g., `https://mynoma.vercel.app` or `http://localhost:3000`) must be added under **Authorized JavaScript origins** for the Web OAuth Client ID in Google Cloud Console.
+
+### Android Native Architecture
+- **Flow**: Google Play Services `AuthorizationClient.authorize()` via custom native Capacitor plugin (`GoogleDriveAuthPlugin.java`).
+- **Scope**: Incremental request for `https://www.googleapis.com/auth/drive.file` scope.
+- **Key Details**:
+  - Launches native Android Google Play Services account picker/consent dialog (`AuthorizationClient`) rather than a web browser window or WebView.
+  - Avoids browser `origin_mismatch` errors on Capacitor apps.
+  - Obtains a real OAuth 2.0 access token (`ya29...`) via `AuthorizationResult.getAccessToken()` and passes it directly to Noma's Google Drive REST client.
+  - Disconnecting Google Drive resets local memory tokens without revoking the main Google Sign-In session, keeping Noma sign-in intact.
+  - Access tokens are stored strictly short-lived in memory (`accessToken`) and never persisted to local storage or logs.
+
+### Required Google Cloud Configuration for Google Drive
+1. **Enable Google Drive API**:
+   - Go to Google Cloud Console > **APIs & Services** > **Library**.
+   - Search for **Google Drive API** and click **Enable**.
+2. **OAuth Consent Screen**:
+   - Under **OAuth consent screen** > **Data Access / Scopes**, ensure `https://www.googleapis.com/auth/drive.file` is added to non-sensitive scopes.
+
+---
+
 # Web & PWA Firebase Authorized Domains Configuration
 
 To securely handle Firebase Authentication redirects for the progressive web app (which blocks cross-origin iframe storage via Safari ITP / 3rd-party cookie deprecation), this project proxies the Firebase Auth helper endpoints on the primary application domain.
