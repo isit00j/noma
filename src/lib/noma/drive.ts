@@ -1,6 +1,4 @@
-import { Capacitor } from "@capacitor/core";
-import { GoogleAuth } from "@shardev/capacitor-google-auth";
-import { firebaseWebClientId } from "@/config/firebaseConfig";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { googleDriveClientId } from "../firebase";
 import { buildBackupZip, readBackupZip, recordBackup, type BackupPayload } from "./backup";
 import type { BackupManifest } from "./types";
@@ -190,14 +188,13 @@ function authorizeErrorMessage(code?: string, description?: string): string {
 /** Failsafe so the token callback can never leave the UI spinning forever. */
 const AUTHORIZE_TIMEOUT_MS = 120_000;
 
-async function authorizeNative(ownerId: string | null, prompt?: string): Promise<string> {
-  const clientId = firebaseWebClientId || googleDriveClientId;
-  if (!clientId) {
-    throw new DriveError(
-      "Google Drive backup isn't configured yet. Missing client ID in src/config/firebaseConfig.ts.",
-    );
-  }
+interface NativeGoogleDriveAuthPlugin {
+  authorize(): Promise<{ accessToken: string }>;
+}
 
+const NativeGoogleDriveAuth = registerPlugin<NativeGoogleDriveAuthPlugin>("GoogleDriveAuth");
+
+async function authorizeNative(ownerId: string | null, prompt?: string): Promise<string> {
   if (!prompt && accessToken && Date.now() < tokenExpiresAt && activeTokenOwner === ownerId) {
     return accessToken;
   }
@@ -209,44 +206,15 @@ async function authorizeNative(ownerId: string | null, prompt?: string): Promise
   }
 
   try {
-    await GoogleAuth.initialize({
-      clientId,
-      serverClientId: clientId,
-      scopes: ["profile", "email", SCOPE],
-    });
-
-    let token: string | undefined;
-
-    if (!prompt) {
-      try {
-        const result = await GoogleAuth.getToken();
-        token =
-          result.accessToken ||
-          (result as unknown as { authentication?: { accessToken?: string } }).authentication
-            ?.accessToken;
-      } catch {
-        /* silent token retrieval failed; fall through to interactive sign-in */
-      }
+    const result = await NativeGoogleDriveAuth.authorize();
+    if (!result.accessToken) {
+      throw new DriveError("No access token returned after Google Drive authorization", true);
     }
 
-    if (!token) {
-      const result = await GoogleAuth.login({
-        scopes: ["profile", "email", SCOPE],
-      });
-      token =
-        result.accessToken ||
-        (result as unknown as { authentication?: { accessToken?: string } }).authentication
-          ?.accessToken;
-    }
-
-    if (!token) {
-      throw new DriveError("Google Drive access token was not returned. Please try again.", true);
-    }
-
-    accessToken = token;
+    accessToken = result.accessToken;
     tokenExpiresAt = Date.now() + 50 * 60 * 1000;
     activeTokenOwner = ownerId;
-    return token;
+    return result.accessToken;
   } catch (error) {
     if (error instanceof DriveError) throw error;
 
