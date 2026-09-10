@@ -45,7 +45,8 @@ jobs:
           echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
           echo "Stable debug keystore successfully configured."
         else
-          echo "Warning: ANDROID_DEBUG_KEYSTORE_BASE64 secret is not set. A random debug keystore will be generated."
+          echo "ERROR: ANDROID_DEBUG_KEYSTORE_BASE64 secret is not set. A stable keystore is required for Google Sign-In to function."
+          exit 1
         fi
 
     - name: Build Android debug APK
@@ -54,15 +55,16 @@ jobs:
         DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEYSTORE_PASSWORD }}
         DEBUG_KEY_ALIAS: ${{ secrets.ANDROID_DEBUG_KEY_ALIAS }}
       run: |
-        if [ -n "$DEBUG_KEYSTORE_PASSWORD" ] && [ -n "$DEBUG_KEY_ALIAS" ]; then
-          ./gradlew assembleDebug \
-            -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
-            -Pandroid.injected.signing.store.password=$DEBUG_KEYSTORE_PASSWORD \
-            -Pandroid.injected.signing.key.alias=$DEBUG_KEY_ALIAS \
-            -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
-        else
-          ./gradlew assembleDebug
+        if [ -z "$DEBUG_KEYSTORE_PASSWORD" ] || [ -z "$DEBUG_KEY_ALIAS" ]; then
+          echo "ERROR: ANDROID_DEBUG_KEYSTORE_PASSWORD or ANDROID_DEBUG_KEY_ALIAS secrets are missing. A stable keystore configuration is required."
+          exit 1
         fi
+
+        ./gradlew assembleDebug \
+          -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+          -Pandroid.injected.signing.store.password=$DEBUG_KEYSTORE_PASSWORD \
+          -Pandroid.injected.signing.key.alias=$DEBUG_KEY_ALIAS \
+          -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
 
     - name: Print APK Signing Certificate Fingerprint
       working-directory: ./android
