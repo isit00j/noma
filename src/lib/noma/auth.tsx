@@ -192,10 +192,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             if (!_googleAuthInitialized) {
-              GoogleAuth.initialize({
+              await GoogleAuth.initialize({
                 clientId: firebaseWebClientId,
+                serverClientId: firebaseWebClientId,
                 scopes: ["profile", "email"],
-                grantOfflineAccess: true,
               });
               _googleAuthInitialized = true;
             }
