@@ -189,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               grantOfflineAccess: true,
             });
             const result = await GoogleAuth.signIn();
-            const idToken = result.authentication?.idToken;
+            const idToken = result.idToken;
             if (!idToken) throw new Error("No ID token returned from Google Sign-In");
             const credential = GoogleAuthProvider.credential(idToken);
             await signInWithCredential(auth, credential);
