@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
+import { GoogleSignIn } from "@capawesome/capacitor-google-sign-in";
 
 import {
   createUserWithEmailAndPassword,
@@ -16,6 +16,7 @@ import {
   unlink,
   reload,
   GoogleAuthProvider,
+  signInWithCredential,
   type User,
 } from "firebase/auth";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -177,19 +178,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle: async () => {
         const auth = requireAuth();
         if (Capacitor.isNativePlatform()) {
-          // Firebase signInWithRedirect attempts to use window.location.assign.
-          // On Capacitor Android, this navigates the WebView to the Google accounts page,
-          // which is blocked by Google (disallowed_useragent), causing a blank screen.
-          // To fix this cleanly without a separate auth system, we intercept the navigation
-          // and route it to the external system browser (Custom Tab) using @capacitor/browser.
-          // The WebView remains intact, preserving the Firebase IndexedDB session state.
-          const originalAssign = window.location.assign;
-          window.location.assign = (url: string | URL | Location) => {
-            window.location.assign = originalAssign; // Restore immediately
-            void Browser.open({ url: url.toString() });
-          };
-
-          await signInWithRedirect(auth, googleProvider());
+          // A native Android Google sign-in flow that obtains a Google credential and signs
+          // into the existing Firebase Auth instance using that credential.
+          // This avoids the WebView/browser boundary entirely, ensuring robust session state.
+          try {
+            const { googleDriveClientId } = await import("../firebase");
+            await GoogleSignIn.initialize({
+              clientId: googleDriveClientId || "",
+              scopes: ["profile", "email"],
+            });
+            const result = await GoogleSignIn.signIn();
+            const idToken = result.authentication?.idToken;
+            if (!idToken) throw new Error("No ID token returned from Google Sign-In");
+            const credential = GoogleAuthProvider.credential(idToken);
+            await signInWithCredential(auth, credential);
+          } catch (e) {
+            console.error("Native Google Sign In Error:", e);
+            throw e;
+          }
           return;
         }
 
