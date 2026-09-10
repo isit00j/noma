@@ -183,12 +183,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // This avoids the WebView/browser boundary entirely, ensuring robust session state.
           try {
             const { firebaseWebClientId } = await import("@/config/firebaseConfig");
+            if (!firebaseWebClientId) {
+              throw new Error(
+                "Missing Firebase Web Client ID. Please configure it in src/config/firebaseConfig.ts",
+              );
+            }
+
+            // Note: GoogleAuth natively handles duplicate initialization requests safely on Android
             GoogleAuth.initialize({
-              clientId: firebaseWebClientId || "",
+              clientId: firebaseWebClientId,
               scopes: ["profile", "email"],
               grantOfflineAccess: true,
             });
-            const result = await GoogleAuth.signIn();
+            const result = await GoogleAuth.login();
             const idToken = result.idToken;
             if (!idToken) throw new Error("No ID token returned from Google Sign-In");
             const credential = GoogleAuthProvider.credential(idToken);
