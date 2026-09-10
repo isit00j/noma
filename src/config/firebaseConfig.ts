@@ -27,3 +27,10 @@ export const firebaseConfig = {
  */
 export const googleDriveClientId =
   "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";
+
+/**
+ * The Google Cloud OAuth 2.0 Web client ID auto-created by Firebase Authentication.
+ * This is REQUIRED for Native Android Google Sign-In to obtain an ID token.
+ * Find this in Google Cloud Console -> APIs & Services -> Credentials -> "Web client (auto created by Google Service)".
+ */
+export const firebaseWebClientId = "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";

@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { GoogleAuth } from "@shardev/capacitor-google-auth";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -10,9 +13,11 @@ import {
   onAuthStateChanged,
   linkWithPopup,
   linkWithRedirect,
+  linkWithCredential,
   unlink,
   reload,
   GoogleAuthProvider,
+  signInWithCredential,
   type User,
 } from "firebase/auth";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -121,6 +126,8 @@ function canRedirect(): boolean {
   return window.top === window.self;
 }
 
+let _googleAuthInitialized = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(isFirebaseConfigured);
@@ -173,6 +180,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInWithGoogle: async () => {
         const auth = requireAuth();
+        if (Capacitor.isNativePlatform()) {
+          // A native Android Google sign-in flow that obtains a Google credential and signs
+          // into the existing Firebase Auth instance using that credential.
+          // This avoids the WebView/browser boundary entirely, ensuring robust session state.
+          try {
+            const { firebaseWebClientId } = await import("@/config/firebaseConfig");
+            if (!firebaseWebClientId) {
+              throw new Error(
+                "Missing Firebase Web Client ID. Please configure it in src/config/firebaseConfig.ts",
+              );
+            }
+
+            if (!_googleAuthInitialized) {
+              await GoogleAuth.initialize({
+                clientId: firebaseWebClientId,
+                serverClientId: firebaseWebClientId,
+                scopes: ["profile", "email"],
+              });
+              _googleAuthInitialized = true;
+            }
+            const result = await GoogleAuth.login();
+            const idToken = result.idToken;
+            if (!idToken) throw new Error("No ID token returned from Google Sign-In");
+            const credential = GoogleAuthProvider.credential(idToken);
+            await signInWithCredential(auth, credential);
+          } catch (e) {
+            console.error("Native Google Sign In Error:", e);
+            throw e;
+          }
+          return;
+        }
+
         try {
           await signInWithPopup(auth, googleProvider());
         } catch (error) {
@@ -218,6 +257,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const current = auth.currentUser;
         if (!current) throw new Error("You need to be signed in to link Google.");
         // Provider linking keeps ONE Noma account with two sign-in methods.
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const { firebaseWebClientId } = await import("@/config/firebaseConfig");
+            if (!firebaseWebClientId) {
+              throw new Error(
+                "Missing Firebase Web Client ID. Please configure it in src/config/firebaseConfig.ts",
+              );
+            }
+
+            if (!_googleAuthInitialized) {
+              await GoogleAuth.initialize({
+                clientId: firebaseWebClientId,
+                serverClientId: firebaseWebClientId,
+                scopes: ["profile", "email"],
+              });
+              _googleAuthInitialized = true;
+            }
+            const result = await GoogleAuth.login();
+            const idToken = result.idToken;
+            if (!idToken) throw new Error("No ID token returned from Google Sign-In");
+            const credential = GoogleAuthProvider.credential(idToken);
+            await linkWithCredential(current, credential);
+            setUser({ ...requireAuth().currentUser } as User);
+          } catch (e) {
+            console.error("Native Google Link Error:", e);
+            throw e;
+          }
+          return;
+        }
+
         try {
           await linkWithPopup(current, googleProvider());
         } catch (error) {
