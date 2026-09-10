@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { GoogleAuth } from "@shardev/capacitor-google-auth";
+import { firebaseWebClientId } from "@/config/firebaseConfig";
 import { googleDriveClientId } from "../firebase";
 import { buildBackupZip, readBackupZip, recordBackup, type BackupPayload } from "./backup";
 import type { BackupManifest } from "./types";
@@ -187,7 +190,81 @@ function authorizeErrorMessage(code?: string, description?: string): string {
 /** Failsafe so the token callback can never leave the UI spinning forever. */
 const AUTHORIZE_TIMEOUT_MS = 120_000;
 
-async function authorize(ownerId: string | null, prompt?: string): Promise<string> {
+async function authorizeNative(ownerId: string | null, prompt?: string): Promise<string> {
+  const clientId = firebaseWebClientId || googleDriveClientId;
+  if (!clientId) {
+    throw new DriveError(
+      "Google Drive backup isn't configured yet. Missing client ID in src/config/firebaseConfig.ts.",
+    );
+  }
+
+  if (!prompt && accessToken && Date.now() < tokenExpiresAt && activeTokenOwner === ownerId) {
+    return accessToken;
+  }
+
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new DriveError(
+      "You're offline. Noma keeps working locally — reconnect Drive when you're back online.",
+    );
+  }
+
+  try {
+    await GoogleAuth.initialize({
+      clientId,
+      serverClientId: clientId,
+      scopes: ["profile", "email", SCOPE],
+    });
+
+    let token: string | undefined;
+
+    if (!prompt) {
+      try {
+        const result = await GoogleAuth.getToken();
+        token =
+          result.accessToken ||
+          (result as unknown as { authentication?: { accessToken?: string } }).authentication
+            ?.accessToken;
+      } catch {
+        /* silent token retrieval failed; fall through to interactive sign-in */
+      }
+    }
+
+    if (!token) {
+      const result = await GoogleAuth.login({
+        scopes: ["profile", "email", SCOPE],
+      });
+      token =
+        result.accessToken ||
+        (result as unknown as { authentication?: { accessToken?: string } }).authentication
+          ?.accessToken;
+    }
+
+    if (!token) {
+      throw new DriveError("Google Drive access token was not returned. Please try again.", true);
+    }
+
+    accessToken = token;
+    tokenExpiresAt = Date.now() + 50 * 60 * 1000;
+    activeTokenOwner = ownerId;
+    return token;
+  } catch (error) {
+    if (error instanceof DriveError) throw error;
+
+    const message = (error as { message?: string; code?: string })?.message || String(error);
+    const code = (error as { code?: string })?.code || "";
+
+    if (code === "USER_CANCELLED" || /cancelled|canceled|cancel/i.test(message)) {
+      throw new DriveError(
+        "Authorization was cancelled or denied. Google Drive is still not connected.",
+        true,
+      );
+    }
+
+    throw new DriveError(`Google Drive authorization failed: ${message}`, true);
+  }
+}
+
+async function authorizeWeb(ownerId: string | null, prompt?: string): Promise<string> {
   if (!googleDriveClientId) {
     throw new DriveError(
       "Google Drive backup isn't configured yet. Add googleDriveClientId in src/config/firebaseConfig.ts.",
@@ -289,6 +366,13 @@ async function authorize(ownerId: string | null, prompt?: string): Promise<strin
       finish(() => reject(new DriveError(authorizeErrorMessage("popup_failed_to_open"), true)));
     }
   });
+}
+
+async function authorize(ownerId: string | null, prompt?: string): Promise<string> {
+  if (Capacitor.isNativePlatform()) {
+    return authorizeNative(ownerId, prompt);
+  }
+  return authorizeWeb(ownerId, prompt);
 }
 
 function googleErrorText(body: string): string | null {
@@ -402,7 +486,7 @@ export async function connectDrive(ownerId: string | null): Promise<DriveConnect
 
 export async function disconnectDrive(ownerId: string | null): Promise<void> {
   activeTokenOwner = undefined;
-  if (accessToken && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+  if (accessToken && !Capacitor.isNativePlatform() && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
     try {
       window.google.accounts.oauth2.revoke(accessToken);
     } catch {
