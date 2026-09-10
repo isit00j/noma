@@ -1,4 +1,3 @@
-import { App as CapacitorApp } from "@capacitor/app";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -169,70 +168,8 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function useDeepLinks() {
-  const router = useRouter();
-
-  useEffect(() => {
-    let listenerHandle: { remove: () => void } | null = null;
-
-    const handleUrl = (url: string) => {
-      try {
-        const urlObj = new URL(url);
-        if (urlObj.hostname === "mynoma.vercel.app") {
-          // If the URL is the OAuth callback to /signin and it contains a payload,
-          // we MUST trigger a full page reload so Firebase's getRedirectResult()
-          // initializes correctly.
-          if (urlObj.pathname === "/signin" && (urlObj.search || urlObj.hash)) {
-            // Prevent infinite loop on cold start
-            if (window.location.href !== urlObj.href) {
-              window.location.assign(urlObj.pathname + urlObj.search + urlObj.hash);
-            }
-          } else {
-            // Avoid pushing duplicate routes
-            if (
-              window.location.pathname !== urlObj.pathname ||
-              window.location.search !== urlObj.search
-            ) {
-              router.navigate({ to: urlObj.pathname + urlObj.search + urlObj.hash, replace: true });
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to parse app url", err);
-      }
-    };
-
-    CapacitorApp.getLaunchUrl()
-      .then((launchUrl) => {
-        if (launchUrl && launchUrl.url) {
-          handleUrl(launchUrl.url);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to get launch url", err);
-      });
-
-    CapacitorApp.addListener("appUrlOpen", (event) => {
-      handleUrl(event.url);
-    })
-      .then((handle) => {
-        listenerHandle = handle;
-      })
-      .catch((err) => {
-        console.error("Failed to add appUrlOpen listener", err);
-      });
-
-    return () => {
-      if (listenerHandle) {
-        listenerHandle.remove();
-      }
-    };
-  }, [router]);
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  useDeepLinks();
 
   return (
     <QueryClientProvider client={queryClient}>

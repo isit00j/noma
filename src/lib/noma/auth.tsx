@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { GoogleSignIn } from "@capawesome/capacitor-google-sign-in";
+import { GoogleAuth } from "@shardev/capacitor-google-auth";
 
 import {
   createUserWithEmailAndPassword,
