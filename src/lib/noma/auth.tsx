@@ -183,11 +183,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // This avoids the WebView/browser boundary entirely, ensuring robust session state.
           try {
             const { googleDriveClientId } = await import("../firebase");
-            await GoogleSignIn.initialize({
+            GoogleAuth.initialize({
               clientId: googleDriveClientId || "",
               scopes: ["profile", "email"],
+              grantOfflineAccess: true,
             });
-            const result = await GoogleSignIn.signIn();
+            const result = await GoogleAuth.signIn();
             const idToken = result.authentication?.idToken;
             if (!idToken) throw new Error("No ID token returned from Google Sign-In");
             const credential = GoogleAuthProvider.credential(idToken);
