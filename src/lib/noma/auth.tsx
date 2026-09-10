@@ -182,9 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // into the existing Firebase Auth instance using that credential.
           // This avoids the WebView/browser boundary entirely, ensuring robust session state.
           try {
-            const { googleDriveClientId } = await import("../firebase");
+            const { firebaseWebClientId } = await import("@/config/firebaseConfig");
             GoogleAuth.initialize({
-              clientId: googleDriveClientId || "",
+              clientId: firebaseWebClientId || "",
               scopes: ["profile", "email"],
               grantOfflineAccess: true,
             });

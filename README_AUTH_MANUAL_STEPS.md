@@ -1,8 +1,8 @@
 # Google Sign-In Native Android Configuration
 
-Because the native Google Sign-In implementation relies on the official Google Identity Services framework for Android, you must configure a native Android OAuth client in Google Cloud Console.
+Because the native Google Sign-In implementation relies on the official Google Identity Services framework for Android, you must explicitly configure a native Android OAuth client in Google Cloud Console.
 
-Before deploying to production, follow these steps:
+Before deploying the Android app to production, follow these steps:
 
 1. **Obtain the SHA-1 Certificate Fingerprint**
    Extract the SHA-1 fingerprint from your production release keystore using the following command:
@@ -20,7 +20,13 @@ Before deploying to production, follow these steps:
    - Paste the SHA-1 fingerprint you obtained in Step 1.
    - Save your changes.
 
-Note: Native Android Google Sign-In requires this specific Android OAuth Client ID to exist in your Google Cloud Project to successfully authenticate native tokens.
+3. **Provide the Firebase Web Client ID**
+   For native Android Google Sign-in to produce an ID Token compatible with Firebase Auth, it must be initialized using the exact **Web client ID** associated with the Firebase project.
+   - In Google Cloud Console, under **OAuth 2.0 Client IDs**, find the auto-created Web client ID (usually named "Web client (auto created by Google Service)").
+   - Copy this Client ID.
+   - Paste it into `src/config/firebaseConfig.ts` for the `firebaseWebClientId` variable.
+
+Note: Native Android Google Sign-In requires both the Android Client ID (to authenticate the app) and the Web Client ID (to generate the ID token) to successfully authenticate into Firebase natively.
 
 # Web & PWA Firebase Authorized Domains Configuration
 
