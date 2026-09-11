@@ -239,7 +239,8 @@ public class NomaBackupPlugin extends Plugin {
                 }
 
                 DocumentFile targetFolder = treeDir;
-                if (!"Noma".equalsIgnoreCase(treeDir.getName())) {
+                String treeDirName = treeDir.getName();
+                if (treeDirName == null || !"Noma".equalsIgnoreCase(treeDirName)) {
                     DocumentFile existingNoma = treeDir.findFile("Noma");
                     if (existingNoma != null && existingNoma.isDirectory()) {
                         targetFolder = existingNoma;
@@ -290,10 +291,14 @@ public class NomaBackupPlugin extends Plugin {
 
                 tempFile.delete();
 
+                String folderDisplayName = targetFolder.getName() != null ? targetFolder.getName() : "Noma";
+                String displayPath = "Internal storage/" + folderDisplayName + "/" + finalFileName;
+
                 JSObject res = new JSObject();
                 res.put("saved", true);
                 res.put("fileName", finalFileName);
-                res.put("path", "Internal storage/Noma/" + finalFileName);
+                res.put("path", folderDisplayName + "/" + finalFileName);
+                res.put("fullDisplayPath", displayPath);
                 call.resolve(res);
 
             } else {
@@ -340,7 +345,8 @@ public class NomaBackupPlugin extends Plugin {
                 JSObject res = new JSObject();
                 res.put("saved", true);
                 res.put("fileName", finalFileName);
-                res.put("path", "Internal storage/Noma/" + finalFileName);
+                res.put("path", "Noma/" + finalFileName);
+                res.put("fullDisplayPath", "Internal storage/Noma/" + finalFileName);
                 call.resolve(res);
             }
         } catch (Exception e) {

@@ -7,7 +7,7 @@ export interface NomaBackupPluginInterface {
   finalizeSave(options: {
     sessionId: string;
     fileName: string;
-  }): Promise<{ saved: boolean; fileName: string; path: string }>;
+  }): Promise<{ saved: boolean; fileName: string; path: string; fullDisplayPath: string }>;
   cancelSaveSession(options: { sessionId: string }): Promise<{ cancelled: boolean }>;
 }
 
@@ -16,12 +16,10 @@ const NomaBackup = registerPlugin<NomaBackupPluginInterface>("NomaBackup");
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    const byte = bytes[i];
-    if (byte !== undefined) {
-      binary += String.fromCharCode(byte);
-    }
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const subArray = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, Array.from(subArray));
   }
   return btoa(binary);
 }
@@ -29,7 +27,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export async function exportBackupAndroid(
   blob: Blob,
   fileName: string,
-): Promise<{ saved: boolean; fileName: string; path: string }> {
+): Promise<{ saved: boolean; fileName: string; path: string; fullDisplayPath: string }> {
   const access = await NomaBackup.ensureStorageAccess();
   if (!access || !access.granted) {
     throw new Error("Storage access permission was not granted.");

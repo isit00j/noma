@@ -105,7 +105,7 @@ function SettingsPage() {
         const result = await exportBackupAndroid(blob, filename);
         if (result.saved) {
           await recordBackup(db!, "local", "success", payload.notes.length);
-          toast.success(`Backup saved to Internal storage/Noma/${result.fileName}`);
+          toast.success(`Backup saved to ${result.fullDisplayPath}`);
         } else {
           toast.error("Failed to save backup");
         }
