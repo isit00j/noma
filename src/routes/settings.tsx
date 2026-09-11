@@ -19,7 +19,9 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-noma";
+import { Capacitor } from "@capacitor/core";
 import { useAuth, friendlyAuthError } from "@/lib/noma/auth";
+import { exportBackupAndroid } from "@/lib/noma/android-backup";
 import {
   applyBackup,
   backupFileName,
@@ -97,9 +99,21 @@ function SettingsPage() {
     setBusy("export");
     try {
       const { blob, payload } = await buildBackupZip(db!, auth.user?.uid ?? null);
-      downloadBlob(blob, backupFileName());
-      await recordBackup(db!, "local", "success", payload.notes.length);
-      toast.success("Backup downloaded");
+      const filename = backupFileName();
+
+      if (Capacitor.isNativePlatform()) {
+        const result = await exportBackupAndroid(blob, filename);
+        if (result.saved) {
+          await recordBackup(db!, "local", "success", payload.notes.length);
+          toast.success(`Backup saved to ${result.fullDisplayPath}`);
+        } else {
+          toast.error("Failed to save backup");
+        }
+      } else {
+        downloadBlob(blob, filename);
+        await recordBackup(db!, "local", "success", payload.notes.length);
+        toast.success("Backup downloaded");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed");
     } finally {
