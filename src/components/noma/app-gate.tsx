@@ -4,6 +4,8 @@ import { Welcome } from "./welcome";
 import { useSettings } from "@/hooks/use-noma";
 import { useAuth } from "@/lib/noma/auth";
 import { applyTheme } from "@/lib/noma/theme";
+import { useAppLock } from "@/lib/noma/AppLockContext";
+import { LockScreen } from "./lock-screen";
 
 /**
  * Applies the stored theme and, for signed-in accounts only, handles email
@@ -45,6 +47,16 @@ export function AppGate({ children }: { children: ReactNode }) {
         <Welcome email={auth.email} onStart={() => void update({ onboardedFor: uid })} />
       </div>
     );
+  }
+
+  return <AppGateContent>{children}</AppGateContent>;
+}
+
+function AppGateContent({ children }: { children: ReactNode }) {
+  const { isLocked } = useAppLock();
+
+  if (isLocked) {
+    return <LockScreen />;
   }
 
   return (

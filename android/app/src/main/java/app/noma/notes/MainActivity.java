@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(GoogleDriveAuthPlugin.class);
         registerPlugin(NomaBackupPlugin.class);
+        registerPlugin(NomaBiometricPlugin.class);
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
     }

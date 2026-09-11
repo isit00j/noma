@@ -33,6 +33,7 @@ import {
 } from "@/lib/noma/backup";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { DriveCard } from "@/components/noma/drive-card";
+import { AppLockSection } from "@/components/noma/app-lock-section";
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
@@ -161,6 +162,8 @@ function SettingsPage() {
       </header>
 
       <div className="mx-auto max-w-2xl px-5 pb-20 sm:px-6">
+        <AppLockSection />
+
         <Section title="Appearance" description="Noma remembers these on this device.">
           <div className="flex items-center justify-between gap-4">
             <Label>Theme</Label>

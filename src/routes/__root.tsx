@@ -17,6 +17,7 @@ import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
 import { PWAReloadPrompt } from "@/components/noma/pwa-reload-prompt";
 
 import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
+import { AppLockProvider } from "@/lib/noma/AppLockContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -175,11 +176,13 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DatabaseProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <GuestMigrationDialog />
-          <Toaster position="bottom-center" />
-          <PWAReloadPrompt />
+          <AppLockProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+            <GuestMigrationDialog />
+            <Toaster position="bottom-center" />
+            <PWAReloadPrompt />
+          </AppLockProvider>
         </DatabaseProvider>
       </AuthProvider>
     </QueryClientProvider>

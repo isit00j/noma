@@ -55,6 +55,21 @@ export interface AppSettings {
   /** Firebase uid that has completed the first-run welcome on this device. */
   onboardedFor: string | null;
   displayName: string;
+
+  // App Lock Security Settings
+  appLockEnabled: boolean;
+  lockTimeout: number; // Seconds: 0 (Immediately), 10, 60, 300, 900, 1800, 3600
+  unlockMethods: {
+    biometric: boolean;
+    pattern: boolean;
+    password: boolean;
+  };
+  passwordHash: string | null;
+  passwordSalt: string | null;
+  patternHash: string | null;
+  patternSalt: string | null;
+  failedAttempts: number;
+  lockoutUntil: number | null;
 }
 
 export interface BackupRecord {
@@ -91,4 +106,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sidebarCollapsed: false,
   onboardedFor: null,
   displayName: "",
+
+  appLockEnabled: false,
+  lockTimeout: 0,
+  unlockMethods: {
+    biometric: false,
+    pattern: false,
+    password: false,
+  },
+  passwordHash: null,
+  passwordSalt: null,
+  patternHash: null,
+  patternSalt: null,
+  failedAttempts: 0,
+  lockoutUntil: null,
 };
