@@ -184,11 +184,8 @@ function AccountPage() {
               type="text"
               placeholder="Enter your name"
               value={nameInput}
-              onChange={(e) => {
-                const val = e.target.value;
-                setNameInput(val);
-                void update({ displayName: val });
-              }}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={() => void update({ displayName: nameInput })}
               className="max-w-md"
             />
             <p className="text-xs text-muted-foreground">
@@ -281,8 +278,8 @@ function AccountPage() {
               <span>Local Storage</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your notes and preferences are stored locally on this device using IndexedDB. Noma
-              does not store your notes or profile data on a remote cloud server.
+              Your notes and preferences are stored locally on this device. Optional Google Drive
+              backups are separate.
             </p>
           </div>
         </Section>

@@ -33,5 +33,4 @@ export const googleDriveClientId =
  * This is REQUIRED for Native Android Google Sign-In to obtain an ID token.
  * Find this in Google Cloud Console -> APIs & Services -> Credentials -> "Web client (auto created by Google Service)".
  */
-export const firebaseWebClientId =
-  "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";
+export const firebaseWebClientId = "453389463270-ja6ebprburb7j0smhpa2kqthg6ngt2o0.apps.googleusercontent.com";
