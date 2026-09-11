@@ -50,12 +50,12 @@ export function ReauthDialog({
   const handleBiometricReauth = async () => {
     setBusy(true);
     try {
-      const ok = await verifyCurrentCredential("biometric");
-      if (ok) {
+      const res = await verifyCurrentCredential("biometric");
+      if (res.success) {
         onSuccess();
         onOpenChange(false);
       } else {
-        toast.error("Biometric authorization failed.");
+        toast.error(res.error ?? "Biometric authorization failed.");
       }
     } finally {
       setBusy(false);
@@ -67,13 +67,13 @@ export function ReauthDialog({
     if (!passwordInput || busy) return;
     setBusy(true);
     try {
-      const ok = await verifyCurrentCredential("password", passwordInput);
-      if (ok) {
+      const res = await verifyCurrentCredential("password", passwordInput);
+      if (res.success) {
         setPasswordInput("");
         onSuccess();
         onOpenChange(false);
       } else {
-        toast.error("Incorrect Noma password.");
+        toast.error(res.error ?? "Incorrect Noma password.");
         setPasswordInput("");
       }
     } finally {
@@ -128,13 +128,13 @@ export function ReauthDialog({
 
     setBusy(true);
     try {
-      const ok = await verifyCurrentCredential("pattern", patternPoints);
-      if (ok) {
+      const res = await verifyCurrentCredential("pattern", patternPoints);
+      if (res.success) {
         setPatternPoints([]);
         onSuccess();
         onOpenChange(false);
       } else {
-        toast.error("Incorrect Noma pattern.");
+        toast.error(res.error ?? "Incorrect Noma pattern.");
         setPatternPoints([]);
       }
     } finally {

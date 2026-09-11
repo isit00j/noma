@@ -237,8 +237,8 @@ export function AppLockSection() {
   };
 
   const savePasswordSetup = async () => {
-    if (passwordInput.length < 4) {
-      toast.error("Password must be at least 4 characters.");
+    if (passwordInput.length < 8) {
+      toast.error("Password must be at least 8 characters long.");
       return;
     }
     if (passwordInput !== confirmPasswordInput) {
@@ -464,7 +464,7 @@ export function AppLockSection() {
               <Label className="text-xs">New Noma Password</Label>
               <Input
                 type="password"
-                placeholder="Enter password (min 4 chars)"
+                placeholder="Enter password (min 8 chars)"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
               />

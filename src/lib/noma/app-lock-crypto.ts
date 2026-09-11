@@ -34,12 +34,12 @@ export function generateSalt(): string {
 
 /**
  * Derived PBKDF2-HMAC-SHA256 key hash (Base64 string).
- * Uses 200,000 iterations for Password and 100,000 iterations for Pattern.
+ * Uses OWASP recommended 600,000 iterations for Password and 100,000 iterations for Pattern.
  */
 export async function deriveKeyHash(
   secret: string,
   saltBase64: string,
-  iterations = 200000,
+  iterations = 600000,
 ): Promise<string> {
   const enc = new TextEncoder();
   const secretBytes = enc.encode(secret);
@@ -81,7 +81,7 @@ export async function verifySecret(
   secret: string,
   saltBase64: string,
   expectedHashBase64: string,
-  iterations = 200000,
+  iterations = 600000,
 ): Promise<boolean> {
   const calculatedHash = await deriveKeyHash(secret, saltBase64, iterations);
   return constantTimeCompare(calculatedHash, expectedHashBase64);

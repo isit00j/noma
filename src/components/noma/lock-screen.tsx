@@ -25,7 +25,7 @@ export function LockScreen() {
     unlockWithBiometric,
     unlockWithPassword,
     unlockWithPattern,
-    resetAppLockData,
+    wipeLocalDataAndSecurity,
   } = useAppLock();
 
   const [passwordInput, setPasswordInput] = useState("");
@@ -274,28 +274,40 @@ export function LockScreen() {
       <AlertDialog open={showRecoveryDialog} onOpenChange={setShowRecoveryDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif">Reset Noma Security Data?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <span>
-                If you have forgotten your pattern or password, you can reset App Lock security settings.
-              </span>
-              <span className="block text-destructive font-medium">
-                Note: Your notes library will remain untouched on this device. App Lock protection will be disabled until you re-configure it.
-              </span>
+            <AlertDialogTitle className="font-serif">Forgotten Credentials Recovery</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              {availableMethods.biometric && biometricAvailable ? (
+                <span>
+                  If you have forgotten your pattern or password, you can authenticate using your Biometric sensor to unlock Noma and reset your credentials in Settings.
+                </span>
+              ) : (
+                <>
+                  <span className="block">
+                    Noma App Lock has no unauthenticated backdoor. To protect local security, forgotten credentials can only be reset by authenticating with another active method or performing an explicit local database wipe.
+                  </span>
+                  <span className="block text-destructive font-semibold">
+                    Warning: Wiping local database will permanently delete all local notes, attachments, and settings stored on this device.
+                  </span>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                await resetAppLockData();
-                toast.success("App Lock security settings reset.");
-                setShowRecoveryDialog(false);
-              }}
-            >
-              Reset App Lock
-            </AlertDialogAction>
+            {availableMethods.biometric && biometricAvailable ? (
+              <AlertDialogAction onClick={() => void unlockWithBiometric()}>
+                Authenticate Biometric
+              </AlertDialogAction>
+            ) : (
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  await wipeLocalDataAndSecurity();
+                }}
+              >
+                Wipe Local Database & Reset
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

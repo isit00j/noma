@@ -53,7 +53,17 @@ export function AppGate({ children }: { children: ReactNode }) {
 }
 
 function AppGateContent({ children }: { children: ReactNode }) {
-  const { isLocked } = useAppLock();
+  const { isLocked, isLockStateResolving } = useAppLock();
+
+  if (isLockStateResolving) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground animate-pulse motion-reduce:animate-none">
+          Opening Noma…
+        </p>
+      </div>
+    );
+  }
 
   if (isLocked) {
     return <LockScreen />;

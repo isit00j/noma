@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { useSettings } from "@/hooks/use-noma";
 import {
   NomaBiometric,
@@ -21,6 +22,7 @@ import {
 
 export interface AppLockContextValue {
   isLocked: boolean;
+  isLockStateResolving: boolean;
   biometricAvailable: boolean;
   biometricStatus: BiometricCheckResult | null;
   lockoutRemainingSeconds: number;
@@ -32,9 +34,9 @@ export interface AppLockContextValue {
   verifyCurrentCredential: (
     type: "biometric" | "password" | "pattern",
     payload?: string | number[],
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; error?: string }>;
   lock: () => void;
-  resetAppLockData: () => Promise<void>;
+  wipeLocalDataAndSecurity: () => Promise<void>;
 }
 
 const AppLockContext = createContext<AppLockContextValue | null>(null);
@@ -144,6 +146,20 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    let appStateListener: { remove: () => void } | null = null;
+
+    if (Capacitor.isNativePlatform()) {
+      void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+        if (!isActive) {
+          onAppHide();
+        } else {
+          onAppShow();
+        }
+      }).then((listener) => {
+        appStateListener = listener;
+      });
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         onAppHide();
@@ -157,6 +173,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", onAppShow);
 
     return () => {
+      if (appStateListener) appStateListener.remove();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", onAppHide);
       window.removeEventListener("focus", onAppShow);
@@ -219,7 +236,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Noma Password is not configured." };
       }
 
-      const match = await verifySecret(password, settings.passwordSalt, settings.passwordHash, 200000);
+      const match = await verifySecret(password, settings.passwordSalt, settings.passwordHash, 600000);
       if (match) {
         await handleSuccessfulAttempt();
         setIsUnlocked(true);
@@ -262,7 +279,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const setPassword = useCallback(
     async (password: string) => {
       const salt = generateSalt();
-      const hash = await deriveKeyHash(password, salt, 200000);
+      const hash = await deriveKeyHash(password, salt, 600000);
       await update({
         passwordSalt: salt,
         passwordHash: hash,
@@ -287,9 +304,21 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   );
 
   const verifyCurrentCredential = useCallback(
-    async (type: "biometric" | "password" | "pattern", payload?: string | number[]): Promise<boolean> => {
+    async (
+      type: "biometric" | "password" | "pattern",
+      payload?: string | number[],
+    ): Promise<{ success: boolean; error?: string }> => {
+      if (lockoutRemainingSeconds > 0) {
+        return {
+          success: false,
+          error: `Too many attempts. Lockout active for ${lockoutRemainingSeconds}s.`,
+        };
+      }
+
       if (type === "biometric") {
-        if (!Capacitor.isNativePlatform() || !biometricStatus?.available) return false;
+        if (!Capacitor.isNativePlatform() || !biometricStatus?.available) {
+          return { success: false, error: "Biometric sensor unavailable." };
+        }
         isBiometricPromptActive.current = true;
         try {
           const res = await NomaBiometric.authenticate({
@@ -298,53 +327,93 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
             cancelTitle: "Cancel",
           });
           isBiometricPromptActive.current = false;
-          return res.success;
+          if (res.success) {
+            await handleSuccessfulAttempt();
+            return { success: true };
+          }
+          return { success: false, error: "Biometric authorization failed." };
         } catch {
           isBiometricPromptActive.current = false;
-          return false;
+          return { success: false, error: "Biometric authentication error." };
         }
       }
 
       if (type === "password" && typeof payload === "string") {
-        if (!settings.passwordHash || !settings.passwordSalt) return false;
-        return verifySecret(payload, settings.passwordSalt, settings.passwordHash, 200000);
+        if (!settings.passwordHash || !settings.passwordSalt) {
+          return { success: false, error: "Noma Password is not configured." };
+        }
+        const match = await verifySecret(payload, settings.passwordSalt, settings.passwordHash, 600000);
+        if (match) {
+          await handleSuccessfulAttempt();
+          return { success: true };
+        } else {
+          await handleFailedAttempt();
+          return { success: false, error: "Incorrect password." };
+        }
       }
 
       if (type === "pattern" && Array.isArray(payload)) {
-        if (!settings.patternHash || !settings.patternSalt) return false;
+        if (!settings.patternHash || !settings.patternSalt) {
+          return { success: false, error: "Noma Pattern is not configured." };
+        }
         const canonical = canonicalizePattern(payload);
-        return verifySecret(canonical, settings.patternSalt, settings.patternHash, 100000);
+        const match = await verifySecret(canonical, settings.patternSalt, settings.patternHash, 100000);
+        if (match) {
+          await handleSuccessfulAttempt();
+          return { success: true };
+        } else {
+          await handleFailedAttempt();
+          return { success: false, error: "Incorrect pattern." };
+        }
       }
 
-      return false;
+      return { success: false, error: "Invalid credential verification payload." };
     },
-    [biometricStatus?.available, settings.passwordHash, settings.passwordSalt, settings.patternHash, settings.patternSalt],
+    [
+      lockoutRemainingSeconds,
+      biometricStatus?.available,
+      settings.passwordHash,
+      settings.passwordSalt,
+      settings.patternHash,
+      settings.patternSalt,
+      handleSuccessfulAttempt,
+      handleFailedAttempt,
+    ],
   );
 
   const lock = useCallback(() => {
     setIsUnlocked(false);
   }, []);
 
-  const resetAppLockData = useCallback(async () => {
-    await update({
-      appLockEnabled: false,
-      unlockMethods: { biometric: false, pattern: false, password: false },
-      passwordHash: null,
-      passwordSalt: null,
-      patternHash: null,
-      patternSalt: null,
-      failedAttempts: 0,
-      lockoutUntil: null,
-    });
-    setIsUnlocked(false);
-  }, [update]);
+  const wipeLocalDataAndSecurity = useCallback(async () => {
+    // Import active database context or Dexie instance dynamically to perform destructive local reset
+    if (typeof window !== "undefined" && "indexedDB" in window) {
+      // Clear all active local account IndexedDB tables to prevent unauthenticated access
+      try {
+        const dbName = settings.onboardedFor ? `noma_${settings.onboardedFor}` : "noma_guest";
+        const req = indexedDB.deleteDatabase(dbName);
+        req.onsuccess = () => {
+          window.location.reload();
+        };
+        req.onerror = () => {
+          window.location.reload();
+        };
+        req.onblocked = () => {
+          window.location.reload();
+        };
+      } catch {
+        window.location.reload();
+      }
+    }
+  }, [settings.onboardedFor]);
 
-  const effectiveIsLocked = ready && settings.appLockEnabled && !isUnlocked;
+  const effectiveIsLocked = !ready ? true : settings.appLockEnabled && !isUnlocked;
 
   return (
     <AppLockContext.Provider
       value={{
         isLocked: effectiveIsLocked,
+        isLockStateResolving: !ready,
         biometricAvailable: Boolean(biometricStatus?.available),
         biometricStatus,
         lockoutRemainingSeconds,
@@ -355,7 +424,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setPattern,
         verifyCurrentCredential,
         lock,
-        resetAppLockData,
+        wipeLocalDataAndSecurity,
       }}
     >
       {children}
