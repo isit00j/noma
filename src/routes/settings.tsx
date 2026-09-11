@@ -29,6 +29,7 @@ import {
   recordBackup,
   type BackupPayload,
 } from "@/lib/noma/backup";
+import { saveAndroidBackup } from "@/lib/noma/android-backup";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { DriveCard } from "@/components/noma/drive-card";
 
@@ -97,9 +98,15 @@ function SettingsPage() {
     setBusy("export");
     try {
       const { blob, payload } = await buildBackupZip(db!, auth.user?.uid ?? null);
-      downloadBlob(blob, backupFileName());
+      const fileName = backupFileName();
+      const savedToNomaFolder = await saveAndroidBackup(blob, fileName);
+      if (!savedToNomaFolder) downloadBlob(blob, fileName);
       await recordBackup(db!, "local", "success", payload.notes.length);
-      toast.success("Backup downloaded");
+      toast.success(
+        savedToNomaFolder
+          ? `Backup saved to Internal storage/Noma/${fileName}`
+          : "Backup downloaded",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed");
     } finally {
@@ -386,7 +393,6 @@ function SettingsPage() {
                 setBusy("signout");
                 setConfirmSignOut(false);
                 try {
-                  // Brief, intentional beat before the screen crossfades back to auth.
                   await new Promise((resolve) => setTimeout(resolve, 220));
                   await auth.signOut();
                   toast.success("Signed out — Noma is in Local Mode.");
