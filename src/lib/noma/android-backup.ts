@@ -1,26 +1,20 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+interface NomaBackupPlugin {
+  save(options: { fileName: string; base64: string }): Promise<{ path: string }>;
+}
+
+const NomaBackup = registerPlugin<NomaBackupPlugin>("NomaBackup");
 
 /**
- * Saves a backup in a user-visible location on Android.
- *
- * Android uses the system DocumentsUI so the user explicitly chooses the
- * destination. The suggested path is Internal storage/Noma/<file>, while
- * browsers continue to use the normal download flow.
+ * Saves a backup to the Android shared Noma folder.
+ * Returns false on web/non-Android so callers can keep the browser download flow.
  */
 export async function saveAndroidBackup(blob: Blob, fileName: string): Promise<boolean> {
   if (Capacitor.getPlatform() !== "android") return false;
 
-  const data = await blob.arrayBuffer();
-  const base64 = arrayBufferToBase64(data);
-
-  // The native bridge is implemented by the Android project. Keeping this
-  // call behind the platform check means the web/PWA build remains unchanged.
-  await Capacitor.Plugins.NomaBackup?.save({
-    fileName,
-    base64,
-    suggestedDirectory: "Noma",
-  });
-
+  const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+  await NomaBackup.save({ fileName, base64 });
   return true;
 }
 
