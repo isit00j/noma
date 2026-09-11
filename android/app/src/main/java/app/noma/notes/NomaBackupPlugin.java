@@ -4,11 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
-import android.provider.Settings;
 import android.util.Base64;
 
 import androidx.activity.result.ActivityResult;
@@ -97,6 +95,15 @@ public class NomaBackupPlugin extends Plugin {
             return;
         }
 
+        DocumentFile directory = DocumentFile.fromTreeUri(getContext(), treeUri);
+        if (directory == null || !directory.canWrite() || !"Noma".equals(directory.getName())) {
+            call.reject(
+                "Please select Noma's dedicated folder in Internal storage. Create a folder named Noma if it does not exist yet.",
+                "INVALID_FOLDER"
+            );
+            return;
+        }
+
         try {
             int takeFlags = result.getData().getFlags()
                 & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
@@ -117,7 +124,7 @@ public class NomaBackupPlugin extends Plugin {
     private boolean saveToTree(PluginCall call, Uri treeUri, String fileName, String base64) {
         try {
             DocumentFile directory = DocumentFile.fromTreeUri(getContext(), treeUri);
-            if (directory == null || !directory.canWrite()) {
+            if (directory == null || !directory.canWrite() || !"Noma".equals(directory.getName())) {
                 return false;
             }
 
