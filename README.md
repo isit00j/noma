@@ -5,6 +5,7 @@ Noma is a minimalist note-taking app that works fully offline, stores notes on y
 ## What Noma Does
 
 Noma provides a calm, distraction-free environment for your thoughts. Current features include:
+
 - **Rich Text Editing:** Create and edit notes with a clean, Tiptap-powered editor.
 - **Organization:** Manage notes with folders, tags, favorites, and pinned notes.
 - **Search & Filtering:** Quickly find notes across your workspace.
@@ -23,6 +24,7 @@ The production web application is deployed on Vercel and can be accessed at:
 ## Technology Stack
 
 Noma is built using modern web technologies:
+
 - **Framework:** React / TypeScript / TanStack Start
 - **Build Tooling:** Vite
 - **Offline / Storage:** Dexie (IndexedDB) for local data, Serwist for service worker / PWA support
@@ -40,20 +42,24 @@ The Android application is built from the existing Noma application. The Android
 To work on Noma locally, you will need Node.js and npm installed.
 
 1. **Clone the repository:**
+
    ```sh
    git clone <repository-url>
    cd <repository-name>
    ```
 
 2. **Install dependencies:**
+
    ```sh
    npm install
    ```
 
 3. **Start the development server:**
+
    ```sh
    npm run dev
    ```
+
    The application will be available at `http://localhost:5173`.
 
 4. **Build for production:**

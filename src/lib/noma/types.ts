@@ -54,6 +54,7 @@ export interface AppSettings {
   sidebarCollapsed: boolean;
   /** Firebase uid that has completed the first-run welcome on this device. */
   onboardedFor: string | null;
+  displayName: string;
 }
 
 export interface BackupRecord {
@@ -89,4 +90,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoBackup: false,
   sidebarCollapsed: false,
   onboardedFor: null,
+  displayName: "",
 };
