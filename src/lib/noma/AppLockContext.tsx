@@ -7,7 +7,7 @@ import {
   type ReactNode,
   useCallback,
 } from "react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useSettings } from "@/hooks/use-noma";
 import {
@@ -146,7 +146,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    let appStateListener: { remove: () => void } | null = null;
+    let appStateListener: PluginListenerHandle | null = null;
 
     if (Capacitor.isNativePlatform()) {
       void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
@@ -173,7 +173,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", onAppShow);
 
     return () => {
-      if (appStateListener) appStateListener.remove();
+      if (appStateListener) void appStateListener.remove();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", onAppHide);
       window.removeEventListener("focus", onAppShow);
