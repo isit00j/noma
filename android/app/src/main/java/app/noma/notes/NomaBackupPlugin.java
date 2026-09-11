@@ -286,18 +286,30 @@ public class NomaBackupPlugin extends Plugin {
                     return;
                 }
 
-                DocumentFile targetFolder = treeDir;
+                DocumentFile targetFolder = null;
                 String treeDirName = treeDir.getName();
-                if (treeDirName == null || !"Noma".equalsIgnoreCase(treeDirName)) {
+                if (treeDirName != null && "Noma".equalsIgnoreCase(treeDirName)) {
+                    targetFolder = treeDir;
+                } else {
                     DocumentFile existingNoma = treeDir.findFile("Noma");
                     if (existingNoma != null && existingNoma.isDirectory()) {
                         targetFolder = existingNoma;
                     } else {
                         DocumentFile createdDir = treeDir.createDirectory("Noma");
-                        if (createdDir != null) {
+                        if (createdDir != null && createdDir.isDirectory()) {
                             targetFolder = createdDir;
+                        } else {
+                            tempFile.delete();
+                            call.reject("Failed to create Noma directory.", "DIR_CREATE_FAILED");
+                            return;
                         }
                     }
+                }
+
+                if (targetFolder == null || !targetFolder.exists() || !targetFolder.isDirectory() || !targetFolder.canWrite()) {
+                    tempFile.delete();
+                    call.reject("Target Noma directory is invalid or not writable.", "DIR_CREATE_FAILED");
+                    return;
                 }
 
                 String baseName = fileName;
