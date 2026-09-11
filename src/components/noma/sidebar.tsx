@@ -308,7 +308,7 @@ export function NomaSidebar({
 
       <div className="space-y-0.5 border-t border-sidebar-border p-3">
         <Link
-          to="/signin"
+          to={auth.user ? "/account" : "/signin"}
           className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground active:scale-[0.99] motion-reduce:active:scale-100"
         >
           <UserRound className="size-4" />
