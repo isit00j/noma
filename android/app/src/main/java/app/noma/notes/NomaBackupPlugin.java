@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
@@ -91,6 +92,12 @@ public class NomaBackupPlugin extends Plugin {
                 Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION |
                 Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
             );
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Uri initialUri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3ANoma");
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri);
+            }
+
             activePermissionCall = call;
             try {
                 treePickerLauncher.launch(intent);
@@ -204,6 +211,47 @@ public class NomaBackupPlugin extends Plugin {
         }
     }
 
+    private String getDisplayPath(DocumentFile targetFolder, String fileName) {
+        if (targetFolder == null || targetFolder.getUri() == null) {
+            return "Internal storage/Noma/" + fileName;
+        }
+        Uri uri = targetFolder.getUri();
+        String authority = uri.getAuthority();
+        if ("com.android.externalstorage.documents".equals(authority)) {
+            String docId = null;
+            try {
+                docId = DocumentsContract.getDocumentId(uri);
+            } catch (Exception e) {
+                try {
+                    docId = DocumentsContract.getTreeDocumentId(uri);
+                } catch (Exception ex) {
+                    // ignore
+                }
+            }
+            if (docId != null && docId.contains(":")) {
+                String[] parts = docId.split(":", 2);
+                String volume = "primary".equalsIgnoreCase(parts[0]) ? "Internal storage" : parts[0];
+                String relPath = parts[1];
+                if (relPath.startsWith("/")) {
+                    relPath = relPath.substring(1);
+                }
+                if (relPath.endsWith("/")) {
+                    relPath = relPath.substring(0, relPath.length() - 1);
+                }
+                if (relPath.isEmpty()) {
+                    return volume + "/" + fileName;
+                } else {
+                    return volume + "/" + relPath + "/" + fileName;
+                }
+            }
+        }
+        String folderName = targetFolder.getName();
+        if (folderName == null || folderName.isEmpty()) {
+            folderName = "Noma";
+        }
+        return "Internal storage/" + folderName + "/" + fileName;
+    }
+
     @PluginMethod
     public void finalizeSave(PluginCall call) {
         String sessionId = call.getString("sessionId");
@@ -291,13 +339,12 @@ public class NomaBackupPlugin extends Plugin {
 
                 tempFile.delete();
 
-                String folderDisplayName = targetFolder.getName() != null ? targetFolder.getName() : "Noma";
-                String displayPath = "Internal storage/" + folderDisplayName + "/" + finalFileName;
+                String displayPath = getDisplayPath(targetFolder, finalFileName);
 
                 JSObject res = new JSObject();
                 res.put("saved", true);
                 res.put("fileName", finalFileName);
-                res.put("path", folderDisplayName + "/" + finalFileName);
+                res.put("path", displayPath);
                 res.put("fullDisplayPath", displayPath);
                 call.resolve(res);
 
