@@ -10,6 +10,7 @@ import {
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { useSettings } from "@/hooks/use-noma";
+import { useDatabase } from "./DatabaseContext";
 import {
   NomaBiometric,
   canonicalizePattern,
@@ -50,6 +51,7 @@ export function useAppLock(): AppLockContextValue {
 }
 
 export function AppLockProvider({ children }: { children: ReactNode }) {
+  const { db } = useDatabase();
   const { settings, update, ready } = useSettings();
 
   // In-memory unlock state initializes to FALSE on reload/restart
@@ -60,10 +62,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const lastBackgroundTimestamp = useRef<number | null>(null);
   const isBiometricPromptActive = useRef(false);
 
-  // Reset unlock state whenever account identity (db name) changes to prevent account leakage
+  const activeDbName = db?.name;
+
+  // Reset unlock state whenever active account database (e.g. noma_guest <-> noma_<uid>) changes
   useEffect(() => {
     setIsUnlocked(false);
-  }, [settings.id]);
+  }, [activeDbName]);
 
   // Check native biometric availability on mount
   useEffect(() => {
@@ -386,11 +390,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const wipeLocalDataAndSecurity = useCallback(async () => {
-    // Import active database context or Dexie instance dynamically to perform destructive local reset
     if (typeof window !== "undefined" && "indexedDB" in window) {
-      // Clear all active local account IndexedDB tables to prevent unauthenticated access
       try {
-        const dbName = settings.onboardedFor ? `noma_${settings.onboardedFor}` : "noma_guest";
+        const dbName = activeDbName || "noma_guest";
+        if (db) db.close();
         const req = indexedDB.deleteDatabase(dbName);
         req.onsuccess = () => {
           window.location.reload();
@@ -405,7 +408,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         window.location.reload();
       }
     }
-  }, [settings.onboardedFor]);
+  }, [activeDbName, db]);
 
   const effectiveIsLocked = !ready ? true : settings.appLockEnabled && !isUnlocked;
 
