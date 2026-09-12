@@ -15,9 +15,13 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { Bell } from "lucide-react";
 import { NoteEditor, type SaveState } from "./note-editor";
 import { NoteList, type NoteActions } from "./note-list";
 import { PromptDialog, type PromptRequest } from "./prompt-dialog";
+import { ReminderDialog } from "./reminder-dialog";
+import { RemindersView } from "./reminders-view";
 import { NomaSidebar } from "./sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +54,7 @@ import {
   createTag,
   deleteFolder,
   deleteNoteForever,
+  deleteNoteReminder,
   deleteTag,
   duplicateNote,
   emptyTrash,
@@ -59,14 +64,16 @@ import {
   renameTag,
   restoreNote,
   setArchived,
+  setNoteReminder,
   setNoteTags,
   toggleFavorite,
   togglePinned,
   trashNote,
   updateNote,
+  cleanupOrphanedReminders,
 } from "@/lib/noma/notes";
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
-import type { Note } from "@/lib/noma/types";
+import type { Note, Reminder } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +89,7 @@ export function Workspace() {
   const notes = useLiveQuery(() => db?.notes.toArray() ?? [], [db], undefined);
   const folders = useLiveQuery(() => db?.folders.orderBy("name").toArray() ?? [], [db], undefined);
   const tags = useLiveQuery(() => db?.tags.orderBy("name").toArray() ?? [], [db], undefined);
+  const reminders = useLiveQuery(() => db?.reminders.toArray() ?? [], [db], undefined);
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
 
@@ -94,6 +102,13 @@ export function Workspace() {
   const [query, setQuery] = useState("");
   const [prompt, setPrompt] = useState<PromptRequest | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [reminderTargetNote, setReminderTargetNote] = useState<Note | null>(null);
+
+  useEffect(() => {
+    if (db) {
+      void cleanupOrphanedReminders(db);
+    }
+  }, [db]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allNotes = useMemo(() => notes ?? [], [notes]);
@@ -179,6 +194,7 @@ export function Workspace() {
     togglePin: (note) => void togglePinned(db!, note),
     toggleFavorite: (note) => void toggleFavorite(db!, note),
     setArchived: (note, archived) => void setArchived(db!, note, archived),
+    setReminder: (note) => setReminderTargetNote(note),
     duplicate: async (note) => {
       const copy = await duplicateNote(db!, note.id);
       if (copy) toast.success("Note duplicated");
@@ -378,6 +394,25 @@ export function Workspace() {
               </span>
               <Button
                 variant="ghost"
+                size="sm"
+                aria-label={activeNote.reminderAt ? "Edit Reminder" : "Set Reminder"}
+                onClick={() => setReminderTargetNote(activeNote)}
+                className={cn(
+                  "gap-1 text-xs",
+                  activeNote.reminderAt ? "text-primary font-medium" : "text-muted-foreground",
+                )}
+              >
+                <Bell className={cn("size-4", activeNote.reminderAt && "fill-current")} />
+                {activeNote.reminderAt ? (
+                  <span className="hidden sm:inline">
+                    {format(activeNote.reminderAt, "MMM d, p")}
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline">Set Reminder</span>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
                 size="icon"
                 aria-label={activeNote.pinned ? "Unpin note" : "Pin note"}
                 onClick={() => void togglePinned(db!, activeNote)}
@@ -453,6 +488,10 @@ export function Workspace() {
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setReminderTargetNote(activeNote)}>
+                    <Bell className="size-4 text-primary" />
+                    {activeNote.reminderAt ? "Edit Reminder" : "Set Reminder"}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>
                     Duplicate
                   </DropdownMenuItem>
@@ -531,6 +570,8 @@ export function Workspace() {
               editorWidth={settings.editorWidth}
               lineHeight={settings.lineHeight}
             />
+          ) : view.kind === "reminders" ? (
+            <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={openNote} />
           ) : notes === undefined ? (
             <ul className="divide-y divide-border/70" aria-busy="true" aria-label="Loading notes">
               {[0, 1, 2, 3].map((row) => (
@@ -621,6 +662,23 @@ export function Workspace() {
       </Dialog>
 
       <PromptDialog request={prompt} onClose={() => setPrompt(null)} />
+
+      {reminderTargetNote && (
+        <ReminderDialog
+          open={Boolean(reminderTargetNote)}
+          onOpenChange={(open) => !open && setReminderTargetNote(null)}
+          noteTitle={noteTitle(reminderTargetNote)}
+          existingReminder={(reminders ?? []).find((r) => r.noteId === reminderTargetNote.id)}
+          onSave={async (scheduledAt) => {
+            await setNoteReminder(db!, reminderTargetNote.id, scheduledAt);
+            toast.success("Reminder set");
+          }}
+          onDelete={async () => {
+            await deleteNoteReminder(db!, reminderTargetNote.id);
+            toast.success("Reminder removed");
+          }}
+        />
+      )}
 
       <AlertDialog
         open={Boolean(confirmation)}

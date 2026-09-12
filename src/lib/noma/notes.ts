@@ -1,6 +1,7 @@
 import { type NomaDatabase, newId } from "./db";
+import { cancelNotification, scheduleNotification } from "./notifications";
 import { countWords, htmlToPlainText, sanitizeHtml } from "./sanitize";
-import type { Folder, Note, Tag } from "./types";
+import type { Folder, Note, Reminder, Tag } from "./types";
 
 export async function createNote(db: NomaDatabase, init: Partial<Note> = {}): Promise<Note> {
   const now = Date.now();
@@ -63,8 +64,15 @@ export const restoreNote = (db: NomaDatabase, id: string) =>
   updateNote(db, id, { deleted: false, deletedAt: null });
 
 export async function deleteNoteForever(db: NomaDatabase, id: string): Promise<void> {
-  await db.transaction("rw", db.notes, db.attachments, async () => {
+  // Find associated reminders to cancel notifications
+  const reminders = await db.reminders.where("noteId").equals(id).toArray();
+  for (const reminder of reminders) {
+    await cancelNotification(reminder.id, reminder.notificationId);
+  }
+
+  await db.transaction("rw", db.notes, db.attachments, db.reminders, async () => {
     await db.attachments.where("noteId").equals(id).delete();
+    await db.reminders.where("noteId").equals(id).delete();
     await db.notes.delete(id);
   });
 }
@@ -145,4 +153,87 @@ export function notePreview(note: Note, length = 140): string {
 
 export function noteTitle(note: Note): string {
   return note.title.trim() || "Untitled note";
+}
+
+/* Reminders */
+
+export async function setNoteReminder(
+  db: NomaDatabase,
+  noteId: string,
+  scheduledAt: number,
+): Promise<Reminder> {
+  const existing = await db.reminders.where("noteId").equals(noteId).first();
+  const now = Date.now();
+
+  if (existing) {
+    await cancelNotification(existing.id, existing.notificationId);
+    const updated: Reminder = {
+      ...existing,
+      scheduledAt,
+      status: "pending",
+      updatedAt: now,
+    };
+    const notifId = await scheduleNotification(updated);
+    if (notifId !== undefined) updated.notificationId = notifId;
+    await db.reminders.put(updated);
+    await db.notes.update(noteId, { reminderAt: scheduledAt, updatedAt: now });
+    return updated;
+  }
+
+  const reminder: Reminder = {
+    id: newId(),
+    noteId,
+    scheduledAt,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const notifId = await scheduleNotification(reminder);
+  if (notifId !== undefined) reminder.notificationId = notifId;
+
+  await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.reminders.put(reminder);
+    await db.notes.update(noteId, { reminderAt: scheduledAt, updatedAt: now });
+  });
+
+  return reminder;
+}
+
+export async function deleteNoteReminder(db: NomaDatabase, noteId: string): Promise<void> {
+  const existing = await db.reminders.where("noteId").equals(noteId).first();
+  if (existing) {
+    await cancelNotification(existing.id, existing.notificationId);
+    await db.transaction("rw", db.reminders, db.notes, async () => {
+      await db.reminders.delete(existing.id);
+      await db.notes.update(noteId, { reminderAt: null });
+    });
+  } else {
+    await db.notes.update(noteId, { reminderAt: null });
+  }
+}
+
+export async function updateReminderStatus(
+  db: NomaDatabase,
+  reminderId: string,
+  status: "completed" | "dismissed" | "pending",
+): Promise<void> {
+  const existing = await db.reminders.get(reminderId);
+  if (!existing) return;
+  if (status !== "pending") {
+    await cancelNotification(existing.id, existing.notificationId);
+  }
+  await db.reminders.update(reminderId, { status, updatedAt: Date.now() });
+}
+
+export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> {
+  const notes = await db.notes.toArray();
+  const validNoteIds = new Set(notes.map((n) => n.id));
+  const reminders = await db.reminders.toArray();
+  const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
+
+  for (const r of orphaned) {
+    await cancelNotification(r.id, r.notificationId);
+    await db.reminders.delete(r.id);
+  }
 }

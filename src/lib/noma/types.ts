@@ -72,6 +72,18 @@ export interface AppSettings {
   lockoutUntil: number | null;
 }
 
+export type ReminderStatus = "pending" | "completed" | "dismissed";
+
+export interface Reminder {
+  id: string;
+  noteId: string;
+  scheduledAt: number;
+  status: ReminderStatus;
+  createdAt: number;
+  updatedAt: number;
+  notificationId?: number;
+}
+
 export interface BackupRecord {
   id: string;
   createdAt: number;
@@ -89,12 +101,13 @@ export interface BackupManifest {
   folderCount: number;
   tagCount: number;
   attachmentCount: number;
+  reminderCount?: number;
   ownerId?: string | null;
   libraryId?: string | null;
 }
 
 export const NOMA_VERSION = "1.0.0";
-export const BACKUP_FORMAT_VERSION = 1;
+export const BACKUP_FORMAT_VERSION = 2;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: "app",

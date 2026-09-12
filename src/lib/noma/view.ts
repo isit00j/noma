@@ -1,7 +1,7 @@
 import type { Folder, Note, Tag } from "./types";
 
 export type ViewKind =
-  "all" | "recent" | "pinned" | "favorites" | "archive" | "trash" | "folder" | "tag";
+  "all" | "recent" | "pinned" | "favorites" | "archive" | "trash" | "folder" | "tag" | "reminders";
 
 export interface ViewState {
   kind: ViewKind;
@@ -57,6 +57,8 @@ export function viewTitle(view: ViewState, folders: Folder[], tags: Tag[]): stri
       return "Archive";
     case "trash":
       return "Trash";
+    case "reminders":
+      return "Reminders";
     case "folder":
       return folders.find((folder) => folder.id === view.id)?.name ?? "Folder";
     case "tag": {

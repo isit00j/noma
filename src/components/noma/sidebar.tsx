@@ -1,11 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import {
   Archive,
+  Bell,
   ChevronLeft,
   Clock,
   FileText,
   Folder as FolderIcon,
   Hash,
+  HelpCircle,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -100,6 +102,7 @@ export function NomaSidebar({
     recent: live.filter((note) => !note.archived && Date.now() - note.updatedAt < 6.048e8).length,
     pinned: live.filter((note) => note.pinned && !note.archived).length,
     favorites: live.filter((note) => note.favorite && !note.archived).length,
+    reminders: live.filter((note) => Boolean(note.reminderAt) && !note.archived).length,
     archive: live.filter((note) => note.archived).length,
     trash: notes.filter((note) => note.deleted).length,
   };
@@ -173,6 +176,13 @@ export function NomaSidebar({
             count={counts.favorites}
             active={sameView(view, { kind: "favorites" })}
             onClick={() => onSelectView({ kind: "favorites" })}
+          />
+          <NavItem
+            label="Reminders"
+            icon={Bell}
+            count={counts.reminders}
+            active={sameView(view, { kind: "reminders" })}
+            onClick={() => onSelectView({ kind: "reminders" })}
           />
         </div>
 
@@ -320,6 +330,14 @@ export function NomaSidebar({
         >
           <SettingsIcon className="size-4" />
           Settings
+        </Link>
+        <div className="my-1.5 border-t border-sidebar-border/60" />
+        <Link
+          to="/contact"
+          className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground active:scale-[0.99] motion-reduce:active:scale-100"
+        >
+          <HelpCircle className="size-4 text-primary" />
+          Contact & Feedback
         </Link>
       </div>
     </div>

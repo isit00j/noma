@@ -1,7 +1,9 @@
 import { formatDistanceToNowStrict } from "date-fns";
+import { format } from "date-fns";
 import {
   Archive,
   ArchiveRestore,
+  Bell,
   Copy,
   FolderInput,
   MoreHorizontal,
@@ -32,6 +34,7 @@ export interface NoteActions {
   togglePin: (note: Note) => void;
   toggleFavorite: (note: Note) => void;
   setArchived: (note: Note, archived: boolean) => void;
+  setReminder?: (note: Note) => void;
   duplicate: (note: Note) => void;
   move: (note: Note, folderId: string | null) => void;
   trash: (note: Note) => void;
@@ -59,6 +62,10 @@ const EMPTY_COPY: Record<string, { title: string; body: string }> = {
   },
   pinned: { title: "No pinned notes", body: "Pin a note to keep it at the top of your list." },
   favorites: { title: "No favorites yet", body: "Star the notes you return to most." },
+  reminders: {
+    title: "No reminders set",
+    body: "Set reminders on your notes to keep track of tasks.",
+  },
   default: {
     title: "No notes here yet",
     body: "Start a new note — it saves to this device as you type.",
@@ -103,6 +110,7 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
                 {note.favorite && (
                   <Star className="size-3.5 shrink-0 fill-current text-muted-foreground" />
                 )}
+                {note.reminderAt && <Bell className="size-3.5 shrink-0 text-primary" />}
                 <h3 className="truncate font-serif text-[17px] font-medium">{noteTitle(note)}</h3>
               </div>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
@@ -110,6 +118,12 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{formatDistanceToNowStrict(note.updatedAt, { addSuffix: true })}</span>
+                {note.reminderAt && (
+                  <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                    <Bell className="size-3" />
+                    {format(note.reminderAt, "MMM d, p")}
+                  </span>
+                )}
                 {note.folderId && folderName.has(note.folderId) && (
                   <span>{folderName.get(note.folderId)}</span>
                 )}
@@ -156,6 +170,12 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
                     <DropdownMenuItem onClick={() => actions.toggleFavorite(note)}>
                       <Star className="size-4" /> {note.favorite ? "Remove favorite" : "Favorite"}
                     </DropdownMenuItem>
+                    {actions.setReminder && (
+                      <DropdownMenuItem onClick={() => actions.setReminder?.(note)}>
+                        <Bell className="size-4 text-primary" />{" "}
+                        {note.reminderAt ? "Edit Reminder" : "Set Reminder"}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => actions.duplicate(note)}>
                       <Copy className="size-4" /> Duplicate
                     </DropdownMenuItem>
