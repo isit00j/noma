@@ -284,7 +284,7 @@ export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> 
     reminderGroups.set(r.noteId, group);
   }
 
-  for (const [noteId, group] of reminderGroups.entries()) {
+  for (const group of reminderGroups.values()) {
     if (group.length > 1) {
       // Keep the most recently updated reminder, delete extra duplicate rows
       group.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -296,14 +296,19 @@ export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> 
     }
   }
 
-  // 3. Enforce note.reminderAt accuracy: set to active pending reminder's scheduledAt if pending, else null
-  for (const note of notes) {
-    const activeGroup = reminderGroups.get(note.id);
-    const pendingReminder = activeGroup?.find((r) => r.status === "pending");
+  // 3. Re-read/recompute remaining reminders from database after deletions
+  const survivingReminders = await db.reminders.toArray();
+  const survivingMap = new Map<string, Reminder>();
+  for (const r of survivingReminders) {
+    survivingMap.set(r.noteId, r);
+  }
 
-    if (pendingReminder) {
-      if (note.reminderAt !== pendingReminder.scheduledAt) {
-        await db.notes.update(note.id, { reminderAt: pendingReminder.scheduledAt });
+  // 4. Enforce note.reminderAt accuracy against surviving post-deletion state
+  for (const note of notes) {
+    const surviving = survivingMap.get(note.id);
+    if (surviving && surviving.status === "pending") {
+      if (note.reminderAt !== surviving.scheduledAt) {
+        await db.notes.update(note.id, { reminderAt: surviving.scheduledAt });
       }
     } else {
       if (note.reminderAt !== null) {
