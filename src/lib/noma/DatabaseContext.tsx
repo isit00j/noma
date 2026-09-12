@@ -150,7 +150,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       if (localLegacyDb) localLegacyDb.close();
       if (localGuestDb) localGuestDb.close();
     };
-  }, [auth.user?.uid, auth.user, auth.loading]);
+  }, [auth.user?.uid, auth.loading]);
 
   const migrateGuestData = async () => {
     if (!activeDb || !pendingGuestDb) return;
