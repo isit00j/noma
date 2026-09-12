@@ -16,7 +16,14 @@ export function useSettings() {
     undefined,
   );
   const stored = result?.row;
-  const settings: AppSettings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
+  const settings: AppSettings = {
+    ...DEFAULT_SETTINGS,
+    ...(stored ?? {}),
+    unlockMethods: {
+      ...DEFAULT_SETTINGS.unlockMethods,
+      ...(stored?.unlockMethods ?? {}),
+    },
+  };
 
   useEffect(() => {
     if (!result) return;

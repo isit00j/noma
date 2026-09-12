@@ -17,6 +17,7 @@ import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
 import { PWAReloadPrompt } from "@/components/noma/pwa-reload-prompt";
 
 import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
+import { AppLockProvider, useAppLock } from "@/lib/noma/AppLockContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,12 @@ import {
 
 function GuestMigrationDialog() {
   const { guestMigrationPending, migrateGuestData, skipGuestData } = useDatabase();
+  const { isLocked, isLockStateResolving } = useAppLock();
+
+  if (isLockStateResolving || isLocked) {
+    return null;
+  }
+
   return (
     <AlertDialog open={guestMigrationPending}>
       <AlertDialogContent>
@@ -175,11 +182,13 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DatabaseProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <GuestMigrationDialog />
-          <Toaster position="bottom-center" />
-          <PWAReloadPrompt />
+          <AppLockProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+            <GuestMigrationDialog />
+            <Toaster position="bottom-center" />
+            <PWAReloadPrompt />
+          </AppLockProvider>
         </DatabaseProvider>
       </AuthProvider>
     </QueryClientProvider>

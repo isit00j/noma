@@ -29,7 +29,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [guestMigrationPending, setGuestMigrationPending] = useState(false);
   const [pendingGuestDb, setPendingGuestDb] = useState<NomaDatabase | null>(null);
 
-  // Close databases when they are replaced or component unmounts
+  const initGeneration = useRef(0);
+
+  // Clean up activeDb when unmounted
   useEffect(() => {
     return () => {
       if (activeDb) activeDb.close();
@@ -45,15 +47,21 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (auth.loading) return;
 
-    let isMounted = true;
+    const currentGen = ++initGeneration.current;
+
+    // Immediately clear stale active DB when auth changes / initialization starts
+    setActiveDb((prevDb) => {
+      if (prevDb) prevDb.close();
+      return null;
+    });
+    setLoading(true);
+    setGuestMigrationPending(false);
+
     let localNewDb: NomaDatabase | null = null;
     let localLegacyDb: NomaDatabase | null = null;
     let localGuestDb: NomaDatabase | null = null;
 
     async function initializeDatabase() {
-      setLoading(true);
-      setGuestMigrationPending(false);
-
       const dbName = auth.user ? `noma_${auth.user.uid}` : "noma_guest";
       localNewDb = new NomaDatabase(dbName);
 
@@ -65,19 +73,19 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         console.error("Dexie.exists failed", e);
       }
 
-      if (!isMounted) return;
+      if (initGeneration.current !== currentGen) return;
 
       if (legacyExists && dbName !== legacyDbName) {
         localLegacyDb = new NomaDatabase(legacyDbName);
         try {
           await localLegacyDb.open();
-          if (!isMounted) return;
+          if (initGeneration.current !== currentGen) return;
           const count = await localLegacyDb.notes.count();
-          if (!isMounted) return;
+          if (initGeneration.current !== currentGen) return;
           if (count > 0) {
             await copyDatabase(localLegacyDb, localNewDb);
           }
-          if (!isMounted) return;
+          if (initGeneration.current !== currentGen) return;
           localLegacyDb.close();
           localLegacyDb = null;
           await Dexie.delete(legacyDbName);
@@ -86,7 +94,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (!isMounted) return;
+      if (initGeneration.current !== currentGen) return;
 
       if (auth.user) {
         let guestExists = false;
@@ -96,24 +104,26 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
           console.error("Dexie.exists failed", e);
         }
 
-        if (!isMounted) return;
+        if (initGeneration.current !== currentGen) return;
 
         if (guestExists) {
           localGuestDb = new NomaDatabase("noma_guest");
           try {
             await localGuestDb.open();
-            if (!isMounted) return;
+            if (initGeneration.current !== currentGen) return;
             const guestCount = await localGuestDb.notes.count();
-            if (!isMounted) return;
+            if (initGeneration.current !== currentGen) return;
             if (guestCount > 0) {
-              setPendingGuestDb(localGuestDb);
-              setActiveDb(localNewDb);
-              setGuestMigrationPending(true);
-              setLoading(false);
+              if (initGeneration.current === currentGen) {
+                setPendingGuestDb(localGuestDb);
+                setActiveDb(localNewDb);
+                setGuestMigrationPending(true);
+                setLoading(false);
 
-              // Prevent cleanup from closing these since they are now in state
-              localGuestDb = null;
-              localNewDb = null;
+                // Prevent cleanup from closing these since they are now in state
+                localGuestDb = null;
+                localNewDb = null;
+              }
               return;
             } else {
               localGuestDb.close();
@@ -125,24 +135,22 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (isMounted) {
+      if (initGeneration.current === currentGen) {
         setActiveDb(localNewDb);
         setLoading(false);
-        // Prevent cleanup from closing it since it's now in state
         localNewDb = null;
-        setPendingGuestDb(null); // Clear any old pending guest db
+        setPendingGuestDb(null);
       }
     }
 
-    initializeDatabase();
+    void initializeDatabase();
 
     return () => {
-      isMounted = false;
       if (localNewDb) localNewDb.close();
       if (localLegacyDb) localLegacyDb.close();
       if (localGuestDb) localGuestDb.close();
     };
-  }, [auth.user, auth.loading]);
+  }, [auth.user?.uid, auth.loading]);
 
   const migrateGuestData = async () => {
     if (!activeDb || !pendingGuestDb) return;
