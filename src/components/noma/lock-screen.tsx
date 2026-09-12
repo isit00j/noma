@@ -20,6 +20,7 @@ import { useAppLock } from "@/lib/noma/AppLockContext";
 export function LockScreen() {
   const { settings } = useSettings();
   const {
+    isAppActive,
     biometricAvailable,
     lockoutRemainingSeconds,
     unlockWithBiometric,
@@ -37,8 +38,13 @@ export function LockScreen() {
   const availableMethods = settings.unlockMethods;
   const hasAutoTriggeredBiometric = useRef(false);
 
-  // Auto-trigger native biometric prompt ONCE per lock screen mount/resume event if biometric unlock is enabled & available
+  // Auto-trigger native biometric prompt ONCE when in active foreground
   useEffect(() => {
+    if (!isAppActive) {
+      hasAutoTriggeredBiometric.current = false;
+      return;
+    }
+
     if (
       availableMethods.biometric &&
       biometricAvailable &&
@@ -48,7 +54,13 @@ export function LockScreen() {
       hasAutoTriggeredBiometric.current = true;
       void unlockWithBiometric();
     }
-  }, [availableMethods.biometric, biometricAvailable, lockoutRemainingSeconds, unlockWithBiometric]);
+  }, [
+    isAppActive,
+    availableMethods.biometric,
+    biometricAvailable,
+    lockoutRemainingSeconds,
+    unlockWithBiometric,
+  ]);
 
   // Determine initial active tab & visible tabs count
   const activeTabs = [

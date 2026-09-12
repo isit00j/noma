@@ -24,6 +24,7 @@ import {
 export interface AppLockContextValue {
   isLocked: boolean;
   isLockStateResolving: boolean;
+  isAppActive: boolean;
   biometricAvailable: boolean;
   biometricStatus: BiometricCheckResult | null;
   lockoutRemainingSeconds: number;
@@ -56,6 +57,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
 
   // In-memory unlock state initializes to FALSE on reload/restart
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isAppActive, setIsAppActive] = useState(true);
   const [biometricStatus, setBiometricStatus] = useState<BiometricCheckResult | null>(null);
   const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState(0);
 
@@ -129,6 +131,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     if (!ready || !settings.appLockEnabled) return;
 
     const onAppHide = () => {
+      setIsAppActive(false);
       // Don't trigger background lock timer if native biometric prompt is active
       if (isBiometricPromptActive.current) return;
       lastBackgroundTimestamp.current = Date.now();
@@ -138,6 +141,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     };
 
     const onAppShow = () => {
+      setIsAppActive(true);
       if (isBiometricPromptActive.current) return;
       if (lastBackgroundTimestamp.current !== null) {
         const elapsed = (Date.now() - lastBackgroundTimestamp.current) / 1000;
@@ -421,6 +425,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       value={{
         isLocked: effectiveIsLocked,
         isLockStateResolving: !ready,
+        isAppActive,
         biometricAvailable: Boolean(biometricStatus?.available),
         biometricStatus,
         lockoutRemainingSeconds,
