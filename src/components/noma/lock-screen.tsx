@@ -38,11 +38,19 @@ export function LockScreen() {
   const availableMethods = settings.unlockMethods;
   const hasAutoTriggeredBiometric = useRef(false);
 
-  // Auto-trigger native biometric prompt ONCE when in active foreground
+  const wasAppInactive = useRef(false);
+
+  // Auto-trigger native biometric prompt ONCE per real background-to-foreground return
   useEffect(() => {
     if (!isAppActive) {
-      hasAutoTriggeredBiometric.current = false;
+      wasAppInactive.current = true;
       return;
+    }
+
+    const isRealReturn = wasAppInactive.current;
+    if (isRealReturn) {
+      hasAutoTriggeredBiometric.current = false;
+      wasAppInactive.current = false;
     }
 
     if (

@@ -131,9 +131,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     if (!ready || !settings.appLockEnabled) return;
 
     const onAppHide = () => {
-      setIsAppActive(false);
-      // Don't trigger background lock timer if native biometric prompt is active
+      // Don't trigger background lock timer or flip isAppActive if native biometric prompt is active
       if (isBiometricPromptActive.current) return;
+      setIsAppActive(false);
       lastBackgroundTimestamp.current = Date.now();
       if (settings.lockTimeout === 0) {
         setIsUnlocked(false);
