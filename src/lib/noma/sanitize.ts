@@ -35,12 +35,23 @@ const ALLOWED_TAGS = new Set([
 
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   A: new Set(["href", "target", "rel"]),
-  IMG: new Set(["src", "alt", "title"]),
+  IMG: new Set(["src", "alt", "title", "data-attachment-id"]),
   UL: new Set(["data-type"]),
   LI: new Set(["data-checked", "data-type"]),
   INPUT: new Set(["type", "checked", "disabled"]),
   TD: new Set(["colspan", "rowspan"]),
   TH: new Set(["colspan", "rowspan"]),
+  DIV: new Set([
+    "data-type",
+    "data-version",
+    "data-chart-type",
+    "data-title",
+    "data-subtitle",
+    "data-categories",
+    "data-series",
+    "data-options",
+    "data-chart",
+  ]),
 };
 
 /** Tags allowed to carry an inline `style` limited to colour declarations. */
@@ -82,7 +93,7 @@ function safeStyle(value: string): string | null {
 
 function safeUrl(value: string, allowData: boolean): string | null {
   const trimmed = value.trim();
-  if (/^(https?:|mailto:|#|\/)/i.test(trimmed)) return trimmed;
+  if (/^(https?:|mailto:|#|\/|noma-attachment:\/\/)/i.test(trimmed)) return trimmed;
   if (allowData && /^data:image\/(png|jpe?g|gif|webp|avif);base64,/i.test(trimmed)) return trimmed;
   return null;
 }

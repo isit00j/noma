@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { type NomaDatabase, newId } from "./db";
 import { cleanupOrphanedReminders } from "./notes";
+import { cleanupOrphanedAttachments } from "./media";
 import { scheduleNotification } from "./notifications";
 import { sanitizeHtml } from "./sanitize";
 import {
@@ -300,6 +301,7 @@ export async function applyBackup(
 
   // Clean up any remaining orphans or duplicate reminders
   await cleanupOrphanedReminders(db);
+  await cleanupOrphanedAttachments(db);
 
   // Re-schedule notifications for active pending reminders after restore
   const activeReminders = await db.reminders
