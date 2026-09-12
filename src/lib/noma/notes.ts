@@ -1,6 +1,7 @@
 import { type NomaDatabase, newId } from "./db";
 import { cancelNotification, scheduleNotification } from "./notifications";
 import { countWords, htmlToPlainText, sanitizeHtml } from "./sanitize";
+import { cleanupOrphanedAttachments } from "./media";
 import type { Folder, Note, Reminder, Tag } from "./types";
 
 export async function createNote(db: NomaDatabase, init: Partial<Note> = {}): Promise<Note> {
@@ -58,8 +59,10 @@ export const toggleFavorite = (db: NomaDatabase, n: Note) =>
 export const setArchived = (db: NomaDatabase, n: Note, archived: boolean) =>
   updateNote(db, n.id, { archived });
 
-export const trashNote = (db: NomaDatabase, id: string) =>
-  updateNote(db, id, { deleted: true, deletedAt: Date.now(), pinned: false });
+export const trashNote = async (db: NomaDatabase, id: string) => {
+  await updateNote(db, id, { deleted: true, deletedAt: Date.now(), pinned: false });
+  await cleanupOrphanedAttachments(db);
+};
 
 export const restoreNote = (db: NomaDatabase, id: string) =>
   updateNote(db, id, { deleted: false, deletedAt: null });
@@ -76,11 +79,14 @@ export async function deleteNoteForever(db: NomaDatabase, id: string): Promise<v
     await db.reminders.where("noteId").equals(id).delete();
     await db.notes.delete(id);
   });
+
+  await cleanupOrphanedAttachments(db);
 }
 
 export async function emptyTrash(db: NomaDatabase): Promise<number> {
   const trashed = await db.notes.filter((n) => n.deleted).toArray();
   for (const note of trashed) await deleteNoteForever(db, note.id);
+  await cleanupOrphanedAttachments(db);
   return trashed.length;
 }
 

@@ -62,7 +62,7 @@ export type AdvancedChartType = "bar" | "line" | "area" | "pie" | "donut" | "rad
 export interface ChartSeries {
   id: string;
   name: string;
-  type?: "bar" | "line" | "area";
+  type?: "bar" | "line" | "area" | undefined;
   color?: string | undefined;
   values: (number | null)[];
 }
@@ -99,10 +99,149 @@ const DEFAULT_SERIES_COLORS = [
   "oklch(0.65 0.2 40)",
 ];
 
+const VALID_TYPES = new Set<AdvancedChartType>([
+  "bar",
+  "line",
+  "area",
+  "pie",
+  "donut",
+  "radar",
+  "composed",
+]);
+
+/**
+ * Validates and normalizes arbitrary chart inputs with strict bounds, character caps,
+ * finite number coercions, and fallback defaults to ensure malformed HTML/JSON cannot crash the editor.
+ */
+export function validateAndNormalizeChartData(input: unknown): AdvancedChartData {
+  const fallback: AdvancedChartData = {
+    version: 2,
+    type: "bar",
+    title: "Chart",
+    subtitle: "",
+    categories: ["Jan", "Feb", "Mar"],
+    series: [
+      {
+        id: "series-1",
+        name: "Series 1",
+        values: [100, 150, 200],
+        color: DEFAULT_SERIES_COLORS[0]!,
+      },
+    ],
+    options: {
+      showGrid: true,
+      showLegend: true,
+      legendPosition: "bottom",
+      smoothLine: true,
+      showMarkers: true,
+      innerRadius: 60,
+      xAxisLabel: "",
+      yAxisLabel: "",
+    },
+  };
+
+  if (!input || typeof input !== "object") return fallback;
+  const data = input as Record<string, unknown>;
+
+  // Check version 1 legacy migration first
+  if (data["version"] !== 2 || !Array.isArray(data["categories"])) {
+    return migrateV1ToV2(input);
+  }
+
+  const type: AdvancedChartType = VALID_TYPES.has(data["type"] as AdvancedChartType)
+    ? (data["type"] as AdvancedChartType)
+    : "bar";
+
+  const rawTitle = typeof data["title"] === "string" ? data["title"].trim() : "";
+  const title = rawTitle.slice(0, 100) || "Chart";
+
+  const rawSubtitle = typeof data["subtitle"] === "string" ? data["subtitle"].trim() : "";
+  const subtitle = rawSubtitle.slice(0, 100);
+
+  const rawCategories = Array.isArray(data["categories"]) ? data["categories"] : [];
+  const categories = rawCategories
+    .slice(0, 50)
+    .map((c, i) => (typeof c === "string" && c.trim() ? c.trim().slice(0, 50) : `Item ${i + 1}`));
+
+  if (categories.length === 0) categories.push("Item 1");
+
+  const rawSeries = Array.isArray(data["series"]) ? data["series"] : [];
+  const series: ChartSeries[] = rawSeries.slice(0, 20).map((s, sIdx) => {
+    const sObj = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
+    const id =
+      typeof sObj["id"] === "string" && sObj["id"].trim()
+        ? sObj["id"].trim().slice(0, 50)
+        : `series-${Date.now()}-${sIdx}`;
+    const name =
+      typeof sObj["name"] === "string" && sObj["name"].trim()
+        ? sObj["name"].trim().slice(0, 50)
+        : `Series ${sIdx + 1}`;
+
+    const seriesType = ["bar", "line", "area"].includes(sObj["type"] as string)
+      ? (sObj["type"] as "bar" | "line" | "area")
+      : undefined;
+
+    const color =
+      typeof sObj["color"] === "string" && /^oklch\(|^#[0-9a-f]{3,8}/i.test(sObj["color"].trim())
+        ? sObj["color"].trim()
+        : DEFAULT_SERIES_COLORS[sIdx % DEFAULT_SERIES_COLORS.length]!;
+
+    const rawVals = Array.isArray(sObj["values"]) ? sObj["values"] : [];
+    const values = categories.map((_, cIdx) => {
+      const v = rawVals[cIdx];
+      if (v === null) return null;
+      const num = typeof v === "number" ? v : parseFloat(String(v));
+      return Number.isFinite(num) ? num : 0;
+    });
+
+    return { id, name, type: seriesType, color, values };
+  });
+
+  if (series.length === 0) {
+    series.push({
+      id: "series-1",
+      name: "Series 1",
+      values: categories.map(() => 0),
+      color: DEFAULT_SERIES_COLORS[0]!,
+    });
+  }
+
+  const rawOpts = (
+    data["options"] && typeof data["options"] === "object" ? data["options"] : {}
+  ) as Record<string, unknown>;
+
+  const options: AdvancedChartOptions = {
+    stacked: Boolean(rawOpts["stacked"]),
+    showGrid: rawOpts["showGrid"] !== false,
+    showLegend: rawOpts["showLegend"] !== false,
+    legendPosition: rawOpts["legendPosition"] === "top" ? "top" : "bottom",
+    smoothLine: rawOpts["smoothLine"] !== false,
+    showMarkers: rawOpts["showMarkers"] !== false,
+    innerRadius:
+      typeof rawOpts["innerRadius"] === "number" && Number.isFinite(rawOpts["innerRadius"])
+        ? Math.max(10, Math.min(120, rawOpts["innerRadius"]))
+        : 60,
+    xAxisLabel:
+      typeof rawOpts["xAxisLabel"] === "string" ? rawOpts["xAxisLabel"].trim().slice(0, 50) : "",
+    yAxisLabel:
+      typeof rawOpts["yAxisLabel"] === "string" ? rawOpts["yAxisLabel"].trim().slice(0, 50) : "",
+  };
+
+  return {
+    version: 2,
+    type,
+    title,
+    subtitle,
+    categories,
+    series,
+    options,
+  };
+}
+
 export function migrateV1ToV2(v1Data: unknown): AdvancedChartData {
   const data = v1Data as Record<string, unknown> | undefined;
   if (data && data["version"] === 2 && Array.isArray(data["categories"])) {
-    return data as unknown as AdvancedChartData;
+    return validateAndNormalizeChartData(data);
   }
 
   const legacyData = Array.isArray(data?.["data"])
@@ -115,7 +254,9 @@ export function migrateV1ToV2(v1Data: unknown): AdvancedChartData {
 
   return {
     version: 2,
-    type: (data?.["type"] as AdvancedChartType) || "bar",
+    type: VALID_TYPES.has(data?.["type"] as AdvancedChartType)
+      ? (data?.["type"] as AdvancedChartType)
+      : "bar",
     title: (data?.["title"] as string) || "Chart",
     subtitle: "",
     categories: categories.length ? categories : ["Jan", "Feb", "Mar"],
@@ -134,6 +275,8 @@ export function migrateV1ToV2(v1Data: unknown): AdvancedChartData {
       smoothLine: true,
       showMarkers: true,
       innerRadius: 60,
+      xAxisLabel: "",
+      yAxisLabel: "",
     },
   };
 }
@@ -148,6 +291,9 @@ export function ChartRenderer({
   const { type, title, subtitle, categories, series, options } = chartData;
   const showGrid = options?.showGrid ?? true;
   const showLegend = options?.showLegend ?? true;
+  const legendPos = options?.legendPosition ?? "bottom";
+  const xAxisLabel = options?.xAxisLabel;
+  const yAxisLabel = options?.yAxisLabel;
   const stacked = options?.stacked ?? false;
   const smooth = options?.smoothLine ?? true;
   const markers = options?.showMarkers ?? true;
@@ -201,10 +347,40 @@ export function ChartRenderer({
           {type === "bar" ? (
             <BarChart data={rechartsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               {showGrid && <CartesianGrid strokeDasharray="3 3" opacity={0.3} />}
-              <XAxis dataKey="category" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis
+                dataKey="category"
+                tick={{ fontSize: 12 }}
+                {...(xAxisLabel
+                  ? {
+                      label: {
+                        value: xAxisLabel,
+                        position: "insideBottom",
+                        offset: -5,
+                        fontSize: 10,
+                      },
+                    }
+                  : {})}
+              />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                {...(yAxisLabel
+                  ? {
+                      label: {
+                        value: yAxisLabel,
+                        angle: -90,
+                        position: "insideLeft",
+                        fontSize: 10,
+                      },
+                    }
+                  : {})}
+              />
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               {series.map((s, idx) => (
                 <Bar
                   key={s.id}
@@ -221,7 +397,12 @@ export function ChartRenderer({
               <XAxis dataKey="category" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               {series.map((s, idx) => (
                 <Line
                   key={s.id}
@@ -239,7 +420,12 @@ export function ChartRenderer({
               <XAxis dataKey="category" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               {series.map((s, idx) => {
                 const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
                 return (
@@ -258,7 +444,12 @@ export function ChartRenderer({
           ) : type === "pie" || type === "donut" ? (
             <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               <Pie
                 data={pieData}
                 dataKey="value"
@@ -283,7 +474,12 @@ export function ChartRenderer({
               <PolarAngleAxis dataKey="category" tick={{ fontSize: 12 }} />
               <PolarRadiusAxis angle={30} domain={[0, "auto"]} tick={{ fontSize: 10 }} />
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               {series.map((s, idx) => {
                 const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
                 return (
@@ -307,10 +503,16 @@ export function ChartRenderer({
               <XAxis dataKey="category" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               {renderTooltip()}
-              {showLegend && <Legend wrapperStyle={{ fontSize: "12px" }} />}
+              {showLegend && (
+                <Legend
+                  verticalAlign={legendPos === "top" ? "top" : "bottom"}
+                  wrapperStyle={{ fontSize: "12px" }}
+                />
+              )}
               {series.map((s, idx) => {
                 const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
-                if (s.type === "line" || (idx > 0 && !s.type)) {
+                const compType = s.type ?? (idx % 2 === 1 ? "line" : "bar");
+                if (compType === "line") {
                   return (
                     <Line
                       key={s.id}
@@ -319,6 +521,18 @@ export function ChartRenderer({
                       stroke={color}
                       strokeWidth={2.5}
                       dot={markers ? { r: 4 } : false}
+                    />
+                  );
+                }
+                if (compType === "area") {
+                  return (
+                    <Area
+                      key={s.id}
+                      type={smooth ? "monotone" : "linear"}
+                      dataKey={s.name}
+                      stroke={color}
+                      fill={color}
+                      fillOpacity={0.4}
                     />
                   );
                 }
@@ -343,7 +557,9 @@ export function ChartEditorDialog({
   initialData?: unknown;
   onSave: (data: AdvancedChartData) => void;
 }) {
-  const [chartState, setChartState] = useState<AdvancedChartData>(() => migrateV1ToV2(initialData));
+  const [chartState, setChartState] = useState<AdvancedChartData>(() =>
+    validateAndNormalizeChartData(initialData),
+  );
 
   const [activeTab, setActiveTab] = useState("data");
 
@@ -394,6 +610,13 @@ export function ChartEditorDialog({
     }));
   };
 
+  const handleSeriesTypeChange = (sIdx: number, type: "bar" | "line" | "area") => {
+    setChartState((prev) => ({
+      ...prev,
+      series: prev.series.map((s, i) => (i === sIdx ? { ...s, type } : s)),
+    }));
+  };
+
   const handleValueChange = (sIdx: number, cIdx: number, valStr: string) => {
     const num = parseFloat(valStr);
     const val = isNaN(num) ? 0 : num;
@@ -417,6 +640,7 @@ export function ChartEditorDialog({
       const newSeries: ChartSeries = {
         id: `series-${Date.now()}`,
         name: `Series ${newIdx}`,
+        type: "bar",
         values: new Array(prev.categories.length).fill(0),
         color,
       };
@@ -471,6 +695,7 @@ export function ChartEditorDialog({
       const newSeriesList: ChartSeries[] = seriesNames.map((name, sIdx) => ({
         id: `series-${Date.now()}-${sIdx}`,
         name: name || `Series ${sIdx + 1}`,
+        type: sIdx % 2 === 1 ? "line" : "bar",
         values: seriesValues[sIdx] || [],
         color:
           DEFAULT_SERIES_COLORS[sIdx % DEFAULT_SERIES_COLORS.length] ?? DEFAULT_SERIES_COLORS[0]!,
@@ -564,23 +789,50 @@ export function ChartEditorDialog({
                         Category
                       </th>
                       {chartState.series.map((s, sIdx) => (
-                        <th key={s.id} className="p-1.5 text-left min-w-28">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={s.name}
-                              onChange={(e) => handleSeriesNameChange(sIdx, e.target.value)}
-                              className="h-7 text-xs font-semibold px-1.5"
-                            />
-                            {chartState.series.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveSeries(sIdx)}
-                                className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                        <th key={s.id} className="p-1.5 text-left min-w-32">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={s.name}
+                                onChange={(e) => handleSeriesNameChange(sIdx, e.target.value)}
+                                className="h-7 text-xs font-semibold px-1.5"
+                              />
+                              {chartState.series.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRemoveSeries(sIdx)}
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                                >
+                                  <X className="size-3" />
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Per-series type selector for composed charts */}
+                            {chartState.type === "composed" && (
+                              <Select
+                                value={s.type ?? "bar"}
+                                onValueChange={(val) =>
+                                  handleSeriesTypeChange(sIdx, val as "bar" | "line" | "area")
+                                }
                               >
-                                <X className="size-3" />
-                              </Button>
+                                <SelectTrigger className="h-6 text-[10px] px-1 py-0 border-border/60">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="bar" className="text-xs">
+                                    Bar
+                                  </SelectItem>
+                                  <SelectItem value="line" className="text-xs">
+                                    Line
+                                  </SelectItem>
+                                  <SelectItem value="area" className="text-xs">
+                                    Area
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
                             )}
                           </div>
                         </th>
@@ -647,7 +899,7 @@ export function ChartEditorDialog({
                       <SelectItem value="pie">Pie Chart</SelectItem>
                       <SelectItem value="donut">Donut Chart</SelectItem>
                       <SelectItem value="radar">Radar Chart</SelectItem>
-                      <SelectItem value="composed">Composed (Bar + Line)</SelectItem>
+                      <SelectItem value="composed">Composed (Bar + Line + Area)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -699,8 +951,28 @@ export function ChartEditorDialog({
                   </Label>
                 </div>
 
+                {chartState.options?.showLegend && (
+                  <div>
+                    <Label className="text-xs">Legend Position</Label>
+                    <Select
+                      value={chartState.options?.legendPosition ?? "bottom"}
+                      onValueChange={(val) =>
+                        updateOptions({ legendPosition: val as "top" | "bottom" })
+                      }
+                    >
+                      <SelectTrigger className="mt-1 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bottom">Bottom</SelectItem>
+                        <SelectItem value="top">Top</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {["bar", "area"].includes(chartState.type) && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 pt-2">
                     <Checkbox
                       id="stacked"
                       checked={chartState.options?.stacked ?? false}
@@ -713,7 +985,7 @@ export function ChartEditorDialog({
                 )}
 
                 {["line", "area", "composed"].includes(chartState.type) && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 pt-2">
                     <Checkbox
                       id="smoothLine"
                       checked={chartState.options?.smoothLine ?? true}
@@ -724,6 +996,27 @@ export function ChartEditorDialog({
                     </Label>
                   </div>
                 )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <Label className="text-xs">X-Axis Label</Label>
+                  <Input
+                    value={chartState.options?.xAxisLabel ?? ""}
+                    onChange={(e) => updateOptions({ xAxisLabel: e.target.value })}
+                    placeholder="e.g. Month"
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Y-Axis Label</Label>
+                  <Input
+                    value={chartState.options?.yAxisLabel ?? ""}
+                    onChange={(e) => updateOptions({ yAxisLabel: e.target.value })}
+                    placeholder="e.g. Amount ($)"
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -751,7 +1044,7 @@ export function ChartEditorDialog({
 function NomaChartNodeComponent({ node, updateAttributes, deleteNode, selected }: NodeViewProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const rawAttrs = node.attrs;
-  const chartData = migrateV1ToV2(rawAttrs);
+  const chartData = validateAndNormalizeChartData(rawAttrs);
 
   return (
     <div
@@ -812,7 +1105,12 @@ export const NomaChartNode = Node.create({
         default: ["Jan", "Feb", "Mar"],
         parseHTML: (el) => {
           const raw = el.getAttribute("data-categories");
-          return raw ? JSON.parse(raw) : ["Jan", "Feb", "Mar"];
+          if (!raw) return ["Jan", "Feb", "Mar"];
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return ["Jan", "Feb", "Mar"];
+          }
         },
       },
       series: {
@@ -826,7 +1124,12 @@ export const NomaChartNode = Node.create({
         ],
         parseHTML: (el) => {
           const raw = el.getAttribute("data-series");
-          return raw ? JSON.parse(raw) : [];
+          if (!raw) return [];
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return [];
+          }
         },
       },
       options: {
@@ -836,7 +1139,12 @@ export const NomaChartNode = Node.create({
         },
         parseHTML: (el) => {
           const raw = el.getAttribute("data-options");
-          return raw ? JSON.parse(raw) : {};
+          if (!raw) return {};
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return {};
+          }
         },
       },
       // Backward compatibility attribute parse for v1 simple schema
@@ -844,7 +1152,12 @@ export const NomaChartNode = Node.create({
         default: null,
         parseHTML: (el) => {
           const raw = el.getAttribute("data-chart");
-          return raw ? JSON.parse(raw) : null;
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return null;
+          }
         },
       },
     };
@@ -867,28 +1180,32 @@ export const NomaChartNode = Node.create({
           const optRaw = el.getAttribute("data-options");
           const legacyRaw = el.getAttribute("data-chart");
 
-          if (version === 2 && catRaw && serRaw) {
-            return {
-              version: 2,
-              type,
-              title,
-              subtitle,
-              categories: JSON.parse(catRaw),
-              series: JSON.parse(serRaw),
-              options: optRaw ? JSON.parse(optRaw) : {},
-            };
-          }
+          try {
+            if (version === 2 && catRaw && serRaw) {
+              return validateAndNormalizeChartData({
+                version: 2,
+                type,
+                title,
+                subtitle,
+                categories: JSON.parse(catRaw),
+                series: JSON.parse(serRaw),
+                options: optRaw ? JSON.parse(optRaw) : {},
+              });
+            }
 
-          // Legacy V1 fallback
-          const legacyData = legacyRaw ? JSON.parse(legacyRaw) : [];
-          return migrateV1ToV2({ version: 1, type, title, data: legacyData });
+            // Legacy V1 fallback
+            const legacyData = legacyRaw ? JSON.parse(legacyRaw) : [];
+            return validateAndNormalizeChartData({ version: 1, type, title, data: legacyData });
+          } catch {
+            return validateAndNormalizeChartData({});
+          }
         },
       },
     ];
   },
 
   renderHTML({ HTMLAttributes, node }) {
-    const v2Data = migrateV1ToV2(node.attrs);
+    const v2Data = validateAndNormalizeChartData(node.attrs);
 
     return [
       "div",
