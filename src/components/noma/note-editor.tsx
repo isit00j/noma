@@ -1,9 +1,17 @@
 import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import {
+  EditorContent,
+  useEditor,
+  type Editor,
+  ReactNodeViewRenderer,
+  type NodeViewProps,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { BackgroundColor, Color, TextStyle } from "@tiptap/extension-text-style";
 import {
@@ -57,7 +65,7 @@ import { toast } from "sonner";
 import type { Note } from "@/lib/noma/types";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { saveImageAttachment } from "@/lib/noma/media";
-import { NomaChartNode, ChartEditorDialog, type ChartNodeAttributes } from "./chart-node";
+import { NomaChartNode, ChartEditorDialog, type AdvancedChartData } from "./chart-node";
 
 export type SaveState = "idle" | "saving" | "saved" | "offline";
 
@@ -68,6 +76,50 @@ interface NoteEditorProps {
   editorWidth: number;
   lineHeight: number;
 }
+
+/**
+ * Custom Tiptap Image extension resolving `noma-attachment://<id>` local attachment URIs
+ * into renderable IndexedDB blob/data URLs dynamically without bloating `note.content`.
+ */
+function NomaImageComponent({ node }: NodeViewProps) {
+  const { db } = useDatabase();
+  const [src, setSrc] = useState<string>("");
+  const srcAttr = node.attrs["src"] as string;
+  const altAttr = node.attrs["alt"] as string | undefined;
+
+  useEffect(() => {
+    let active = true;
+    if (srcAttr && srcAttr.startsWith("noma-attachment://")) {
+      const attachmentId = srcAttr.replace("noma-attachment://", "");
+      if (db) {
+        db.attachments.get(attachmentId).then((att) => {
+          if (active && att?.data) setSrc(att.data);
+        });
+      }
+    } else {
+      setSrc(srcAttr || "");
+    }
+    return () => {
+      active = false;
+    };
+  }, [srcAttr, db]);
+
+  return (
+    <div className="relative inline-block my-2 max-w-full">
+      <img
+        src={src || srcAttr}
+        alt={altAttr || "Note image"}
+        className="rounded-lg max-w-full h-auto object-contain border border-border/40 shadow-2xs"
+      />
+    </div>
+  );
+}
+
+const NomaImageNode = Image.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(NomaImageComponent);
+  },
+});
 
 function ToolbarButton({
   onClick,
@@ -490,17 +542,18 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        link: {
-          openOnClick: false,
-          autolink: true,
-          HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
-        },
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
       TextStyle,
       Color,
       BackgroundColor,
       Highlight,
-      Image.configure({ inline: false }),
+      NomaImageNode.configure({ inline: false }),
       TaskList,
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: false }),
@@ -512,7 +565,10 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     ],
     content: note.content,
     editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
-    onUpdate: ({ editor: instance }) => onChange({ content: instance.getHTML() }),
+    onUpdate: ({ editor: instance }) => {
+      const html = instance.getHTML();
+      onChange({ content: html });
+    },
   });
 
   // Swap document when a different note is opened, without clobbering typing.
@@ -542,7 +598,12 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     try {
       toast.loading("Processing photo...", { id: "photo-upload" });
       const attachment = await saveImageAttachment(db, note.id, file);
-      editor.chain().focus().setImage({ src: attachment.data, alt: attachment.name }).run();
+      // Store single-source attachment reference rather than raw data URL
+      editor
+        .chain()
+        .focus()
+        .setImage({ src: `noma-attachment://${attachment.id}`, alt: attachment.name })
+        .run();
       toast.success("Photo added to note", { id: "photo-upload" });
     } catch (err) {
       console.error("Failed to upload image", err);
@@ -560,7 +621,7 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     setTableDialogOpen(false);
   };
 
-  const handleSaveChart = (chartAttrs: ChartNodeAttributes) => {
+  const handleSaveChart = (chartAttrs: AdvancedChartData) => {
     if (!editor) return;
     editor.chain().focus().insertContent({ type: "nomaChart", attrs: chartAttrs }).run();
   };
@@ -684,7 +745,7 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
         </DialogContent>
       </Dialog>
 
-      {/* New Chart Insertion Dialog */}
+      {/* New Advanced Chart Insertion Dialog */}
       {chartDialogOpen && (
         <ChartEditorDialog
           open={chartDialogOpen}

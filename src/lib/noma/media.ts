@@ -87,3 +87,30 @@ export async function saveImageAttachment(
   await db.attachments.put(attachment);
   return attachment;
 }
+
+/**
+ * Scans all notes in IndexedDB for attachment references (`noma-attachment://<id>` or `data-attachment-id="<id>"`).
+ * Deletes any attachment records in `db.attachments` that are no longer referenced by any note.
+ */
+export async function cleanupOrphanedAttachments(db: NomaDatabase): Promise<number> {
+  const [notes, attachments] = await Promise.all([db.notes.toArray(), db.attachments.toArray()]);
+
+  if (attachments.length === 0) return 0;
+
+  const referencedIds = new Set<string>();
+  const attachmentRegex = /(?:noma-attachment:\/\/|data-attachment-id=["'])([a-zA-Z0-9_-]+)/g;
+
+  for (const note of notes) {
+    if (!note.content) continue;
+    let match: RegExpExecArray | null;
+    while ((match = attachmentRegex.exec(note.content)) !== null) {
+      if (match[1]) referencedIds.add(match[1]);
+    }
+  }
+
+  const orphaned = attachments.filter((att) => !referencedIds.has(att.id));
+  if (orphaned.length === 0) return 0;
+
+  await db.attachments.bulkDelete(orphaned.map((a) => a.id));
+  return orphaned.length;
+}
