@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp, type URLOpenListenerEvent } from "@capacitor/app";
 
@@ -11,9 +11,27 @@ function notifyListeners() {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * Strict validation for Noma native launcher deep link URLs.
+ * Accepts only `app.noma.notes://new-note` or `app.noma.notes://new-note/`.
+ * Rejects any arbitrary string, unknown scheme, host, path, or query parameter.
+ */
+function isValidNewNoteUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "app.noma.notes:") return false;
+    if (parsed.host !== "new-note") return false;
+    if (parsed.pathname !== "" && parsed.pathname !== "/") return false;
+    if (parsed.search !== "" || parsed.hash !== "") return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function processUrl(url: string | undefined) {
   if (!url) return;
-  if (url.includes("new-note") || url.startsWith("app.noma.notes://new-note")) {
+  if (isValidNewNoteUrl(url)) {
     const id = Date.now();
     if (id !== lastProcessedId) {
       pendingShortcut = { id, action: "new-note" };
@@ -22,7 +40,7 @@ function processUrl(url: string | undefined) {
   }
 }
 
-function initShortcutListener() {
+export function initShortcutListener() {
   if (isInitialized || !Capacitor.isNativePlatform()) return;
   isInitialized = true;
 
@@ -37,6 +55,18 @@ function initShortcutListener() {
   void CapacitorApp.addListener("appUrlOpen", (event: URLOpenListenerEvent) => {
     processUrl(event.url);
   });
+}
+
+/**
+ * Component mounted high in the root provider tree to ensure native launch URL
+ * events are captured regardless of App Lock state or current route.
+ */
+export function ShortcutListener({ children }: { children?: ReactNode }) {
+  useEffect(() => {
+    initShortcutListener();
+  }, []);
+
+  return children;
 }
 
 /**
@@ -66,5 +96,5 @@ export function usePendingShortcut() {
     }
   };
 
-  return { action, consumeShortcut };
+  return { action, consumeShortcut, isValidNewNoteUrl };
 }
