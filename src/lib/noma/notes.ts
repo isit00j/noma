@@ -46,6 +46,7 @@ export async function duplicateNote(db: NomaDatabase, id: string): Promise<Note 
   const { id: _drop, ...rest } = source;
   return createNote(db, {
     ...rest,
+    reminderAt: null,
     title: source.title ? `${source.title} (copy)` : "Untitled (copy)",
   });
 }
@@ -220,20 +221,59 @@ export async function updateReminderStatus(
 ): Promise<void> {
   const existing = await db.reminders.get(reminderId);
   if (!existing) return;
+
+  const now = Date.now();
+
   if (status !== "pending") {
     await cancelNotification(existing.id, existing.notificationId);
+    await db.transaction("rw", db.reminders, db.notes, async () => {
+      await db.reminders.update(reminderId, { status, updatedAt: now });
+      await db.notes.update(existing.noteId, { reminderAt: null, updatedAt: now });
+    });
+  } else {
+    // Reopening as pending
+    const updatedReminder: Reminder = {
+      ...existing,
+      status: "pending",
+      updatedAt: now,
+    };
+
+    let notifId: number | undefined;
+    if (existing.scheduledAt > now) {
+      notifId = await scheduleNotification(updatedReminder);
+    }
+
+    await db.transaction("rw", db.reminders, db.notes, async () => {
+      await db.reminders.update(reminderId, {
+        status: "pending",
+        updatedAt: now,
+        ...(notifId !== undefined ? { notificationId: notifId } : {}),
+      });
+      await db.notes.update(existing.noteId, {
+        reminderAt: existing.scheduledAt,
+        updatedAt: now,
+      });
+    });
   }
-  await db.reminders.update(reminderId, { status, updatedAt: Date.now() });
 }
 
 export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> {
   const notes = await db.notes.toArray();
   const validNoteIds = new Set(notes.map((n) => n.id));
   const reminders = await db.reminders.toArray();
+  const pendingReminderNoteIds = new Set(
+    reminders.filter((r) => r.status === "pending").map((r) => r.noteId),
+  );
   const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
 
   for (const r of orphaned) {
     await cancelNotification(r.id, r.notificationId);
     await db.reminders.delete(r.id);
+  }
+
+  for (const note of notes) {
+    if (note.reminderAt !== null && !pendingReminderNoteIds.has(note.id)) {
+      await db.notes.update(note.id, { reminderAt: null });
+    }
   }
 }

@@ -3,6 +3,7 @@ import Dexie from "dexie";
 import { toast } from "sonner";
 import { NomaDatabase, copyDatabase } from "./db";
 import { useAuth } from "./auth";
+import { rehydrateWebReminders } from "./notifications";
 
 export interface DatabaseContextValue {
   db: NomaDatabase | null;
@@ -138,8 +139,12 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       if (initGeneration.current === currentGen) {
         setActiveDb(localNewDb);
         setLoading(false);
+        const dbToRehydrate = localNewDb;
         localNewDb = null;
         setPendingGuestDb(null);
+        if (dbToRehydrate) {
+          void rehydrateWebReminders(dbToRehydrate);
+        }
       }
     }
 

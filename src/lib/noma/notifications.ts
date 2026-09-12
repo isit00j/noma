@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import type { NomaDatabase } from "./db";
 import type { Reminder } from "./types";
 
 export interface NotificationCapability {
@@ -86,18 +87,55 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 // In-memory web timer store for active session scheduling on web
 const webTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const MAX_TIMEOUT_MS = 2147483647; // 2^31 - 1 max 32-bit signed int for setTimeout
 
 /**
  * Generates a numeric 32-bit positive integer ID for Capacitor Local Notifications from a string UUID.
  */
 function hashNotificationId(reminderId: string): number {
-  let hash = 0;
+  let hash = 5381;
   for (let i = 0; i < reminderId.length; i++) {
-    const char = reminderId.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
+    hash = (hash * 33) ^ reminderId.charCodeAt(i);
   }
-  return Math.abs(hash) || 1;
+  return (hash >>> 0) % 2147483647 || 1;
+}
+
+function scheduleWebTimer(reminder: Reminder) {
+  if (webTimers.has(reminder.id)) {
+    clearTimeout(webTimers.get(reminder.id));
+    webTimers.delete(reminder.id);
+  }
+
+  const delay = reminder.scheduledAt - Date.now();
+  if (delay <= 0) return;
+
+  const currentDelay = Math.min(delay, MAX_TIMEOUT_MS);
+
+  const timer = setTimeout(() => {
+    webTimers.delete(reminder.id);
+    const remaining = reminder.scheduledAt - Date.now();
+    if (remaining > 1000) {
+      scheduleWebTimer(reminder);
+    } else {
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          new Notification("Reminder from Noma", {
+            body: "You have a scheduled note reminder.",
+            icon: "/noma-icon-192.png",
+            tag: reminder.id,
+          });
+        } catch (e) {
+          console.warn("Failed to deliver Web Notification:", e);
+        }
+      }
+    }
+  }, currentDelay);
+
+  webTimers.set(reminder.id, timer);
 }
 
 export async function scheduleNotification(reminder: Reminder): Promise<number | undefined> {
@@ -140,32 +178,27 @@ export async function scheduleNotification(reminder: Reminder): Promise<number |
   }
 
   // Web/PWA Implementation
-  if (webTimers.has(reminder.id)) {
-    clearTimeout(webTimers.get(reminder.id));
-    webTimers.delete(reminder.id);
-  }
-
-  const delay = reminder.scheduledAt - Date.now();
-  if (delay > 0) {
-    const timer = setTimeout(() => {
-      webTimers.delete(reminder.id);
-      if ("Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification(title, {
-            body,
-            icon: "/noma-icon-192.png",
-            tag: reminder.id,
-          });
-        } catch (e) {
-          console.warn("Failed to deliver Web Notification:", e);
-        }
-      }
-    }, delay);
-
-    webTimers.set(reminder.id, timer);
-  }
+  scheduleWebTimer(reminder);
 
   return notifId;
+}
+
+export async function rehydrateWebReminders(db: NomaDatabase): Promise<void> {
+  const isNative = Capacitor.isNativePlatform();
+  if (isNative) return;
+
+  const now = Date.now();
+  try {
+    const pendingReminders = await db.reminders
+      .filter((r) => r.status === "pending" && r.scheduledAt > now)
+      .toArray();
+
+    for (const reminder of pendingReminders) {
+      scheduleWebTimer(reminder);
+    }
+  } catch (e) {
+    console.warn("Failed to rehydrate web reminders:", e);
+  }
 }
 
 export async function cancelNotification(
