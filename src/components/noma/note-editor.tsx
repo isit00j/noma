@@ -64,7 +64,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { Note } from "@/lib/noma/types";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
-import { saveImageAttachment } from "@/lib/noma/media";
+import { saveImageAttachment, scheduleDebouncedAttachmentCleanup } from "@/lib/noma/media";
 import { NomaChartNode, ChartEditorDialog, type AdvancedChartData } from "./chart-node";
 
 export type SaveState = "idle" | "saving" | "saved" | "offline";
@@ -568,6 +568,9 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     onUpdate: ({ editor: instance }) => {
       const html = instance.getHTML();
       onChange({ content: html });
+      if (db) {
+        scheduleDebouncedAttachmentCleanup(db);
+      }
     },
   });
 

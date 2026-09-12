@@ -110,6 +110,18 @@ const VALID_TYPES = new Set<AdvancedChartType>([
 ]);
 
 /**
+ * Safely parses JSON strings without throwing exceptions.
+ */
+export function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw || typeof raw !== "string") return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Validates and normalizes arbitrary chart inputs with strict bounds, character caps,
  * finite number coercions, and fallback defaults to ensure malformed HTML/JSON cannot crash the editor.
  */
@@ -1105,12 +1117,7 @@ export const NomaChartNode = Node.create({
         default: ["Jan", "Feb", "Mar"],
         parseHTML: (el) => {
           const raw = el.getAttribute("data-categories");
-          if (!raw) return ["Jan", "Feb", "Mar"];
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return ["Jan", "Feb", "Mar"];
-          }
+          return safeJsonParse(raw, ["Jan", "Feb", "Mar"]);
         },
       },
       series: {
@@ -1124,12 +1131,7 @@ export const NomaChartNode = Node.create({
         ],
         parseHTML: (el) => {
           const raw = el.getAttribute("data-series");
-          if (!raw) return [];
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return [];
-          }
+          return safeJsonParse(raw, []);
         },
       },
       options: {
@@ -1139,12 +1141,7 @@ export const NomaChartNode = Node.create({
         },
         parseHTML: (el) => {
           const raw = el.getAttribute("data-options");
-          if (!raw) return {};
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return {};
-          }
+          return safeJsonParse(raw, {});
         },
       },
       // Backward compatibility attribute parse for v1 simple schema
@@ -1152,12 +1149,7 @@ export const NomaChartNode = Node.create({
         default: null,
         parseHTML: (el) => {
           const raw = el.getAttribute("data-chart");
-          if (!raw) return null;
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return null;
-          }
+          return safeJsonParse(raw, null);
         },
       },
     };
@@ -1180,25 +1172,21 @@ export const NomaChartNode = Node.create({
           const optRaw = el.getAttribute("data-options");
           const legacyRaw = el.getAttribute("data-chart");
 
-          try {
-            if (version === 2 && catRaw && serRaw) {
-              return validateAndNormalizeChartData({
-                version: 2,
-                type,
-                title,
-                subtitle,
-                categories: JSON.parse(catRaw),
-                series: JSON.parse(serRaw),
-                options: optRaw ? JSON.parse(optRaw) : {},
-              });
-            }
-
-            // Legacy V1 fallback
-            const legacyData = legacyRaw ? JSON.parse(legacyRaw) : [];
-            return validateAndNormalizeChartData({ version: 1, type, title, data: legacyData });
-          } catch {
-            return validateAndNormalizeChartData({});
+          if (version === 2 && catRaw && serRaw) {
+            return validateAndNormalizeChartData({
+              version: 2,
+              type,
+              title,
+              subtitle,
+              categories: safeJsonParse(catRaw, []),
+              series: safeJsonParse(serRaw, []),
+              options: safeJsonParse(optRaw, {}),
+            });
           }
+
+          // Legacy V1 fallback
+          const legacyData = safeJsonParse(legacyRaw, []);
+          return validateAndNormalizeChartData({ version: 1, type, title, data: legacyData });
         },
       },
     ];

@@ -114,3 +114,19 @@ export async function cleanupOrphanedAttachments(db: NomaDatabase): Promise<numb
   await db.attachments.bulkDelete(orphaned.map((a) => a.id));
   return orphaned.length;
 }
+
+let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedules a debounced orphan attachment reconciliation run.
+ * Avoids executing full IndexedDB scans on every single keystroke.
+ */
+export function scheduleDebouncedAttachmentCleanup(db: NomaDatabase, delayMs = 3000): void {
+  if (cleanupTimer) clearTimeout(cleanupTimer);
+  cleanupTimer = setTimeout(() => {
+    cleanupTimer = null;
+    cleanupOrphanedAttachments(db).catch((err) => {
+      console.error("Debounced attachment cleanup failed", err);
+    });
+  }, delayMs);
+}
