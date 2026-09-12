@@ -18,6 +18,7 @@ import { PWAReloadPrompt } from "@/components/noma/pwa-reload-prompt";
 
 import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
 import { AppLockProvider, useAppLock } from "@/lib/noma/AppLockContext";
+import { ShortcutListener } from "@/lib/noma/shortcut";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,11 +184,13 @@ function RootComponent() {
       <AuthProvider>
         <DatabaseProvider>
           <AppLockProvider>
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-            <GuestMigrationDialog />
-            <Toaster position="bottom-center" />
-            <PWAReloadPrompt />
+            <ShortcutListener>
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
+              <GuestMigrationDialog />
+              <Toaster position="bottom-center" />
+              <PWAReloadPrompt />
+            </ShortcutListener>
           </AppLockProvider>
         </DatabaseProvider>
       </AuthProvider>
