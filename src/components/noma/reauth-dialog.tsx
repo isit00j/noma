@@ -41,11 +41,26 @@ export function ReauthDialog({
   const availableMethods = settings.unlockMethods;
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const activeTabs = [
+    availableMethods.biometric && biometricAvailable && "biometric",
+    availableMethods.pattern && "pattern",
+    availableMethods.password && "password",
+  ].filter((t): t is "biometric" | "pattern" | "password" => Boolean(t));
+
   const defaultTab = availableMethods.biometric && biometricAvailable
     ? "biometric"
     : availableMethods.pattern
       ? "pattern"
-      : "password";
+      : availableMethods.password
+        ? "password"
+        : activeTabs[0] || "password";
+
+  const gridColsClass =
+    activeTabs.length === 1
+      ? "grid-cols-1"
+      : activeTabs.length === 2
+        ? "grid-cols-2"
+        : "grid-cols-3";
 
   const handleBiometricReauth = async () => {
     setBusy(true);
@@ -175,16 +190,22 @@ export function ReauthDialog({
         </DialogHeader>
 
         <Tabs defaultValue={defaultTab} className="w-full mt-2">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="biometric" disabled={!availableMethods.biometric || !biometricAvailable}>
-              <Fingerprint className="size-4 mr-1.5" /> Biometric
-            </TabsTrigger>
-            <TabsTrigger value="pattern" disabled={!availableMethods.pattern}>
-              <Grid className="size-4 mr-1.5" /> Pattern
-            </TabsTrigger>
-            <TabsTrigger value="password" disabled={!availableMethods.password}>
-              <KeyRound className="size-4 mr-1.5" /> Password
-            </TabsTrigger>
+          <TabsList className={`grid w-full ${gridColsClass}`}>
+            {availableMethods.biometric && biometricAvailable && (
+              <TabsTrigger value="biometric">
+                <Fingerprint className="size-4 mr-1.5" /> Biometric
+              </TabsTrigger>
+            )}
+            {availableMethods.pattern && (
+              <TabsTrigger value="pattern">
+                <Grid className="size-4 mr-1.5" /> Pattern
+              </TabsTrigger>
+            )}
+            {availableMethods.password && (
+              <TabsTrigger value="password">
+                <KeyRound className="size-4 mr-1.5" /> Password
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {availableMethods.biometric && (

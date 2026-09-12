@@ -71,11 +71,24 @@ export function AppLockSection() {
     }
   };
 
+  const openPatternSetup = () => {
+    setPatternPoints([]);
+    setConfirmPatternPoints([]);
+    setPatternStep("draw");
+    setPatternModalOpen(true);
+  };
+
+  const openPasswordSetup = () => {
+    setPasswordInput("");
+    setConfirmPasswordInput("");
+    setPasswordModalOpen(true);
+  };
+
   const handleToggleAppLock = (enabled: boolean) => {
     if (enabled) {
       if (!settings.unlockMethods.pattern && !settings.unlockMethods.password && !settings.unlockMethods.biometric) {
         toast.error("Please configure a Noma Pattern or Password first.");
-        setPasswordModalOpen(true);
+        openPasswordSetup();
         return;
       }
       void update({ appLockEnabled: true });
@@ -96,7 +109,7 @@ export function AppLockSection() {
     if (enabled) {
       if (!settings.unlockMethods.pattern && !settings.unlockMethods.password) {
         toast.error("Biometric requires at least one Noma fallback (Pattern or Password).");
-        setPasswordModalOpen(true);
+        openPasswordSetup();
         return;
       }
       requestAuthorizedChange(async () => {
@@ -118,7 +131,7 @@ export function AppLockSection() {
   const handleTogglePassword = (enabled: boolean) => {
     if (enabled) {
       requestAuthorizedChange(async () => {
-        setPasswordModalOpen(true);
+        openPasswordSetup();
       });
     } else {
       if (settings.unlockMethods.biometric && !settings.unlockMethods.pattern) {
@@ -143,10 +156,7 @@ export function AppLockSection() {
   const handleTogglePattern = (enabled: boolean) => {
     if (enabled) {
       requestAuthorizedChange(async () => {
-        setPatternPoints([]);
-        setConfirmPatternPoints([]);
-        setPatternStep("draw");
-        setPatternModalOpen(true);
+        openPatternSetup();
       });
     } else {
       if (settings.unlockMethods.biometric && !settings.unlockMethods.password) {
@@ -326,7 +336,7 @@ export function AppLockSection() {
                   size="sm"
                   variant="ghost"
                   className="h-6 px-2 text-xs"
-                  onClick={() => requestAuthorizedChange(async () => setPatternModalOpen(true))}
+                  onClick={() => requestAuthorizedChange(async () => openPatternSetup())}
                 >
                   Change
                 </Button>
@@ -349,7 +359,7 @@ export function AppLockSection() {
                   size="sm"
                   variant="ghost"
                   className="h-6 px-2 text-xs"
-                  onClick={() => requestAuthorizedChange(async () => setPasswordModalOpen(true))}
+                  onClick={() => requestAuthorizedChange(async () => openPasswordSetup())}
                 >
                   Change
                 </Button>

@@ -96,16 +96,18 @@ function constantTimeCompare(a: string, b: string): boolean {
   return result === 0;
 }
 
+export const MAX_LOCKOUT_MS = 30 * 60 * 1000; // 30 minutes
+
 /**
  * Calculate exponential lockout delay in ms based on failed attempts.
  * 5 failures -> 30 seconds
  * 6 failures -> 60 seconds
- * 7 failures -> 120 seconds, etc.
+ * 7 failures -> 120 seconds, capped at MAX_LOCKOUT_MS (30 mins).
  */
 export function getLockoutDurationMs(failedAttempts: number): number {
   if (failedAttempts < 5) return 0;
   const exponent = failedAttempts - 5;
-  return 30000 * Math.pow(2, exponent);
+  return Math.min(30000 * Math.pow(2, exponent), MAX_LOCKOUT_MS);
 }
 
 // Base64 helper utilities
