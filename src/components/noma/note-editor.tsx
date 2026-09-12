@@ -26,13 +26,38 @@ import {
   PaintBucket,
   Table as TableIcon,
   Underline as UnderlineIcon,
+  Upload,
+  Globe,
+  BarChart2,
+  Plus,
+  Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 import type { Note } from "@/lib/noma/types";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
+import { saveImageAttachment } from "@/lib/noma/media";
+import { NomaChartNode, ChartEditorDialog, type ChartNodeAttributes } from "./chart-node";
 
 export type SaveState = "idle" | "saving" | "saved" | "offline";
 
@@ -47,25 +72,31 @@ interface NoteEditorProps {
 function ToolbarButton({
   onClick,
   active,
+  disabled,
   label,
   children,
+  className,
 }: {
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   active?: boolean;
+  disabled?: boolean;
   label: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
       aria-pressed={active}
       title={label}
       className={cn(
-        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        active && "bg-accent text-foreground",
+        "inline-flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40",
+        active && "bg-accent text-foreground font-medium shadow-xs ring-1 ring-border/50",
+        className,
       )}
     >
       {children}
@@ -108,25 +139,31 @@ function ColorPicker({
   current?: string | undefined;
   onPick: (value: string | null) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           aria-label={label}
           title={label}
-          className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="relative inline-flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           {icon}
           <span
             aria-hidden
-            className="absolute bottom-1 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full border border-border"
+            className="absolute bottom-1.5 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full border border-border"
             style={{ backgroundColor: current ?? "transparent" }}
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 p-3">
+      <PopoverContent
+        align="start"
+        className="w-52 p-3"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
         <div className="grid grid-cols-4 gap-2">
           {swatches.map((swatch) => {
@@ -136,12 +173,15 @@ function ColorPicker({
                 key={swatch.name}
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onPick(swatch.value)}
+                onClick={() => {
+                  onPick(swatch.value);
+                  setOpen(false);
+                }}
                 title={swatch.name}
                 aria-label={swatch.name}
                 aria-pressed={selected}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-md border border-border transition-transform hover:scale-105",
+                  "flex h-8 w-8 items-center justify-center rounded-md border border-border transition-transform hover:scale-105 touch-manipulation",
                   selected && "ring-2 ring-ring ring-offset-1 ring-offset-background",
                 )}
                 style={{ backgroundColor: swatch.value ?? "transparent" }}
@@ -158,7 +198,92 @@ function ColorPicker({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function ContextualTableBar({ editor }: { editor: Editor }) {
+  if (!editor.isActive("table")) return null;
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card/90 p-1.5 backdrop-blur-xs text-xs">
+      <span className="px-2 font-semibold text-muted-foreground">Table:</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().addRowBefore().run()}
+      >
+        <Plus className="size-3" /> Row Above
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().addRowAfter().run()}
+      >
+        <Plus className="size-3" /> Row Below
+      </Button>
+      <Separator orientation="vertical" className="!h-4" />
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().addColumnBefore().run()}
+      >
+        <Plus className="size-3" /> Col Left
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+      >
+        <Plus className="size-3" /> Col Right
+      </Button>
+      <Separator orientation="vertical" className="!h-4" />
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().deleteRow().run()}
+      >
+        Delete Row
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().deleteColumn().run()}
+      >
+        Delete Col
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs gap-1 font-semibold text-destructive hover:text-destructive"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().deleteTable().run()}
+      >
+        <Trash2 className="size-3" /> Remove Table
+      </Button>
+    </div>
+  );
+}
+
+function Toolbar({
+  editor,
+  onUploadImageClick,
+  onInsertTableClick,
+  onInsertChartClick,
+}: {
+  editor: Editor;
+  onUploadImageClick: () => void;
+  onInsertTableClick: () => void;
+  onInsertChartClick: () => void;
+}) {
   const addLink = () => {
     const previous = editor.getAttributes("link")["href"] as string | undefined;
     const url = window.prompt("Link URL", previous ?? "https://");
@@ -170,13 +295,13 @@ function Toolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
-  const addImage = () => {
+  const addImageUrl = () => {
     const url = window.prompt("Image URL", "https://");
     if (url) editor.chain().focus().setImage({ src: url }).run();
   };
 
   return (
-    <div className="noma-scroll flex items-center gap-0.5 overflow-x-auto">
+    <div className="noma-scroll flex items-center gap-0.5 overflow-x-auto py-0.5">
       <ToolbarButton
         label="Bold"
         active={editor.isActive("bold")}
@@ -230,13 +355,11 @@ function Toolbar({ editor }: { editor: Editor }) {
         swatches={BG_COLORS}
         current={editor.getAttributes("textStyle")["backgroundColor"] as string | undefined}
         onPick={(value) => {
-          const chain = editor.chain().focus().extendMarkRange("textStyle");
-          const { $from, $to } = editor.state.selection;
-          if (editor.state.selection.empty) {
-            chain.setTextSelection({ from: $from.start(), to: $to.end() });
+          if (value) {
+            editor.chain().focus().setBackgroundColor(value).run();
+          } else {
+            editor.chain().focus().unsetBackgroundColor().run();
           }
-          if (value) chain.setBackgroundColor(value).run();
-          else chain.unsetBackgroundColor().run();
         }}
       />
 
@@ -307,17 +430,37 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Link" active={editor.isActive("link")} onClick={addLink}>
         <Link2 className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Image" onClick={addImage}>
-        <ImageIcon className="size-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        label="Table"
-        onClick={() =>
-          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-        }
-      >
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            title="Insert Image"
+            aria-label="Insert Image"
+            className="inline-flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <ImageIcon className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={onUploadImageClick} className="gap-2 text-xs">
+            <Upload className="size-4" /> Upload Photo from Device
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={addImageUrl} className="gap-2 text-xs">
+            <Globe className="size-4" /> Insert Image URL
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ToolbarButton label="Table" active={editor.isActive("table")} onClick={onInsertTableClick}>
         <TableIcon className="size-4" />
       </ToolbarButton>
+
+      <ToolbarButton label="Chart" onClick={onInsertChartClick}>
+        <BarChart2 className="size-4" />
+      </ToolbarButton>
+
       <ToolbarButton
         label="Divider"
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
@@ -329,7 +472,16 @@ function Toolbar({ editor }: { editor: Editor }) {
 }
 
 export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }: NoteEditorProps) {
+  const { db } = useDatabase();
   const [showToolbar, setShowToolbar] = useState(true);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [tableRows, setTableRows] = useState("3");
+  const [tableCols, setTableCols] = useState("3");
+  const [tableHeader, setTableHeader] = useState(true);
+
+  const [chartDialogOpen, setChartDialogOpen] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const loadedNoteId = useRef(note.id);
 
@@ -356,6 +508,7 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
       TableHeader,
       TableCell,
       Placeholder.configure({ placeholder: "Start writing…" }),
+      NomaChartNode,
     ],
     content: note.content,
     editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
@@ -376,6 +529,42 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [note.title, note.id]);
 
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !editor || !db) return;
+
+    const file = files[0];
+    if (!file || !file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    try {
+      toast.loading("Processing photo...", { id: "photo-upload" });
+      const attachment = await saveImageAttachment(db, note.id, file);
+      editor.chain().focus().setImage({ src: attachment.data, alt: attachment.name }).run();
+      toast.success("Photo added to note", { id: "photo-upload" });
+    } catch (err) {
+      console.error("Failed to upload image", err);
+      toast.error("Failed to save image attachment", { id: "photo-upload" });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCreateTable = () => {
+    if (!editor) return;
+    const rows = Math.max(1, Math.min(20, parseInt(tableRows, 10) || 3));
+    const cols = Math.max(1, Math.min(10, parseInt(tableCols, 10) || 3));
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: tableHeader }).run();
+    setTableDialogOpen(false);
+  };
+
+  const handleSaveChart = (chartAttrs: ChartNodeAttributes) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent({ type: "nomaChart", attrs: chartAttrs }).run();
+  };
+
   return (
     <div
       className="noma-editor mx-auto w-full px-5 pb-32 sm:px-8"
@@ -387,6 +576,15 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
         } as React.CSSProperties
       }
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        aria-label="Upload photo"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       <textarea
         ref={titleRef}
         value={note.title}
@@ -405,23 +603,94 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
 
       {editor && (
         <>
-          <div className="sticky top-0 z-10 -mx-2 mb-4 flex items-center gap-1 border-b border-border/70 bg-background/85 px-2 py-1.5 backdrop-blur-sm">
-            {showToolbar ? (
-              <Toolbar editor={editor} />
-            ) : (
-              <span className="px-1 text-xs text-muted-foreground">Formatting hidden</span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto shrink-0 text-xs text-muted-foreground"
-              onClick={() => setShowToolbar((value) => !value)}
-            >
-              {showToolbar ? "Hide" : "Format"}
-            </Button>
+          <div className="sticky top-0 z-10 -mx-2 mb-4 flex flex-col border-b border-border/70 bg-background/85 px-2 py-1.5 backdrop-blur-sm">
+            <div className="flex items-center gap-1">
+              {showToolbar ? (
+                <Toolbar
+                  editor={editor}
+                  onUploadImageClick={() => fileInputRef.current?.click()}
+                  onInsertTableClick={() => setTableDialogOpen(true)}
+                  onInsertChartClick={() => setChartDialogOpen(true)}
+                />
+              ) : (
+                <span className="px-1 text-xs text-muted-foreground">Formatting hidden</span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto shrink-0 text-xs text-muted-foreground"
+                onClick={() => setShowToolbar((value) => !value)}
+              >
+                {showToolbar ? "Hide" : "Format"}
+              </Button>
+            </div>
+            <ContextualTableBar editor={editor} />
           </div>
+
           <EditorContent editor={editor} />
         </>
+      )}
+
+      {/* Table Insertion Dialog */}
+      <Dialog open={tableDialogOpen} onOpenChange={setTableDialogOpen}>
+        <DialogContent className="max-w-xs p-5 sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">Insert Table</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Rows</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={tableRows}
+                  onChange={(e) => setTableRows(e.target.value)}
+                  className="mt-1 h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Columns</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={tableCols}
+                  onChange={(e) => setTableCols(e.target.value)}
+                  className="mt-1 h-9"
+                />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 pt-1">
+              <Checkbox
+                id="header-row"
+                checked={tableHeader}
+                onCheckedChange={(checked) => setTableHeader(Boolean(checked))}
+              />
+              <Label htmlFor="header-row" className="text-xs font-normal cursor-pointer">
+                Include header row
+              </Label>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setTableDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateTable} className="noma-cta">
+              Insert Table
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Chart Insertion Dialog */}
+      {chartDialogOpen && (
+        <ChartEditorDialog
+          open={chartDialogOpen}
+          onOpenChange={setChartDialogOpen}
+          onSave={handleSaveChart}
+        />
       )}
     </div>
   );

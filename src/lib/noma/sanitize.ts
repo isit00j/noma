@@ -41,6 +41,7 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   INPUT: new Set(["type", "checked", "disabled"]),
   TD: new Set(["colspan", "rowspan"]),
   TH: new Set(["colspan", "rowspan"]),
+  DIV: new Set(["data-type", "data-version", "data-chart-type", "data-title", "data-chart"]),
 };
 
 /** Tags allowed to carry an inline `style` limited to colour declarations. */
