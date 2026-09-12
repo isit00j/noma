@@ -2,7 +2,7 @@ import { type NomaDatabase, newId } from "./db";
 import { cancelNotification, scheduleNotification } from "./notifications";
 import { countWords, htmlToPlainText, sanitizeHtml } from "./sanitize";
 import { cleanupOrphanedAttachments } from "./media";
-import type { Folder, Note, Reminder, Tag } from "./types";
+import type { Folder, Note, Reminder, Tag, AttachmentMeta } from "./types";
 
 export async function createNote(db: NomaDatabase, init: Partial<Note> = {}): Promise<Note> {
   const now = Date.now();
@@ -44,12 +44,59 @@ export async function updateNote(
 export async function duplicateNote(db: NomaDatabase, id: string): Promise<Note | null> {
   const source = await db.notes.get(id);
   if (!source) return null;
+
+  const now = Date.now();
+  const newNoteId = newId();
+
+  // Scan source content for all noma-attachment://<OLD_ID> references
+  let rewrittenContent = source.content || "";
+  const attachmentRegex = /noma-attachment:\/\/([a-zA-Z0-9_-]+)/g;
+  const referencedIds = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = attachmentRegex.exec(source.content || "")) !== null) {
+    if (match[1]) referencedIds.add(match[1]);
+  }
+
+  // Clone each referenced attachment so duplicated notes have independent attachment records
+  for (const oldAttachmentId of referencedIds) {
+    try {
+      const sourceAttachment = await db.attachments.get(oldAttachmentId);
+      if (sourceAttachment && sourceAttachment.data) {
+        const newAttachmentId = newId();
+        const clonedAttachment: AttachmentMeta = {
+          ...sourceAttachment,
+          id: newAttachmentId,
+          noteId: newNoteId,
+          createdAt: now,
+        };
+        await db.attachments.put(clonedAttachment);
+
+        // Replace all occurrences of old attachment ID with new attachment ID in the duplicated content
+        const replaceRegex = new RegExp(`noma-attachment://${oldAttachmentId}`, "g");
+        rewrittenContent = rewrittenContent.replace(
+          replaceRegex,
+          `noma-attachment://${newAttachmentId}`,
+        );
+      }
+    } catch (err) {
+      console.error(`Failed to clone attachment ${oldAttachmentId} during note duplication`, err);
+    }
+  }
+
   const { id: _drop, ...rest } = source;
-  return createNote(db, {
+  const newNote: Note = {
     ...rest,
+    id: newNoteId,
+    content: rewrittenContent,
+    createdAt: now,
+    updatedAt: now,
     reminderAt: null,
     title: source.title ? `${source.title} (copy)` : "Untitled (copy)",
-  });
+  };
+
+  await db.notes.put(newNote);
+  return newNote;
 }
 
 export const togglePinned = (db: NomaDatabase, n: Note) =>
