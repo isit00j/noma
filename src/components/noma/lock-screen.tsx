@@ -96,6 +96,12 @@ export function LockScreen() {
         ? "password"
         : activeTabs[0] || "password";
 
+  const [selectedTab, setSelectedTab] = useState<string>(defaultTab);
+
+  useEffect(() => {
+    setSelectedTab(defaultTab);
+  }, [defaultTab]);
+
   const gridColsClass =
     activeTabs.length === 1
       ? "grid-cols-1"
@@ -229,7 +235,7 @@ export function LockScreen() {
           </div>
         )}
 
-        <Tabs defaultValue={defaultTab} className="w-full">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
           <TabsList className={`grid w-full ${gridColsClass}`}>
             {availableMethods.biometric && (
               <TabsTrigger value="biometric" disabled={!biometricAvailable}>
@@ -376,23 +382,41 @@ export function LockScreen() {
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-wrap gap-2 sm:justify-end">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             {hasUsableMethod ? (
-              isBiometricUsable ? (
-                <AlertDialogAction
-                  onClick={() => {
-                    setShowRecoveryDialog(false);
-                    void unlockWithBiometric();
-                  }}
-                >
-                  Authenticate Biometric
-                </AlertDialogAction>
-              ) : (
-                <AlertDialogAction onClick={() => setShowRecoveryDialog(false)}>
-                  Use Configured Method
-                </AlertDialogAction>
-              )
+              <>
+                {isBiometricUsable && (
+                  <AlertDialogAction
+                    onClick={() => {
+                      setShowRecoveryDialog(false);
+                      void unlockWithBiometric();
+                    }}
+                  >
+                    Authenticate Biometric
+                  </AlertDialogAction>
+                )}
+                {isPatternUsable && (
+                  <AlertDialogAction
+                    onClick={() => {
+                      setSelectedTab("pattern");
+                      setShowRecoveryDialog(false);
+                    }}
+                  >
+                    Use Noma Pattern
+                  </AlertDialogAction>
+                )}
+                {isPasswordUsable && (
+                  <AlertDialogAction
+                    onClick={() => {
+                      setSelectedTab("password");
+                      setShowRecoveryDialog(false);
+                    }}
+                  >
+                    Use Noma Password
+                  </AlertDialogAction>
+                )}
+              </>
             ) : (
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
