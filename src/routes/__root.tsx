@@ -17,7 +17,7 @@ import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/noma/theme";
 import { PWAReloadPrompt } from "@/components/noma/pwa-reload-prompt";
 
 import { DatabaseProvider, useDatabase } from "@/lib/noma/DatabaseContext";
-import { AppLockProvider } from "@/lib/noma/AppLockContext";
+import { AppLockProvider, useAppLock } from "@/lib/noma/AppLockContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +31,12 @@ import {
 
 function GuestMigrationDialog() {
   const { guestMigrationPending, migrateGuestData, skipGuestData } = useDatabase();
+  const { isLocked, isLockStateResolving } = useAppLock();
+
+  if (isLockStateResolving || isLocked) {
+    return null;
+  }
+
   return (
     <AlertDialog open={guestMigrationPending}>
       <AlertDialogContent>
