@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { type NomaDatabase, newId } from "./db";
+import { cleanupOrphanedReminders } from "./notes";
 import { scheduleNotification } from "./notifications";
 import { sanitizeHtml } from "./sanitize";
 import {
@@ -239,6 +240,19 @@ export async function applyBackup(
   payload: BackupPayload,
   mode: "merge" | "replace",
 ): Promise<void> {
+  // Deduplicate payload.reminders by noteId so backup restore never introduces duplicate reminders for a note
+  const deduplicatedReminders: Reminder[] = [];
+  if (payload.reminders?.length) {
+    const reminderMap = new Map<string, Reminder>();
+    for (const r of payload.reminders) {
+      const existing = reminderMap.get(r.noteId);
+      if (!existing || r.updatedAt > existing.updatedAt) {
+        reminderMap.set(r.noteId, r);
+      }
+    }
+    deduplicatedReminders.push(...reminderMap.values());
+  }
+
   await db.transaction(
     "rw",
     db.notes,
@@ -259,7 +273,7 @@ export async function applyBackup(
         await db.tags.bulkPut(payload.tags);
         await db.notes.bulkPut(payload.notes);
         await db.attachments.bulkPut(payload.attachments);
-        if (payload.reminders?.length) await db.reminders.bulkPut(payload.reminders);
+        if (deduplicatedReminders.length) await db.reminders.bulkPut(deduplicatedReminders);
       } else {
         for (const folder of payload.folders) {
           if (!(await db.folders.get(folder.id))) await db.folders.put(folder);
@@ -275,16 +289,17 @@ export async function applyBackup(
         for (const attachment of payload.attachments) {
           if (!(await db.attachments.get(attachment.id))) await db.attachments.put(attachment);
         }
-        if (payload.reminders) {
-          for (const reminder of payload.reminders) {
-            const existing = await db.reminders.get(reminder.id);
-            if (!existing || reminder.updatedAt > existing.updatedAt)
-              await db.reminders.put(reminder);
-          }
+        for (const reminder of deduplicatedReminders) {
+          const existing = await db.reminders.get(reminder.id);
+          if (!existing || reminder.updatedAt > existing.updatedAt)
+            await db.reminders.put(reminder);
         }
       }
     },
   );
+
+  // Clean up any remaining orphans or duplicate reminders
+  await cleanupOrphanedReminders(db);
 
   // Re-schedule notifications for active pending reminders after restore
   const activeReminders = await db.reminders

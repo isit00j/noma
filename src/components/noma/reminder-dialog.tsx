@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   checkNotificationCapability,
+  rehydrateReminders,
   requestNotificationPermission,
   type NotificationCapability,
 } from "@/lib/noma/notifications";
@@ -38,6 +40,7 @@ export function ReminderDialog({
 }: ReminderDialogProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeString, setTimeString] = useState<string>("09:00");
+  const { db } = useDatabase();
   const [saving, setSaving] = useState(false);
   const [capability, setCapability] = useState<NotificationCapability | null>(null);
 
@@ -72,7 +75,10 @@ export function ReminderDialog({
     setSaving(true);
     try {
       if (capability && !capability.permissionGranted && capability.permissionState === "prompt") {
-        await requestNotificationPermission();
+        const granted = await requestNotificationPermission();
+        if (granted && db) {
+          void rehydrateReminders(db);
+        }
       }
       await onSave(scheduled.getTime());
       onOpenChange(false);

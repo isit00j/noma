@@ -183,9 +183,13 @@ export async function scheduleNotification(reminder: Reminder): Promise<number |
   return notifId;
 }
 
-export async function rehydrateWebReminders(db: NomaDatabase): Promise<void> {
+export async function rehydrateReminders(db: NomaDatabase): Promise<void> {
   const isNative = Capacitor.isNativePlatform();
-  if (isNative) return;
+  const capability = await checkNotificationCapability();
+
+  if (!capability.permissionGranted) {
+    return;
+  }
 
   const now = Date.now();
   try {
@@ -193,11 +197,30 @@ export async function rehydrateWebReminders(db: NomaDatabase): Promise<void> {
       .filter((r) => r.status === "pending" && r.scheduledAt > now)
       .toArray();
 
-    for (const reminder of pendingReminders) {
-      scheduleWebTimer(reminder);
+    if (isNative) {
+      for (const reminder of pendingReminders) {
+        const notifId = reminder.notificationId ?? hashNotificationId(reminder.id);
+        const scheduledDate = new Date(reminder.scheduledAt);
+        await LocalNotifications.cancel({ notifications: [{ id: notifId }] }).catch(() => {});
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              id: notifId,
+              title: "Reminder from Noma",
+              body: "You have a scheduled note reminder.",
+              schedule: { at: scheduledDate },
+              extra: { noteId: reminder.noteId, reminderId: reminder.id },
+            },
+          ],
+        }).catch((e) => console.warn("Failed rehydrating native notification:", e));
+      }
+    } else {
+      for (const reminder of pendingReminders) {
+        scheduleWebTimer(reminder);
+      }
     }
   } catch (e) {
-    console.warn("Failed to rehydrate web reminders:", e);
+    console.warn("Failed to rehydrate reminders:", e);
   }
 }
 

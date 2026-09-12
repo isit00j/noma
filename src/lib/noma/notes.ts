@@ -163,13 +163,21 @@ export async function setNoteReminder(
   noteId: string,
   scheduledAt: number,
 ): Promise<Reminder> {
-  const existing = await db.reminders.where("noteId").equals(noteId).first();
+  const existingList = await db.reminders.where("noteId").equals(noteId).toArray();
+  const primary = existingList[0];
+  const extras = existingList.slice(1);
   const now = Date.now();
 
-  if (existing) {
-    await cancelNotification(existing.id, existing.notificationId);
+  // Cancel notifications & remove any duplicate rows safely
+  for (const extra of extras) {
+    await cancelNotification(extra.id, extra.notificationId);
+    await db.reminders.delete(extra.id);
+  }
+
+  if (primary) {
+    await cancelNotification(primary.id, primary.notificationId);
     const updated: Reminder = {
-      ...existing,
+      ...primary,
       scheduledAt,
       status: "pending",
       updatedAt: now,
@@ -202,16 +210,14 @@ export async function setNoteReminder(
 }
 
 export async function deleteNoteReminder(db: NomaDatabase, noteId: string): Promise<void> {
-  const existing = await db.reminders.where("noteId").equals(noteId).first();
-  if (existing) {
+  const existingList = await db.reminders.where("noteId").equals(noteId).toArray();
+  for (const existing of existingList) {
     await cancelNotification(existing.id, existing.notificationId);
-    await db.transaction("rw", db.reminders, db.notes, async () => {
-      await db.reminders.delete(existing.id);
-      await db.notes.update(noteId, { reminderAt: null });
-    });
-  } else {
-    await db.notes.update(noteId, { reminderAt: null });
   }
+  await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.reminders.where("noteId").equals(noteId).delete();
+    await db.notes.update(noteId, { reminderAt: null });
+  });
 }
 
 export async function updateReminderStatus(
@@ -261,19 +267,48 @@ export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> 
   const notes = await db.notes.toArray();
   const validNoteIds = new Set(notes.map((n) => n.id));
   const reminders = await db.reminders.toArray();
-  const pendingReminderNoteIds = new Set(
-    reminders.filter((r) => r.status === "pending").map((r) => r.noteId),
-  );
-  const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
 
+  // 1. Remove orphaned reminders (whose note no longer exists)
+  const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
   for (const r of orphaned) {
     await cancelNotification(r.id, r.notificationId);
     await db.reminders.delete(r.id);
   }
 
+  // 2. Group non-orphaned reminders by noteId and clean up accidental duplicates
+  const reminderGroups = new Map<string, Reminder[]>();
+  for (const r of reminders) {
+    if (!validNoteIds.has(r.noteId)) continue;
+    const group = reminderGroups.get(r.noteId) ?? [];
+    group.push(r);
+    reminderGroups.set(r.noteId, group);
+  }
+
+  for (const [noteId, group] of reminderGroups.entries()) {
+    if (group.length > 1) {
+      // Keep the most recently updated reminder, delete extra duplicate rows
+      group.sort((a, b) => b.updatedAt - a.updatedAt);
+      const extras = group.slice(1);
+      for (const extra of extras) {
+        await cancelNotification(extra.id, extra.notificationId);
+        await db.reminders.delete(extra.id);
+      }
+    }
+  }
+
+  // 3. Enforce note.reminderAt accuracy: set to active pending reminder's scheduledAt if pending, else null
   for (const note of notes) {
-    if (note.reminderAt !== null && !pendingReminderNoteIds.has(note.id)) {
-      await db.notes.update(note.id, { reminderAt: null });
+    const activeGroup = reminderGroups.get(note.id);
+    const pendingReminder = activeGroup?.find((r) => r.status === "pending");
+
+    if (pendingReminder) {
+      if (note.reminderAt !== pendingReminder.scheduledAt) {
+        await db.notes.update(note.id, { reminderAt: pendingReminder.scheduledAt });
+      }
+    } else {
+      if (note.reminderAt !== null) {
+        await db.notes.update(note.id, { reminderAt: null });
+      }
     }
   }
 }
