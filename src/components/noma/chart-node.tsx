@@ -313,7 +313,7 @@ export function ChartRenderer({
 
   if (!categories || categories.length === 0 || !series || series.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-44 sm:h-48 items-center justify-center text-xs sm:text-sm text-muted-foreground">
         No chart data available
       </div>
     );
@@ -346,22 +346,27 @@ export function ChartRenderer({
   );
 
   return (
-    <div className={cn("w-full py-2", className)}>
+    <div className={cn("w-full max-w-full overflow-hidden py-1 sm:py-2", className)}>
       {title && (
-        <h4 className="text-center font-sans text-base font-semibold text-foreground">{title}</h4>
+        <h4 className="text-center font-sans text-sm sm:text-base font-semibold text-foreground break-words px-2 leading-tight">
+          {title}
+        </h4>
       )}
       {subtitle && (
-        <p className="mb-2 text-center font-sans text-xs text-muted-foreground">{subtitle}</p>
+        <p className="mb-1.5 text-center font-sans text-[11px] sm:text-xs text-muted-foreground break-words px-2">
+          {subtitle}
+        </p>
       )}
 
-      <div className="h-64 w-full">
+      <div className="h-44 sm:h-52 w-full max-w-full overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           {type === "bar" ? (
-            <BarChart data={rechartsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <BarChart data={rechartsData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
               {showGrid && <CartesianGrid strokeDasharray="3 3" opacity={0.3} />}
               <XAxis
                 dataKey="category"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 10 }}
+                interval="preserveStartEnd"
                 {...(xAxisLabel
                   ? {
                       label: {
@@ -374,7 +379,8 @@ export function ChartRenderer({
                   : {})}
               />
               <YAxis
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 10 }}
+                width={35}
                 {...(yAxisLabel
                   ? {
                       label: {
@@ -390,7 +396,7 @@ export function ChartRenderer({
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               {series.map((s, idx) => (
@@ -405,15 +411,15 @@ export function ChartRenderer({
               ))}
             </BarChart>
           ) : type === "line" ? (
-            <LineChart data={rechartsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <LineChart data={rechartsData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
               {showGrid && <CartesianGrid strokeDasharray="3 3" opacity={0.3} />}
-              <XAxis dataKey="category" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="category" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10 }} width={35} />
               {renderTooltip()}
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               {series.map((s, idx) => (
@@ -424,20 +430,20 @@ export function ChartRenderer({
                   name={s.name}
                   stroke={s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!}
                   strokeWidth={2.5}
-                  dot={markers ? { r: 4 } : false}
+                  dot={markers ? { r: 3.5 } : false}
                 />
               ))}
             </LineChart>
           ) : type === "area" ? (
-            <AreaChart data={rechartsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={rechartsData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
               {showGrid && <CartesianGrid strokeDasharray="3 3" opacity={0.3} />}
-              <XAxis dataKey="category" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="category" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10 }} width={35} />
               {renderTooltip()}
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               {series.map((s, idx) => {
@@ -457,12 +463,12 @@ export function ChartRenderer({
               })}
             </AreaChart>
           ) : type === "pie" || type === "donut" ? (
-            <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+            <PieChart margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               {renderTooltip()}
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               <Pie
@@ -471,9 +477,10 @@ export function ChartRenderer({
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                innerRadius={type === "donut" ? innerRadius : 0}
-                outerRadius={80}
-                label
+                innerRadius={type === "donut" ? Math.min(innerRadius, 45) : 0}
+                outerRadius={65}
+                label={({ percent }) => (percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : "")}
+                labelLine={false}
               >
                 {pieData.map((_, index) => (
                   <Cell
@@ -484,15 +491,15 @@ export function ChartRenderer({
               </Pie>
             </PieChart>
           ) : type === "radar" ? (
-            <RadarChart data={rechartsData} cx="50%" cy="50%" outerRadius={80}>
+            <RadarChart data={rechartsData} cx="50%" cy="50%" outerRadius={65}>
               <PolarGrid opacity={0.3} />
-              <PolarAngleAxis dataKey="category" tick={{ fontSize: 12 }} />
-              <PolarRadiusAxis angle={30} domain={[0, "auto"]} tick={{ fontSize: 10 }} />
+              <PolarAngleAxis dataKey="category" tick={{ fontSize: 10 }} />
+              <PolarRadiusAxis angle={30} domain={[0, "auto"]} tick={{ fontSize: 9 }} />
               {renderTooltip()}
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               {series.map((s, idx) => {
@@ -512,16 +519,16 @@ export function ChartRenderer({
           ) : (
             <ComposedChart
               data={rechartsData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
             >
               {showGrid && <CartesianGrid strokeDasharray="3 3" opacity={0.3} />}
-              <XAxis dataKey="category" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="category" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10 }} width={35} />
               {renderTooltip()}
               {showLegend && (
                 <Legend
                   verticalAlign={legendPos === "top" ? "top" : "bottom"}
-                  wrapperStyle={{ fontSize: "12px" }}
+                  wrapperStyle={{ fontSize: "11px", width: "100%", paddingTop: "4px" }}
                 />
               )}
               {series.map((s, idx) => {
@@ -536,7 +543,7 @@ export function ChartRenderer({
                       name={s.name}
                       stroke={color}
                       strokeWidth={2.5}
-                      dot={markers ? { r: 4 } : false}
+                      dot={markers ? { r: 3.5 } : false}
                     />
                   );
                 }
@@ -735,86 +742,98 @@ export function ChartEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-5 sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-            <BarChart2 className="size-5 text-primary" />
-            {initialData ? "Edit Chart" : "Insert Chart"}
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-xl sm:max-w-2xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-4 pb-2 sm:p-5 sm:pb-3 shrink-0 border-b border-border/40">
+          <DialogTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
+            <BarChart2 className="size-4 sm:size-5 text-primary shrink-0" />
+            <span>{initialData ? "Edit Chart" : "Insert Chart"}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-1">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3.5 sm:space-y-4 noma-scroll">
           {/* Live Preview Panel */}
-          <div className="rounded-xl border border-border bg-card/60 p-3 shadow-2xs">
-            <ChartRenderer chartData={chartState} className="h-48" />
+          <div className="w-full max-w-full overflow-hidden rounded-xl border border-border bg-card/60 p-2 sm:p-3 shadow-2xs shrink-0">
+            <ChartRenderer chartData={chartState} className="h-44 sm:h-52" />
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="data" className="gap-1.5 text-xs">
-                <TableIcon className="size-3.5" /> Data Grid
+            <TabsList className="grid w-full grid-cols-3 h-9 sm:h-10 p-1">
+              <TabsTrigger
+                value="data"
+                className="px-1 sm:px-3 text-[11px] sm:text-xs gap-1 sm:gap-1.5 truncate"
+              >
+                <TableIcon className="size-3.5 shrink-0" />
+                <span className="truncate">Data Grid</span>
               </TabsTrigger>
-              <TabsTrigger value="type" className="gap-1.5 text-xs">
-                <Layers className="size-3.5" /> Type & Style
+              <TabsTrigger
+                value="type"
+                className="px-1 sm:px-3 text-[11px] sm:text-xs gap-1 sm:gap-1.5 truncate"
+              >
+                <Layers className="size-3.5 shrink-0" />
+                <span className="truncate">Type & Style</span>
               </TabsTrigger>
-              <TabsTrigger value="options" className="gap-1.5 text-xs">
-                <Settings2 className="size-3.5" /> Customization
+              <TabsTrigger
+                value="options"
+                className="px-1 sm:px-3 text-[11px] sm:text-xs gap-1 sm:gap-1.5 truncate"
+              >
+                <Settings2 className="size-3.5 shrink-0" />
+                <span className="truncate">Customization</span>
               </TabsTrigger>
             </TabsList>
 
             {/* Data Tab — Tabular Matrix Editor */}
-            <TabsContent value="data" className="space-y-3 pt-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
+            <TabsContent value="data" className="space-y-3 pt-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground leading-tight">
                   Edit categories and series values like a compact spreadsheet.
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={handlePasteData}
-                    className="h-7 text-xs gap-1"
+                    className="h-7 px-2 text-xs gap-1"
                   >
-                    <Clipboard className="size-3" /> Paste Table
+                    <Clipboard className="size-3 shrink-0" /> Paste Table
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={handleAddCategory}
-                    className="h-7 text-xs gap-1"
+                    className="h-7 px-2 text-xs gap-1"
                   >
-                    <Plus className="size-3" /> Add Category
+                    <Plus className="size-3 shrink-0" /> Add Category
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={handleAddSeries}
-                    className="h-7 text-xs gap-1"
+                    className="h-7 px-2 text-xs gap-1"
                   >
-                    <Plus className="size-3" /> Add Series
+                    <Plus className="size-3 shrink-0" /> Add Series
                   </Button>
                 </div>
               </div>
 
-              {/* Matrix Grid */}
-              <div className="max-h-56 overflow-auto rounded-lg border border-border p-2 bg-background noma-scroll">
-                <table className="w-full text-xs border-collapse">
+              {/* Matrix Grid Container */}
+              <div className="w-full max-w-full overflow-x-auto max-h-48 sm:max-h-56 overflow-y-auto rounded-lg border border-border p-1.5 bg-background noma-scroll overscroll-x-contain touch-pan-x">
+                <table className="min-w-full text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-border bg-muted/40">
-                      <th className="p-1.5 text-left font-semibold text-muted-foreground w-32">
+                      <th className="p-1.5 text-left font-semibold text-muted-foreground min-w-28 w-28 shrink-0">
                         Category
                       </th>
                       {chartState.series.map((s, sIdx) => (
-                        <th key={s.id} className="p-1.5 text-left min-w-32">
+                        <th key={s.id} className="p-1.5 text-left min-w-28 max-w-36">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1">
                               <Input
                                 value={s.name}
                                 onChange={(e) => handleSeriesNameChange(sIdx, e.target.value)}
-                                className="h-7 text-xs font-semibold px-1.5"
+                                className="h-7 text-xs font-semibold px-1.5 min-w-0"
                               />
                               {chartState.series.length > 1 && (
                                 <Button
@@ -856,37 +875,37 @@ export function ChartEditorDialog({
                           </div>
                         </th>
                       ))}
-                      <th className="w-8"></th>
+                      <th className="w-8 shrink-0"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {chartState.categories.map((cat, cIdx) => (
                       <tr key={cIdx} className="border-b border-border/50 hover:bg-accent/20">
-                        <td className="p-1.5">
+                        <td className="p-1.5 min-w-28 w-28">
                           <Input
                             value={cat}
                             onChange={(e) => handleCategoryChange(cIdx, e.target.value)}
-                            className="h-7 text-xs"
+                            className="h-7 text-xs min-w-0"
                           />
                         </td>
                         {chartState.series.map((s, sIdx) => (
-                          <td key={s.id} className="p-1.5">
+                          <td key={s.id} className="p-1.5 min-w-28 max-w-36">
                             <Input
                               type="number"
                               value={s.values[cIdx] ?? 0}
                               onChange={(e) => handleValueChange(sIdx, cIdx, e.target.value)}
-                              className="h-7 text-xs"
+                              className="h-7 text-xs min-w-0"
                             />
                           </td>
                         ))}
-                        <td className="p-1 text-center">
+                        <td className="p-1 text-center w-8 shrink-0">
                           {chartState.categories.length > 1 && (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               onClick={() => handleRemoveCategory(cIdx)}
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
                             >
                               <X className="size-3" />
                             </Button>
@@ -900,15 +919,15 @@ export function ChartEditorDialog({
             </TabsContent>
 
             {/* Type Tab */}
-            <TabsContent value="type" className="space-y-4 pt-3">
-              <div className="grid grid-cols-2 gap-3">
+            <TabsContent value="type" className="space-y-3.5 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Chart Type</Label>
                   <Select
                     value={chartState.type}
                     onValueChange={(val) => updateState({ type: val as AdvancedChartType })}
                   >
-                    <SelectTrigger className="mt-1 h-9 text-xs">
+                    <SelectTrigger className="mt-1 h-9 text-xs w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -946,15 +965,15 @@ export function ChartEditorDialog({
             </TabsContent>
 
             {/* Options Tab */}
-            <TabsContent value="options" className="space-y-3 pt-3">
-              <div className="grid grid-cols-2 gap-4">
+            <TabsContent value="options" className="space-y-3.5 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showGrid"
                     checked={chartState.options?.showGrid ?? true}
                     onCheckedChange={(c) => updateOptions({ showGrid: Boolean(c) })}
                   />
-                  <Label htmlFor="showGrid" className="text-xs cursor-pointer">
+                  <Label htmlFor="showGrid" className="text-xs cursor-pointer select-none">
                     Show Gridlines
                   </Label>
                 </div>
@@ -965,7 +984,7 @@ export function ChartEditorDialog({
                     checked={chartState.options?.showLegend ?? true}
                     onCheckedChange={(c) => updateOptions({ showLegend: Boolean(c) })}
                   />
-                  <Label htmlFor="showLegend" className="text-xs cursor-pointer">
+                  <Label htmlFor="showLegend" className="text-xs cursor-pointer select-none">
                     Show Legend
                   </Label>
                 </div>
@@ -979,7 +998,7 @@ export function ChartEditorDialog({
                         updateOptions({ legendPosition: val as "top" | "bottom" })
                       }
                     >
-                      <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectTrigger className="mt-1 h-8 text-xs w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -991,33 +1010,33 @@ export function ChartEditorDialog({
                 )}
 
                 {["bar", "area"].includes(chartState.type) && (
-                  <div className="flex items-center space-x-2 pt-2">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="stacked"
                       checked={chartState.options?.stacked ?? false}
                       onCheckedChange={(c) => updateOptions({ stacked: Boolean(c) })}
                     />
-                    <Label htmlFor="stacked" className="text-xs cursor-pointer">
+                    <Label htmlFor="stacked" className="text-xs cursor-pointer select-none">
                       Stacked Mode
                     </Label>
                   </div>
                 )}
 
                 {["line", "area", "composed"].includes(chartState.type) && (
-                  <div className="flex items-center space-x-2 pt-2">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="smoothLine"
                       checked={chartState.options?.smoothLine ?? true}
                       onCheckedChange={(c) => updateOptions({ smoothLine: Boolean(c) })}
                     />
-                    <Label htmlFor="smoothLine" className="text-xs cursor-pointer">
+                    <Label htmlFor="smoothLine" className="text-xs cursor-pointer select-none">
                       Smooth Curves
                     </Label>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
                   <Label className="text-xs">X-Axis Label</Label>
                   <Input
@@ -1041,16 +1060,22 @@ export function ChartEditorDialog({
           </Tabs>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="p-3 sm:p-4 shrink-0 border-t border-border flex flex-row items-center justify-end gap-2 bg-muted/20">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="h-8 text-xs"
+          >
             Cancel
           </Button>
           <Button
+            size="sm"
             onClick={() => {
               onSave(chartState);
               onOpenChange(false);
             }}
-            className="noma-cta"
+            className="noma-cta h-8 text-xs"
           >
             Save Chart
           </Button>
@@ -1068,12 +1093,12 @@ function NomaChartNodeComponent({ node, updateAttributes, deleteNode, selected }
   return (
     <div
       className={cn(
-        "group relative my-4 rounded-xl border border-border bg-card p-4 transition-all hover:border-ring/50",
+        "group relative my-4 rounded-xl border border-border bg-card p-3 sm:p-4 transition-all hover:border-ring/50 max-w-full overflow-hidden",
         selected && "ring-2 ring-ring border-transparent",
       )}
       contentEditable={false}
     >
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 opacity-90 transition-opacity group-hover:opacity-100">
+      <div className="absolute right-2 sm:right-3 top-2 sm:top-3 z-10 flex items-center gap-1 opacity-90 transition-opacity group-hover:opacity-100">
         <Button
           type="button"
           variant="secondary"
@@ -1081,14 +1106,15 @@ function NomaChartNodeComponent({ node, updateAttributes, deleteNode, selected }
           onClick={() => setEditorOpen(true)}
           className="h-7 px-2 text-xs gap-1 shadow-xs"
         >
-          <Edit3 className="size-3.5" /> Edit Data & Style
+          <Edit3 className="size-3.5" /> <span className="hidden sm:inline">Edit Data & Style</span>
+          <span className="inline sm:hidden">Edit</span>
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           onClick={deleteNode}
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
         >
           <Trash2 className="size-3.5" />
         </Button>
