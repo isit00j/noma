@@ -35,20 +35,42 @@ export function LockScreen() {
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   const availableMethods = settings.unlockMethods;
+  const hasAutoTriggeredBiometric = useRef(false);
 
-  // Auto-trigger native biometric prompt on launch if biometric method is enabled & available
+  // Auto-trigger native biometric prompt ONCE per lock screen mount/resume event if biometric unlock is enabled & available
   useEffect(() => {
-    if (availableMethods.biometric && biometricAvailable && lockoutRemainingSeconds === 0) {
+    if (
+      availableMethods.biometric &&
+      biometricAvailable &&
+      lockoutRemainingSeconds === 0 &&
+      !hasAutoTriggeredBiometric.current
+    ) {
+      hasAutoTriggeredBiometric.current = true;
       void unlockWithBiometric();
     }
   }, [availableMethods.biometric, biometricAvailable, lockoutRemainingSeconds, unlockWithBiometric]);
 
-  // Determine initial active tab
+  // Determine initial active tab & visible tabs count
+  const activeTabs = [
+    availableMethods.biometric && "biometric",
+    availableMethods.pattern && "pattern",
+    availableMethods.password && "password",
+  ].filter((t): t is "biometric" | "pattern" | "password" => Boolean(t));
+
   const defaultTab = availableMethods.biometric && biometricAvailable
     ? "biometric"
     : availableMethods.pattern
       ? "pattern"
-      : "password";
+      : availableMethods.password
+        ? "password"
+        : activeTabs[0] || "password";
+
+  const gridColsClass =
+    activeTabs.length === 1
+      ? "grid-cols-1"
+      : activeTabs.length === 2
+        ? "grid-cols-2"
+        : "grid-cols-3";
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -177,16 +199,22 @@ export function LockScreen() {
         )}
 
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="biometric" disabled={!availableMethods.biometric || !biometricAvailable}>
-              <Fingerprint className="size-4 mr-1.5" /> Biometric
-            </TabsTrigger>
-            <TabsTrigger value="pattern" disabled={!availableMethods.pattern}>
-              <Grid className="size-4 mr-1.5" /> Pattern
-            </TabsTrigger>
-            <TabsTrigger value="password" disabled={!availableMethods.password}>
-              <KeyRound className="size-4 mr-1.5" /> Password
-            </TabsTrigger>
+          <TabsList className={`grid w-full ${gridColsClass}`}>
+            {availableMethods.biometric && (
+              <TabsTrigger value="biometric" disabled={!biometricAvailable}>
+                <Fingerprint className="size-4 mr-1.5" /> Biometric
+              </TabsTrigger>
+            )}
+            {availableMethods.pattern && (
+              <TabsTrigger value="pattern">
+                <Grid className="size-4 mr-1.5" /> Pattern
+              </TabsTrigger>
+            )}
+            {availableMethods.password && (
+              <TabsTrigger value="password">
+                <KeyRound className="size-4 mr-1.5" /> Password
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {availableMethods.biometric && (
