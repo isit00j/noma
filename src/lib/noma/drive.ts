@@ -454,7 +454,12 @@ export async function connectDrive(ownerId: string | null): Promise<DriveConnect
 
 export async function disconnectDrive(ownerId: string | null): Promise<void> {
   activeTokenOwner = undefined;
-  if (accessToken && !Capacitor.isNativePlatform() && typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+  if (
+    accessToken &&
+    !Capacitor.isNativePlatform() &&
+    typeof window !== "undefined" &&
+    window.google?.accounts?.oauth2
+  ) {
     try {
       window.google.accounts.oauth2.revoke(accessToken);
     } catch {

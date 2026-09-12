@@ -6,6 +6,7 @@ import {
   type BackupRecord,
   type Folder,
   type Note,
+  type Reminder,
   type Tag,
 } from "./types";
 
@@ -16,6 +17,7 @@ export class NomaDatabase extends Dexie {
   attachments!: Table<AttachmentMeta, string>;
   settings!: Table<AppSettings, string>;
   backups!: Table<BackupRecord, string>;
+  reminders!: Table<Reminder, string>;
 
   constructor(databaseName: string) {
     super(databaseName);
@@ -28,6 +30,17 @@ export class NomaDatabase extends Dexie {
       attachments: "id, noteId",
       settings: "id",
       backups: "id, createdAt",
+    });
+
+    // v2 — Add note reminders schema.
+    this.version(2).stores({
+      notes: "id, updatedAt, createdAt, folderId, pinned, favorite, archived, deleted, *tagIds",
+      folders: "id, name, parentId",
+      tags: "id, name",
+      attachments: "id, noteId",
+      settings: "id",
+      backups: "id, createdAt",
+      reminders: "id, noteId, scheduledAt, status, createdAt, updatedAt",
     });
   }
 }
@@ -59,12 +72,13 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
   // Settings contains account-specific security controls (appLockEnabled, unlockMethods,
   // passwordHash, passwordSalt, patternHash, patternSalt, failedAttempts, lockoutUntil).
   // The destination database's existing security settings must remain authoritative.
-  const [notes, folders, tags, attachments, backups] = await Promise.all([
+  const [notes, folders, tags, attachments, backups, reminders] = await Promise.all([
     source.notes.toArray(),
     source.folders.toArray(),
     source.tags.toArray(),
     source.attachments.toArray(),
     source.backups.toArray(),
+    source.reminders ? source.reminders.toArray() : Promise.resolve([]),
   ]);
 
   await target.transaction(
@@ -75,6 +89,7 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       target.tags,
       target.attachments,
       target.backups,
+      target.reminders,
     ],
     async () => {
       if (notes.length) await target.notes.bulkPut(notes);
@@ -82,6 +97,7 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       if (tags.length) await target.tags.bulkPut(tags);
       if (attachments.length) await target.attachments.bulkPut(attachments);
       if (backups.length) await target.backups.bulkPut(backups);
+      if (reminders.length) await target.reminders.bulkPut(reminders);
     },
   );
 }

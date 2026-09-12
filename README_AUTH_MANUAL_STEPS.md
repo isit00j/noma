@@ -19,6 +19,7 @@ Before deploying the Android app to production or when configuring the developme
 
 1. **Obtain the SHA-1 Certificate Fingerprint**
    Extract the SHA-1 fingerprint from your stable CI debug keystore (for development) or production release keystore (for release) using the following command:
+
    ```bash
    keytool -list -v -keystore <path-to-your-keystore> -alias <your-key-alias>
    ```
@@ -46,12 +47,14 @@ Note: Native Android Google Sign-In requires both the Android Client ID (to auth
 Noma uses incremental authorization to request Google Drive access only when the user explicitly chooses "Connect Google Drive".
 
 ### Web / PWA Architecture
+
 - **Flow**: Google Identity Services (GIS) Web SDK token client (`window.google.accounts.oauth2.initTokenClient`).
 - **Scope**: `https://www.googleapis.com/auth/drive.file` (least-privileged scope; allows access only to backup files created by Noma).
 - **Requirements**:
   - The hosting domain (e.g., `https://mynoma.vercel.app` or `http://localhost:3000`) must be added under **Authorized JavaScript origins** for the Web OAuth Client ID in Google Cloud Console.
 
 ### Android Native Architecture
+
 - **Flow**: Google Play Services `AuthorizationClient.authorize()` via custom native Capacitor plugin (`GoogleDriveAuthPlugin.java`).
 - **Scope**: Incremental request for `https://www.googleapis.com/auth/drive.file` scope.
 - **Key Details**:
@@ -62,6 +65,7 @@ Noma uses incremental authorization to request Google Drive access only when the
   - Access tokens are stored strictly short-lived in memory (`accessToken`) and never persisted to local storage or logs.
 
 ### Required Google Cloud Configuration for Google Drive
+
 1. **Enable Google Drive API**:
    - Go to Google Cloud Console > **APIs & Services** > **Library**.
    - Search for **Google Drive API** and click **Enable**.

@@ -5,10 +5,10 @@ import { Serwist } from "serwist";
 declare global {
   interface WorkerGlobalScope {
     __SW_MANIFEST: (Readonly<{
-        revision: string | null;
-        url: string;
+      revision: string | null;
+      url: string;
     }> & {
-        size?: number | undefined;
+      size?: number | undefined;
     })[];
   }
 }

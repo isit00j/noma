@@ -1,6 +1,7 @@
 import { type NomaDatabase, newId } from "./db";
+import { cancelNotification, scheduleNotification } from "./notifications";
 import { countWords, htmlToPlainText, sanitizeHtml } from "./sanitize";
-import type { Folder, Note, Tag } from "./types";
+import type { Folder, Note, Reminder, Tag } from "./types";
 
 export async function createNote(db: NomaDatabase, init: Partial<Note> = {}): Promise<Note> {
   const now = Date.now();
@@ -45,6 +46,7 @@ export async function duplicateNote(db: NomaDatabase, id: string): Promise<Note 
   const { id: _drop, ...rest } = source;
   return createNote(db, {
     ...rest,
+    reminderAt: null,
     title: source.title ? `${source.title} (copy)` : "Untitled (copy)",
   });
 }
@@ -63,8 +65,15 @@ export const restoreNote = (db: NomaDatabase, id: string) =>
   updateNote(db, id, { deleted: false, deletedAt: null });
 
 export async function deleteNoteForever(db: NomaDatabase, id: string): Promise<void> {
-  await db.transaction("rw", db.notes, db.attachments, async () => {
+  // Find associated reminders to cancel notifications
+  const reminders = await db.reminders.where("noteId").equals(id).toArray();
+  for (const reminder of reminders) {
+    await cancelNotification(reminder.id, reminder.notificationId);
+  }
+
+  await db.transaction("rw", db.notes, db.attachments, db.reminders, async () => {
     await db.attachments.where("noteId").equals(id).delete();
+    await db.reminders.where("noteId").equals(id).delete();
     await db.notes.delete(id);
   });
 }
@@ -145,4 +154,166 @@ export function notePreview(note: Note, length = 140): string {
 
 export function noteTitle(note: Note): string {
   return note.title.trim() || "Untitled note";
+}
+
+/* Reminders */
+
+export async function setNoteReminder(
+  db: NomaDatabase,
+  noteId: string,
+  scheduledAt: number,
+): Promise<Reminder> {
+  const existingList = await db.reminders.where("noteId").equals(noteId).toArray();
+  const primary = existingList[0];
+  const extras = existingList.slice(1);
+  const now = Date.now();
+
+  // Cancel notifications & remove any duplicate rows safely
+  for (const extra of extras) {
+    await cancelNotification(extra.id, extra.notificationId);
+    await db.reminders.delete(extra.id);
+  }
+
+  if (primary) {
+    await cancelNotification(primary.id, primary.notificationId);
+    const updated: Reminder = {
+      ...primary,
+      scheduledAt,
+      status: "pending",
+      updatedAt: now,
+    };
+    const notifId = await scheduleNotification(updated);
+    if (notifId !== undefined) updated.notificationId = notifId;
+    await db.reminders.put(updated);
+    await db.notes.update(noteId, { reminderAt: scheduledAt, updatedAt: now });
+    return updated;
+  }
+
+  const reminder: Reminder = {
+    id: newId(),
+    noteId,
+    scheduledAt,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const notifId = await scheduleNotification(reminder);
+  if (notifId !== undefined) reminder.notificationId = notifId;
+
+  await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.reminders.put(reminder);
+    await db.notes.update(noteId, { reminderAt: scheduledAt, updatedAt: now });
+  });
+
+  return reminder;
+}
+
+export async function deleteNoteReminder(db: NomaDatabase, noteId: string): Promise<void> {
+  const existingList = await db.reminders.where("noteId").equals(noteId).toArray();
+  for (const existing of existingList) {
+    await cancelNotification(existing.id, existing.notificationId);
+  }
+  await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.reminders.where("noteId").equals(noteId).delete();
+    await db.notes.update(noteId, { reminderAt: null });
+  });
+}
+
+export async function updateReminderStatus(
+  db: NomaDatabase,
+  reminderId: string,
+  status: "completed" | "dismissed" | "pending",
+): Promise<void> {
+  const existing = await db.reminders.get(reminderId);
+  if (!existing) return;
+
+  const now = Date.now();
+
+  if (status !== "pending") {
+    await cancelNotification(existing.id, existing.notificationId);
+    await db.transaction("rw", db.reminders, db.notes, async () => {
+      await db.reminders.update(reminderId, { status, updatedAt: now });
+      await db.notes.update(existing.noteId, { reminderAt: null, updatedAt: now });
+    });
+  } else {
+    // Reopening as pending
+    const updatedReminder: Reminder = {
+      ...existing,
+      status: "pending",
+      updatedAt: now,
+    };
+
+    let notifId: number | undefined;
+    if (existing.scheduledAt > now) {
+      notifId = await scheduleNotification(updatedReminder);
+    }
+
+    await db.transaction("rw", db.reminders, db.notes, async () => {
+      await db.reminders.update(reminderId, {
+        status: "pending",
+        updatedAt: now,
+        ...(notifId !== undefined ? { notificationId: notifId } : {}),
+      });
+      await db.notes.update(existing.noteId, {
+        reminderAt: existing.scheduledAt,
+        updatedAt: now,
+      });
+    });
+  }
+}
+
+export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> {
+  const notes = await db.notes.toArray();
+  const validNoteIds = new Set(notes.map((n) => n.id));
+  const reminders = await db.reminders.toArray();
+
+  // 1. Remove orphaned reminders (whose note no longer exists)
+  const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
+  for (const r of orphaned) {
+    await cancelNotification(r.id, r.notificationId);
+    await db.reminders.delete(r.id);
+  }
+
+  // 2. Group non-orphaned reminders by noteId and clean up accidental duplicates
+  const reminderGroups = new Map<string, Reminder[]>();
+  for (const r of reminders) {
+    if (!validNoteIds.has(r.noteId)) continue;
+    const group = reminderGroups.get(r.noteId) ?? [];
+    group.push(r);
+    reminderGroups.set(r.noteId, group);
+  }
+
+  for (const group of reminderGroups.values()) {
+    if (group.length > 1) {
+      // Keep the most recently updated reminder, delete extra duplicate rows
+      group.sort((a, b) => b.updatedAt - a.updatedAt);
+      const extras = group.slice(1);
+      for (const extra of extras) {
+        await cancelNotification(extra.id, extra.notificationId);
+        await db.reminders.delete(extra.id);
+      }
+    }
+  }
+
+  // 3. Re-read/recompute remaining reminders from database after deletions
+  const survivingReminders = await db.reminders.toArray();
+  const survivingMap = new Map<string, Reminder>();
+  for (const r of survivingReminders) {
+    survivingMap.set(r.noteId, r);
+  }
+
+  // 4. Enforce note.reminderAt accuracy against surviving post-deletion state
+  for (const note of notes) {
+    const surviving = survivingMap.get(note.id);
+    if (surviving && surviving.status === "pending") {
+      if (note.reminderAt !== surviving.scheduledAt) {
+        await db.notes.update(note.id, { reminderAt: surviving.scheduledAt });
+      }
+    } else {
+      if (note.reminderAt !== null) {
+        await db.notes.update(note.id, { reminderAt: null });
+      }
+    }
+  }
 }
