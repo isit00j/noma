@@ -319,11 +319,11 @@ export function ChartRenderer({
     );
   }
 
-  // Transform matrix to Recharts row objects
+  // Transform matrix to Recharts row objects using series.id as key to avoid name collision
   const rechartsData = categories.map((cat, catIdx) => {
     const row: Record<string, string | number | null> = { category: cat };
     series.forEach((s) => {
-      row[s.name] = s.values[catIdx] ?? 0;
+      row[s.id] = s.values[catIdx] ?? 0;
     });
     return row;
   });
@@ -396,7 +396,8 @@ export function ChartRenderer({
               {series.map((s, idx) => (
                 <Bar
                   key={s.id}
-                  dataKey={s.name}
+                  dataKey={s.id}
+                  name={s.name}
                   {...(stacked ? { stackId: "a" } : {})}
                   fill={s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!}
                   radius={stacked ? [0, 0, 0, 0] : [4, 4, 0, 0]}
@@ -419,7 +420,8 @@ export function ChartRenderer({
                 <Line
                   key={s.id}
                   type={smooth ? "monotone" : "linear"}
-                  dataKey={s.name}
+                  dataKey={s.id}
+                  name={s.name}
                   stroke={s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!}
                   strokeWidth={2.5}
                   dot={markers ? { r: 4 } : false}
@@ -444,7 +446,8 @@ export function ChartRenderer({
                   <Area
                     key={s.id}
                     type={smooth ? "monotone" : "linear"}
-                    dataKey={s.name}
+                    dataKey={s.id}
+                    name={s.name}
                     {...(stacked ? { stackId: "a" } : {})}
                     stroke={color}
                     fill={color}
@@ -498,7 +501,7 @@ export function ChartRenderer({
                   <Radar
                     key={s.id}
                     name={s.name}
-                    dataKey={s.name}
+                    dataKey={s.id}
                     stroke={color}
                     fill={color}
                     fillOpacity={0.5}
@@ -529,7 +532,8 @@ export function ChartRenderer({
                     <Line
                       key={s.id}
                       type={smooth ? "monotone" : "linear"}
-                      dataKey={s.name}
+                      dataKey={s.id}
+                      name={s.name}
                       stroke={color}
                       strokeWidth={2.5}
                       dot={markers ? { r: 4 } : false}
@@ -541,14 +545,17 @@ export function ChartRenderer({
                     <Area
                       key={s.id}
                       type={smooth ? "monotone" : "linear"}
-                      dataKey={s.name}
+                      dataKey={s.id}
+                      name={s.name}
                       stroke={color}
                       fill={color}
                       fillOpacity={0.4}
                     />
                   );
                 }
-                return <Bar key={s.id} dataKey={s.name} fill={color} radius={[4, 4, 0, 0]} />;
+                return (
+                  <Bar key={s.id} dataKey={s.id} name={s.name} fill={color} radius={[4, 4, 0, 0]} />
+                );
               })}
             </ComposedChart>
           )}

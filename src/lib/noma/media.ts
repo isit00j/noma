@@ -90,13 +90,18 @@ export async function saveImageAttachment(
 
 /**
  * Scans all notes in IndexedDB for attachment references (`noma-attachment://<id>` or `data-attachment-id="<id>"`).
- * Deletes any attachment records in `db.attachments` that are no longer referenced by any note.
+ * Deletes any attachment records in `db.attachments` that are no longer referenced by any note,
+ * while ignoring attachments created within the grace period (default 60s) to prevent upload/persistence races.
  */
-export async function cleanupOrphanedAttachments(db: NomaDatabase): Promise<number> {
+export async function cleanupOrphanedAttachments(
+  db: NomaDatabase,
+  gracePeriodMs = 60000,
+): Promise<number> {
   const [notes, attachments] = await Promise.all([db.notes.toArray(), db.attachments.toArray()]);
 
   if (attachments.length === 0) return 0;
 
+  const now = Date.now();
   const referencedIds = new Set<string>();
   const attachmentRegex = /(?:noma-attachment:\/\/|data-attachment-id=["'])([a-zA-Z0-9_-]+)/g;
 
@@ -108,7 +113,14 @@ export async function cleanupOrphanedAttachments(db: NomaDatabase): Promise<numb
     }
   }
 
-  const orphaned = attachments.filter((att) => !referencedIds.has(att.id));
+  const orphaned = attachments.filter((att) => {
+    // Keep attachment if it is referenced in any note content
+    if (referencedIds.has(att.id)) return false;
+    // Protect newly created attachments during grace period to prevent upload races
+    if (now - att.createdAt < gracePeriodMs) return false;
+    return true;
+  });
+
   if (orphaned.length === 0) return 0;
 
   await db.attachments.bulkDelete(orphaned.map((a) => a.id));
