@@ -4,4 +4,6 @@
     <string name="title_activity_main">Noma</string>
     <string name="package_name">app.noma.notes</string>
     <string name="custom_url_scheme">app.noma.notes</string>
+    <string name="shortcut_note_short">Note</string>
+    <string name="shortcut_note_long">Note</string>
 </resources>

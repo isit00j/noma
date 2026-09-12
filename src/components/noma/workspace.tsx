@@ -48,6 +48,8 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useOnline, useSettings } from "@/hooks/use-noma";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
+import { useAppLock } from "@/lib/noma/AppLockContext";
+import { usePendingShortcut } from "@/lib/noma/shortcut";
 import {
   createFolder,
   createNote,
@@ -92,6 +94,8 @@ export function Workspace() {
   const reminders = useLiveQuery(() => db?.reminders.toArray() ?? [], [db], undefined);
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
+  const { isLocked, isLockStateResolving } = useAppLock();
+  const { action: shortcutAction, consumeShortcut } = usePendingShortcut();
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
@@ -170,6 +174,14 @@ export function Workspace() {
     setMobileNavOpen(false);
     openNote(note);
   }, [openNote, view, db]);
+
+  // Respond to Android shortcut triggers once DB is loaded and App Lock is unlocked
+  useEffect(() => {
+    if (shortcutAction === "new-note" && db && !isLockStateResolving && !isLocked) {
+      consumeShortcut();
+      void handleNewNote();
+    }
+  }, [shortcutAction, db, isLockStateResolving, isLocked, consumeShortcut, handleNewNote]);
 
   // Keyboard shortcuts.
   useEffect(() => {
