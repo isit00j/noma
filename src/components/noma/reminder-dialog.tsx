@@ -43,9 +43,11 @@ export function ReminderDialog({
   const { db } = useDatabase();
   const [saving, setSaving] = useState(false);
   const [capability, setCapability] = useState<NotificationCapability | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
+      setValidationError(null);
       void checkNotificationCapability().then(setCapability);
       if (existingReminder) {
         const d = new Date(existingReminder.scheduledAt);
@@ -54,7 +56,7 @@ export function ReminderDialog({
         const minutes = String(d.getMinutes()).padStart(2, "0");
         setTimeString(`${hours}:${minutes}`);
       } else {
-        // Default to tomorrow 9:00 AM or today 1 hr from now
+        // Default to today 1 hr from now
         const next = new Date();
         next.setHours(next.getHours() + 1, 0, 0, 0);
         setSelectedDate(next);
@@ -65,12 +67,49 @@ export function ReminderDialog({
     }
   }, [open, existingReminder]);
 
+  // Compute scheduled timestamp in local timezone whenever date or time changes
+  const getScheduledTimestamp = (d: Date | undefined, tStr: string): number | null => {
+    if (!d) return null;
+    const [h, m] = tStr.split(":").map(Number);
+    const scheduled = new Date(d);
+    scheduled.setHours(h || 0, m || 0, 0, 0);
+    return scheduled.getTime();
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      const ts = getScheduledTimestamp(date, timeString);
+      if (ts && ts <= Date.now()) {
+        setValidationError("Please choose a future date and time.");
+      } else {
+        setValidationError(null);
+      }
+    } else {
+      setValidationError(null);
+    }
+  };
+
+  const handleTimeChange = (newTime: string) => {
+    setTimeString(newTime);
+    if (selectedDate) {
+      const ts = getScheduledTimestamp(selectedDate, newTime);
+      if (ts && ts <= Date.now()) {
+        setValidationError("Please choose a future date and time.");
+      } else {
+        setValidationError(null);
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedDate) return;
 
-    const [h, m] = timeString.split(":").map(Number);
-    const scheduled = new Date(selectedDate);
-    scheduled.setHours(h || 0, m || 0, 0, 0);
+    const ts = getScheduledTimestamp(selectedDate, timeString);
+    if (!ts || ts <= Date.now()) {
+      setValidationError("Please choose a future date and time.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -80,7 +119,7 @@ export function ReminderDialog({
           void rehydrateReminders(db);
         }
       }
-      await onSave(scheduled.getTime());
+      await onSave(ts);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -132,7 +171,7 @@ export function ReminderDialog({
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={setSelectedDate}
+                onSelect={handleDateSelect}
                 className="rounded-md border-0"
               />
             </div>
@@ -149,10 +188,16 @@ export function ReminderDialog({
               id="reminder-time"
               type="time"
               value={timeString}
-              onChange={(e) => setTimeString(e.target.value)}
+              onChange={(e) => handleTimeChange(e.target.value)}
               className="h-10"
             />
           </div>
+
+          {validationError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs font-medium text-destructive">
+              {validationError}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-row items-center justify-between sm:justify-between">
