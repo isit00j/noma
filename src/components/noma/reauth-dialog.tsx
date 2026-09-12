@@ -47,13 +47,14 @@ export function ReauthDialog({
     availableMethods.password && "password",
   ].filter((t): t is "biometric" | "pattern" | "password" => Boolean(t));
 
-  const defaultTab = availableMethods.biometric && biometricAvailable
-    ? "biometric"
-    : availableMethods.pattern
-      ? "pattern"
-      : availableMethods.password
-        ? "password"
-        : activeTabs[0] || "password";
+  const defaultTab =
+    availableMethods.biometric && biometricAvailable
+      ? "biometric"
+      : availableMethods.pattern
+        ? "pattern"
+        : availableMethods.password
+          ? "password"
+          : activeTabs[0] || "password";
 
   const gridColsClass =
     activeTabs.length === 1
@@ -216,7 +217,11 @@ export function ReauthDialog({
                 disabled={busy}
                 onClick={handleBiometricReauth}
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />}
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="size-4" />
+                )}
                 Confirm Biometric
               </Button>
             </TabsContent>
@@ -236,6 +241,7 @@ export function ReauthDialog({
                   {patternPoints.map((pt, i) => {
                     if (i === 0) return null;
                     const prevPt = patternPoints[i - 1];
+                    if (prevPt === undefined) return null;
                     const x1 = (prevPt % 3) * 74 + 37;
                     const y1 = Math.floor(prevPt / 3) * 74 + 37;
                     const x2 = (pt % 3) * 74 + 37;

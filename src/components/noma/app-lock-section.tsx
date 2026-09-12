@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -86,7 +92,11 @@ export function AppLockSection() {
 
   const handleToggleAppLock = (enabled: boolean) => {
     if (enabled) {
-      if (!settings.unlockMethods.pattern && !settings.unlockMethods.password && !settings.unlockMethods.biometric) {
+      if (
+        !settings.unlockMethods.pattern &&
+        !settings.unlockMethods.password &&
+        !settings.unlockMethods.biometric
+      ) {
         toast.error("Please configure a Noma Pattern or Password first.");
         openPasswordSetup();
         return;
@@ -135,7 +145,9 @@ export function AppLockSection() {
       });
     } else {
       if (settings.unlockMethods.biometric && !settings.unlockMethods.pattern) {
-        toast.error("Biometric requires at least one Noma fallback. Configure or keep Pattern/Password active.");
+        toast.error(
+          "Biometric requires at least one Noma fallback. Configure or keep Pattern/Password active.",
+        );
         return;
       }
       if (!settings.unlockMethods.pattern) {
@@ -160,7 +172,9 @@ export function AppLockSection() {
       });
     } else {
       if (settings.unlockMethods.biometric && !settings.unlockMethods.password) {
-        toast.error("Biometric requires at least one Noma fallback. Configure or keep Pattern/Password active.");
+        toast.error(
+          "Biometric requires at least one Noma fallback. Configure or keep Pattern/Password active.",
+        );
         return;
       }
       if (!settings.unlockMethods.password) {
@@ -300,10 +314,7 @@ export function AppLockSection() {
           <Label className="text-base font-medium">App Lock</Label>
           <p className="text-xs text-muted-foreground">Require unlock when returning to Noma</p>
         </div>
-        <Switch
-          checked={settings.appLockEnabled}
-          onCheckedChange={handleToggleAppLock}
-        />
+        <Switch checked={settings.appLockEnabled} onCheckedChange={handleToggleAppLock} />
       </div>
 
       <div className="space-y-4 pt-2 border-t border-border">
@@ -342,12 +353,11 @@ export function AppLockSection() {
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Custom Noma pattern independent of phone lock</p>
+            <p className="text-xs text-muted-foreground">
+              Custom Noma pattern independent of phone lock
+            </p>
           </div>
-          <Switch
-            checked={settings.unlockMethods.pattern}
-            onCheckedChange={handleTogglePattern}
-          />
+          <Switch checked={settings.unlockMethods.pattern} onCheckedChange={handleTogglePattern} />
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -365,7 +375,9 @@ export function AppLockSection() {
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Custom Noma password independent of phone lock</p>
+            <p className="text-xs text-muted-foreground">
+              Custom Noma password independent of phone lock
+            </p>
           </div>
           <Switch
             checked={settings.unlockMethods.password}
@@ -433,6 +445,7 @@ export function AppLockSection() {
               {activePoints.map((pt, i) => {
                 if (i === 0) return null;
                 const prevPt = activePoints[i - 1];
+                if (prevPt === undefined) return null;
                 const x1 = (prevPt % 3) * 80 + 40;
                 const y1 = Math.floor(prevPt / 3) * 80 + 40;
                 const x2 = (pt % 3) * 80 + 40;
@@ -491,7 +504,8 @@ export function AppLockSection() {
           <DialogHeader>
             <DialogTitle className="font-serif">Set Noma Password</DialogTitle>
             <DialogDescription>
-              Create a password specifically for Noma. It will be salted and hashed locally using PBKDF2.
+              Create a password specifically for Noma. It will be salted and hashed locally using
+              PBKDF2.
             </DialogDescription>
           </DialogHeader>
 
