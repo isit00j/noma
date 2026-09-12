@@ -245,7 +245,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Noma Password is not configured." };
       }
 
-      const match = await verifySecret(password, settings.passwordSalt, settings.passwordHash, 600000);
+      const match = await verifySecret(
+        password,
+        settings.passwordSalt,
+        settings.passwordHash,
+        600000,
+      );
       if (match) {
         await handleSuccessfulAttempt();
         setIsUnlocked(true);
@@ -255,7 +260,13 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Incorrect password." };
       }
     },
-    [lockoutRemainingSeconds, settings.passwordHash, settings.passwordSalt, handleSuccessfulAttempt, handleFailedAttempt],
+    [
+      lockoutRemainingSeconds,
+      settings.passwordHash,
+      settings.passwordSalt,
+      handleSuccessfulAttempt,
+      handleFailedAttempt,
+    ],
   );
 
   const unlockWithPattern = useCallback(
@@ -271,7 +282,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       }
 
       const canonical = canonicalizePattern(points);
-      const match = await verifySecret(canonical, settings.patternSalt, settings.patternHash, 100000);
+      const match = await verifySecret(
+        canonical,
+        settings.patternSalt,
+        settings.patternHash,
+        100000,
+      );
 
       if (match) {
         await handleSuccessfulAttempt();
@@ -282,7 +298,13 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Incorrect pattern." };
       }
     },
-    [lockoutRemainingSeconds, settings.patternHash, settings.patternSalt, handleSuccessfulAttempt, handleFailedAttempt],
+    [
+      lockoutRemainingSeconds,
+      settings.patternHash,
+      settings.patternSalt,
+      handleSuccessfulAttempt,
+      handleFailedAttempt,
+    ],
   );
 
   const setPassword = useCallback(
@@ -354,7 +376,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         if (!settings.passwordHash || !settings.passwordSalt) {
           return { success: false, error: "Noma Password is not configured." };
         }
-        const match = await verifySecret(payload, settings.passwordSalt, settings.passwordHash, 600000);
+        const match = await verifySecret(
+          payload,
+          settings.passwordSalt,
+          settings.passwordHash,
+          600000,
+        );
         if (match) {
           await handleSuccessfulAttempt();
           return { success: true };
@@ -369,7 +396,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
           return { success: false, error: "Noma Pattern is not configured." };
         }
         const canonical = canonicalizePattern(payload);
-        const match = await verifySecret(canonical, settings.patternSalt, settings.patternHash, 100000);
+        const match = await verifySecret(
+          canonical,
+          settings.patternSalt,
+          settings.patternHash,
+          100000,
+        );
         if (match) {
           await handleSuccessfulAttempt();
           return { success: true };

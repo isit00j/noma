@@ -45,18 +45,14 @@ export async function deriveKeyHash(
   const secretBytes = enc.encode(secret);
   const saltBytes = base64ToBytes(saltBase64);
 
-  const baseKey = await crypto.subtle.importKey(
-    "raw",
-    secretBytes,
-    { name: "PBKDF2" },
-    false,
-    ["deriveBits"],
-  );
+  const baseKey = await crypto.subtle.importKey("raw", secretBytes, { name: "PBKDF2" }, false, [
+    "deriveBits",
+  ]);
 
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: saltBytes,
+      salt: saltBytes as BufferSource,
       iterations,
       hash: "SHA-256",
     },
@@ -91,7 +87,9 @@ function constantTimeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let result = 0;
   for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    const codeA = a.charCodeAt(i) || 0;
+    const codeB = b.charCodeAt(i) || 0;
+    result |= codeA ^ codeB;
   }
   return result === 0;
 }
@@ -114,7 +112,10 @@ export function getLockoutDurationMs(failedAttempts: number): number {
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+    const byte = bytes[i];
+    if (byte !== undefined) {
+      binary += String.fromCharCode(byte);
+    }
   }
   return btoa(binary);
 }
@@ -123,7 +124,7 @@ function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+    bytes[i] = binary.charCodeAt(i) || 0;
   }
   return bytes;
 }

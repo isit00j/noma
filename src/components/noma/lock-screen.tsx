@@ -88,13 +88,14 @@ export function LockScreen() {
     availableMethods.password && "password",
   ].filter((t): t is "biometric" | "pattern" | "password" => Boolean(t));
 
-  const defaultTab = availableMethods.biometric && biometricAvailable
-    ? "biometric"
-    : availableMethods.pattern
-      ? "pattern"
-      : availableMethods.password
-        ? "password"
-        : activeTabs[0] || "password";
+  const defaultTab =
+    availableMethods.biometric && biometricAvailable
+      ? "biometric"
+      : availableMethods.pattern
+        ? "pattern"
+        : availableMethods.password
+          ? "password"
+          : activeTabs[0] || "password";
 
   const [selectedTab, setSelectedTab] = useState<string>(defaultTab);
 
@@ -286,6 +287,7 @@ export function LockScreen() {
                   {patternPoints.map((pt, i) => {
                     if (i === 0) return null;
                     const prevPt = patternPoints[i - 1];
+                    if (prevPt === undefined) return null;
                     const x1 = (prevPt % 3) * 85 + 42.5;
                     const y1 = Math.floor(prevPt / 3) * 85 + 42.5;
                     const x2 = (pt % 3) * 85 + 42.5;
@@ -364,19 +366,25 @@ export function LockScreen() {
       <AlertDialog open={showRecoveryDialog} onOpenChange={setShowRecoveryDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif">Forgotten Credentials Recovery</AlertDialogTitle>
+            <AlertDialogTitle className="font-serif">
+              Forgotten Credentials Recovery
+            </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               {hasUsableMethod ? (
                 <span>
-                  If you have forgotten one of your credentials, you can authenticate using any other configured unlock method to unlock Noma and update your security settings.
+                  If you have forgotten one of your credentials, you can authenticate using any
+                  other configured unlock method to unlock Noma and update your security settings.
                 </span>
               ) : (
                 <>
                   <span className="block">
-                    Noma App Lock has no unauthenticated backdoor. Because no other configured unlock method is usable, forgotten credentials can only be reset by performing an explicit local database wipe.
+                    Noma App Lock has no unauthenticated backdoor. Because no other configured
+                    unlock method is usable, forgotten credentials can only be reset by performing
+                    an explicit local database wipe.
                   </span>
                   <span className="block text-destructive font-semibold">
-                    Warning: Wiping local database will permanently delete all local notes, attachments, and settings stored on this device.
+                    Warning: Wiping local database will permanently delete all local notes,
+                    attachments, and settings stored on this device.
                   </span>
                 </>
               )}

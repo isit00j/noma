@@ -59,7 +59,24 @@ export async function collectBackup(
   const attachments = includeAttachments
     ? (await db.attachments.toArray()).filter((a) => noteIdSet.has(a.noteId))
     : [];
-  const settings = includeSettings ? ((await db.settings.get("app")) ?? null) : null;
+  const rawSettings = includeSettings ? ((await db.settings.get("app")) ?? null) : null;
+  const sanitizedSettings = rawSettings
+    ? {
+        ...rawSettings,
+        passwordHash: null,
+        passwordSalt: null,
+        patternHash: null,
+        patternSalt: null,
+        failedAttempts: 0,
+        lockoutUntil: null,
+        appLockEnabled: false,
+        unlockMethods: {
+          biometric: false,
+          pattern: false,
+          password: false,
+        },
+      }
+    : null;
 
   return {
     manifest: {
@@ -77,7 +94,7 @@ export async function collectBackup(
     folders,
     tags,
     attachments,
-    settings: settings as unknown as Record<string, unknown> | null,
+    settings: sanitizedSettings as unknown as Record<string, unknown> | null,
   };
 }
 
