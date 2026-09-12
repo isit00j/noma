@@ -190,6 +190,11 @@ export function AppLockSection() {
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if setPointerCapture unsupported
+    }
     setIsDrawing(true);
     const idx = getPointIndex(e.clientX, e.clientY);
     const initial = idx !== null ? [idx] : [];
@@ -209,8 +214,28 @@ export function AppLockSection() {
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    if (patternStep === "draw") setPatternPoints([]);
+    else setConfirmPatternPoints([]);
   };
 
   const savePatternSetup = async () => {
@@ -393,6 +418,7 @@ export function AppLockSection() {
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
             >
               {activePoints.map((pt, i) => {
                 if (i === 0) return null;

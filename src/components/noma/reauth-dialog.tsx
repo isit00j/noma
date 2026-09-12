@@ -103,6 +103,11 @@ export function ReauthDialog({
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if setPointerCapture unsupported
+    }
     setIsDrawing(true);
     const idx = getPointIndex(e.clientX, e.clientY);
     setPatternPoints(idx !== null ? [idx] : []);
@@ -116,9 +121,16 @@ export function ReauthDialog({
     }
   };
 
-  const handlePointerUp = async () => {
+  const handlePointerUp = async (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
     setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
 
     if (patternPoints.length < 4) {
       if (patternPoints.length > 0) toast.error("Pattern must connect at least 4 dots.");
@@ -140,6 +152,18 @@ export function ReauthDialog({
     } finally {
       setBusy(false);
     }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    setPatternPoints([]);
   };
 
   return (
@@ -185,7 +209,8 @@ export function ReauthDialog({
                   className="size-56 touch-none rounded-xl border border-border bg-card shadow-sm"
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
-                  onPointerUp={() => void handlePointerUp()}
+                  onPointerUp={(e) => void handlePointerUp(e)}
+                  onPointerCancel={handlePointerCancel}
                 >
                   {patternPoints.map((pt, i) => {
                     if (i === 0) return null;

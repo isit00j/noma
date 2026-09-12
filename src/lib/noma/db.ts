@@ -55,12 +55,15 @@ export async function saveSettings(
 }
 
 export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): Promise<void> {
-  const [notes, folders, tags, attachments, settings, backups] = await Promise.all([
+  // SECURITY INVARIANT: Never copy the `settings` table during database migrations.
+  // Settings contains account-specific security controls (appLockEnabled, unlockMethods,
+  // passwordHash, passwordSalt, patternHash, patternSalt, failedAttempts, lockoutUntil).
+  // The destination database's existing security settings must remain authoritative.
+  const [notes, folders, tags, attachments, backups] = await Promise.all([
     source.notes.toArray(),
     source.folders.toArray(),
     source.tags.toArray(),
     source.attachments.toArray(),
-    source.settings.toArray(),
     source.backups.toArray(),
   ]);
 
@@ -71,7 +74,6 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       target.folders,
       target.tags,
       target.attachments,
-      target.settings,
       target.backups,
     ],
     async () => {
@@ -79,7 +81,6 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       if (folders.length) await target.folders.bulkPut(folders);
       if (tags.length) await target.tags.bulkPut(tags);
       if (attachments.length) await target.attachments.bulkPut(attachments);
-      if (settings.length) await target.settings.bulkPut(settings);
       if (backups.length) await target.backups.bulkPut(backups);
     },
   );

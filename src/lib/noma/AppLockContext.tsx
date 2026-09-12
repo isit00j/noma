@@ -205,6 +205,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }, [settings.failedAttempts, settings.lockoutUntil, update]);
 
   const unlockWithBiometric = useCallback(async (): Promise<boolean> => {
+    if (!settings.unlockMethods.biometric) return false;
     if (!Capacitor.isNativePlatform() || !biometricStatus?.available) return false;
 
     isBiometricPromptActive.current = true;
@@ -226,7 +227,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       isBiometricPromptActive.current = false;
       return false;
     }
-  }, [biometricStatus?.available, handleSuccessfulAttempt]);
+  }, [settings.unlockMethods.biometric, biometricStatus?.available, handleSuccessfulAttempt]);
 
   const unlockWithPassword = useCallback(
     async (password: string): Promise<{ success: boolean; error?: string }> => {
@@ -320,6 +321,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       }
 
       if (type === "biometric") {
+        if (!settings.unlockMethods.biometric) {
+          return { success: false, error: "Biometric unlock is not enabled." };
+        }
         if (!Capacitor.isNativePlatform() || !biometricStatus?.available) {
           return { success: false, error: "Biometric sensor unavailable." };
         }

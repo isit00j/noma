@@ -91,6 +91,11 @@ export function LockScreen() {
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if setPointerCapture unsupported in test environment
+    }
     setIsDrawing(true);
     const idx = getPointIndex(e.clientX, e.clientY);
     if (idx !== null) {
@@ -108,9 +113,16 @@ export function LockScreen() {
     }
   };
 
-  const handlePointerUp = async () => {
+  const handlePointerUp = async (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
     setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
 
     if (patternPoints.length < 4) {
       if (patternPoints.length > 0) {
@@ -130,6 +142,18 @@ export function LockScreen() {
       setBusy(false);
       setPatternPoints([]);
     }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    setIsDrawing(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    setPatternPoints([]);
   };
 
   return (
@@ -190,7 +214,8 @@ export function LockScreen() {
                   className="size-64 touch-none rounded-xl border border-border bg-card shadow-sm"
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
-                  onPointerUp={() => void handlePointerUp()}
+                  onPointerUp={(e) => void handlePointerUp(e)}
+                  onPointerCancel={handlePointerCancel}
                 >
                   {/* Grid Lines */}
                   {patternPoints.map((pt, i) => {
