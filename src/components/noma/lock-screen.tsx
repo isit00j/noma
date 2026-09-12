@@ -36,6 +36,17 @@ export function LockScreen() {
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   const availableMethods = settings.unlockMethods;
+
+  // Usable unlock method verification
+  const isBiometricUsable = Boolean(availableMethods.biometric && biometricAvailable);
+  const isPatternUsable = Boolean(
+    availableMethods.pattern && settings.patternHash && settings.patternSalt,
+  );
+  const isPasswordUsable = Boolean(
+    availableMethods.password && settings.passwordHash && settings.passwordSalt,
+  );
+
+  const hasUsableMethod = isBiometricUsable || isPatternUsable || isPasswordUsable;
   const hasAutoTriggeredBiometric = useRef(false);
 
   const wasAppInactive = useRef(false);
@@ -349,14 +360,14 @@ export function LockScreen() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif">Forgotten Credentials Recovery</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
-              {availableMethods.biometric && biometricAvailable ? (
+              {hasUsableMethod ? (
                 <span>
-                  If you have forgotten your pattern or password, you can authenticate using your Biometric sensor to unlock Noma and reset your credentials in Settings.
+                  If you have forgotten one of your credentials, you can authenticate using any other configured unlock method to unlock Noma and update your security settings.
                 </span>
               ) : (
                 <>
                   <span className="block">
-                    Noma App Lock has no unauthenticated backdoor. To protect local security, forgotten credentials can only be reset by authenticating with another active method or performing an explicit local database wipe.
+                    Noma App Lock has no unauthenticated backdoor. Because no other configured unlock method is usable, forgotten credentials can only be reset by performing an explicit local database wipe.
                   </span>
                   <span className="block text-destructive font-semibold">
                     Warning: Wiping local database will permanently delete all local notes, attachments, and settings stored on this device.
@@ -367,10 +378,21 @@ export function LockScreen() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            {availableMethods.biometric && biometricAvailable ? (
-              <AlertDialogAction onClick={() => void unlockWithBiometric()}>
-                Authenticate Biometric
-              </AlertDialogAction>
+            {hasUsableMethod ? (
+              isBiometricUsable ? (
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowRecoveryDialog(false);
+                    void unlockWithBiometric();
+                  }}
+                >
+                  Authenticate Biometric
+                </AlertDialogAction>
+              ) : (
+                <AlertDialogAction onClick={() => setShowRecoveryDialog(false)}>
+                  Use Configured Method
+                </AlertDialogAction>
+              )
             ) : (
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

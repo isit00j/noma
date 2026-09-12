@@ -208,7 +208,7 @@ export function ReauthDialog({
             )}
           </TabsList>
 
-          {availableMethods.biometric && (
+          {availableMethods.biometric && biometricAvailable && (
             <TabsContent value="biometric" className="mt-4 space-y-3 text-center">
               <Button
                 type="button"
