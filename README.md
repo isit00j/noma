@@ -119,12 +119,7 @@ Noma is built around a local-first architecture where device storage (IndexedDB 
 
 ### Contact & Feedback
 Feedback, bug reports, and feature suggestions are welcome:
-* **In-App Contact:** Access the Contact & Feedback view directly within Noma's settings menu.
-* **Public Developer Contacts:**
-  * **Email:** [dev.jubayer00j@gmail.com](mailto:dev.jubayer00j@gmail.com)
-  * **Telegram:** [t.me/jubayer00j](https://t.me/jubayer00j)
-  * **Messenger:** [m.me/jubayer00j](https://m.me/jubayer00j)
-  * **WhatsApp:** [+8801610017288](https://wa.me/+8801610017288)
+* **In-App Contact:** Access the Contact & Feedback view directly within Noma's settings menu to send feedback, report bugs, or request features.
 
 ---
 
@@ -155,7 +150,7 @@ Noma prioritizes data privacy:
 ## Quick Start
 
 ### Prerequisites
-* **Node.js:** v18.0.0 or higher
+* **Node.js:** Current LTS version recommended
 * **npm** or **bun**
 
 ### Development Commands
