@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { AppGate } from "@/components/noma/app-gate";
 import { Workspace } from "@/components/noma/workspace";
 
@@ -15,7 +16,6 @@ const webAppSchema = {
 };
 
 export const Route = createFileRoute("/")({
-  ssr: false,
   head: () => ({
     links: [{ rel: "canonical", href: "https://mynoma.vercel.app/" }],
     meta: [
@@ -55,22 +55,72 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  return (
-    <>
-      <noscript>
-        <div className="p-8 font-sans">
-          <h1 className="text-2xl font-bold">Noma — Calm, offline-first notes</h1>
-          <p className="mt-2 text-base">
-            Noma is a minimalist note-taking application designed for privacy and speed. Your notes
-            are stored locally on your device using IndexedDB, with support for offline access,
-            custom folders, tags, rich text formatting, reminders, structured charts, and optional
-            Google Drive backups.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-4xl flex-col px-6 py-12 bg-background text-foreground">
+        <header className="border-b border-border pb-6">
+          <h1 className="font-serif text-3xl font-bold tracking-tight sm:text-4xl">
+            Noma — Calm, offline-first notes
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground leading-relaxed sm:text-lg">
+            Write without distraction. Noma is a minimalist note-taking application that keeps your
+            notes stored securely on your device with optional Google Drive backup.
           </p>
-        </div>
-      </noscript>
-      <AppGate>
-        <Workspace />
-      </AppGate>
-    </>
+        </header>
+
+        <section className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="rounded-lg border border-border p-5">
+            <h2 className="font-serif text-lg font-semibold">Local-First Storage</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              Your notes are stored directly in your browser using IndexedDB. No server tracking,
+              no cloud dependency required.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border p-5">
+            <h2 className="font-serif text-lg font-semibold">Full Offline Access</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              Noma works seamlessly offline as a Progressive Web App (PWA) and native Android
+              application.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border p-5">
+            <h2 className="font-serif text-lg font-semibold">Rich Formatting & Charts</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              Organize notes with folders, tags, rich text, tables, checklists, local reminders,
+              and interactive offline chart blocks.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border p-5">
+            <h2 className="font-serif text-lg font-semibold">Google Drive & ZIP Backups</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              Safely export portable ZIP backups or sync encrypted backups directly to your Google
+              Drive account when you choose.
+            </p>
+          </div>
+        </section>
+
+        <footer className="mt-12 flex items-center justify-between border-t border-border/60 pt-6 text-xs text-muted-foreground">
+          <span>Noma v1.0 • Calm, offline-first notes</span>
+          <a href="/contact" className="hover:text-foreground underline">
+            Contact & Feedback
+          </a>
+        </footer>
+      </main>
+    );
+  }
+
+  return (
+    <AppGate>
+      <Workspace />
+    </AppGate>
   );
 }

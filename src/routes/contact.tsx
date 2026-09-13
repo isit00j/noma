@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppGate } from "@/components/noma/app-gate";
 import { ContactSection } from "@/components/noma/contact-section";
 
 const contactPageSchema = {
@@ -12,7 +11,6 @@ const contactPageSchema = {
 };
 
 export const Route = createFileRoute("/contact")({
-  ssr: false,
   head: () => ({
     links: [{ rel: "canonical", href: "https://mynoma.vercel.app/contact" }],
     meta: [
@@ -52,9 +50,5 @@ export const Route = createFileRoute("/contact")({
 });
 
 function ContactRoute() {
-  return (
-    <AppGate>
-      <ContactSection />
-    </AppGate>
-  );
+  return <ContactSection />;
 }
