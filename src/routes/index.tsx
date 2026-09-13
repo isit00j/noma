@@ -21,6 +21,10 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Noma — Calm, offline-first notes" },
       {
+        name: "google-site-verification",
+        content: "U660QQLDolSQycHbWAB6kFS3YhlWHOocQhJMvWyE2w0",
+      },
+      {
         name: "description",
         content:
           "Noma is a minimalist note-taking app that works fully offline, stores notes on your device, and backs up to Google Drive.",
@@ -78,8 +82,8 @@ function Index() {
           <div className="rounded-lg border border-border p-5">
             <h2 className="font-serif text-lg font-semibold">Local-First Storage</h2>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              Your notes are stored directly in your browser using IndexedDB. No server tracking,
-              no cloud dependency required.
+              Your notes are stored directly in your browser using IndexedDB. No server tracking, no
+              cloud dependency required.
             </p>
           </div>
 
@@ -94,8 +98,8 @@ function Index() {
           <div className="rounded-lg border border-border p-5">
             <h2 className="font-serif text-lg font-semibold">Rich Formatting & Charts</h2>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              Organize notes with folders, tags, rich text, tables, checklists, local reminders,
-              and interactive offline chart blocks.
+              Organize notes with folders, tags, rich text, tables, checklists, local reminders, and
+              interactive offline chart blocks.
             </p>
           </div>
 
