@@ -6,7 +6,7 @@
 
 > **Calm, offline-first note-taking for Web, PWA, and Android.**
 
-Noma is a minimalist, local-first note-taking application designed to provide a calm, distraction-free environment for your thoughts, ideas, and data. Operating with an offline-first philosophy, Noma ensures your notes remain accessible, responsive, and stored directly on your device—whether you're working in a web browser, installed as a Progressive Web App (PWA), or running natively on Android.
+Noma is a minimalist note-taking application designed to provide a calm, distraction-free environment for your thoughts, ideas, and data. Built with a local-first orientation, Noma allows your notes, attachments, and reminders to be stored directly on your device (via IndexedDB)—whether you are working in a web browser, installed as a Progressive Web App (PWA), or running natively on Android.
 
 ---
 
@@ -21,7 +21,7 @@ Noma is a minimalist, local-first note-taking application designed to provide a 
   - [Images & Attachments](#images--attachments)
   - [Security & App Lock](#security)
   - [Backup & Restore](#backup--restore)
-  - [Authentication & Cloud Sync](#authentication--cloud)
+  - [Authentication & Cloud Backups](#authentication--cloud-backups)
   - [Android Application](#android)
   - [Web & PWA](#webpwa)
   - [Developer Contact](#contact--feedback)
@@ -38,100 +38,103 @@ Noma is a minimalist, local-first note-taking application designed to provide a 
 
 ## Noma Overview
 
-Noma is built around a local-first architecture where device storage (IndexedDB) acts as the primary source of truth. Unlike cloud-centric note applications that require constant connectivity, Noma works seamlessly offline.
+Noma is built around a local-first architecture where device storage (IndexedDB via Dexie.js) acts as the primary data store. Unlike cloud-centric note applications that depend on active network connectivity for core operations, Noma is designed to function offline.
 
-### Core Philosophy
-* **Offline-First Storage:** All notes, attachments, reminders, and settings are saved locally instantly.
-* **Calm Interface:** Clean design powered by Tiptap and Tailwind CSS, focusing on productivity without distraction.
-* **Device Independence:** Run Noma as a web app, install it as a desktop/mobile PWA, or use the native Android APK.
-* **User Control:** Optional account synchronization via Firebase and back up directly to your own Google Drive or local ZIP archives.
+### Core Design Principles
+* **Local Device Storage:** Notes, attachments, reminders, and settings are saved locally to IndexedDB.
+* **Calm Interface:** Clean design powered by Tiptap and Tailwind CSS, focusing on productivity without clutter.
+* **Cross-Platform Availability:** Run Noma in a web browser, install it as a desktop/mobile PWA, or run the native Android build.
+* **User-Driven Cloud Backups:** Optionally sign in to Firebase for user accounts and export backup archives to Google Drive or local `.zip` files.
 
 ---
 
 ## Current Features
 
 ### Notes & Editor
-* **Tiptap Rich Text Editor:** Powered by a modern block editor supporting clean typography and markdown-like syntax.
-* **Formatting Controls:** Bold, italic, underline, strike-through, code inline, text colors, and highlights.
-* **Headings:** Structured heading support (H1, H2, H3).
+* **Tiptap Rich Text Editor:** Powered by a modern block editor supporting clean typography and markdown-like formatting shortcuts.
+* **Formatting Controls:** Bold, italic, underline, strike-through, inline code, text colors, and highlights.
+* **Headings:** Structured heading levels (H1, H2, H3).
 * **Lists & Checklists:** Bulleted lists, numbered lists, and interactive task checklists.
-* **Links & Quotes:** URL link embedding, blockquotes, and styled code blocks.
-* **Dividers & Tables:** Horizontal rule dividers and full rich-text tables with customizable rows, columns, and headers.
+* **Links & Quotes:** URL hyperlinking, blockquotes, and styled code blocks.
+* **Dividers & Tables:** Horizontal rule dividers and rich-text tables with customizable rows, columns, and headers.
 * **Image Embedding:** Local photo uploads with client-side canvas compression and inline web image URLs.
 
 ### Organization
-* **Folders & Tags:** Group notes inside folders or tag them for multi-dimensional organization.
-* **Favorites & Pinned Notes:** Pin crucial notes to the top of your workspace or mark favorites for quick access.
-* **Instant Search & Filtering:** Full-text instant search across title and content, with tag and folder filters.
-* **Archive & Trash:** Archive inactive notes or move deleted notes to trash before permanent deletion.
+* **Folders & Tags:** Group notes inside folders or tag them for flexible categorization.
+* **Favorites & Pinned Notes:** Pin important notes to the top of your workspace or mark favorites for quick access.
+* **Instant Search & Filtering:** Full-text search across titles and content, alongside tag and folder filtering.
+* **Archive & Trash:** Archive inactive notes or move notes to trash before permanent deletion.
 
 ### Reminders
-* **Note Reminders:** Attach scheduled reminders directly to individual notes with custom date and time pickers.
-* **Dedicated Reminders View:** Centrally view all upcoming, due, and completed reminders.
+* **Note Reminders:** Attach scheduled reminders directly to individual notes using a date and time picker.
+* **Dedicated Reminders View:** Centrally view all upcoming, due, and completed note reminders.
 * **Local Notifications:** Trigger native system notifications on Android (via `@capacitor/local-notifications`) and Web Notifications on PWA/Desktop.
-* **Status Lifecycle:** Mark reminders complete, dismiss them, or reschedule for a future date/time.
+* **Status Lifecycle:** Complete, dismiss, or reschedule reminders for a future date/time.
 
 ### Advanced Charts & Graphs
-* **Structured Editable Charts:** Offline interactive chart blocks powered by Recharts (Schema v2).
+* **Structured Editable Charts:** Interactive offline chart blocks powered by Recharts (Schema v2).
 * **Multi-Series Data Matrix:** Spreadsheet-style table editor within note dialogs, supporting TSV clipboard pasting.
-* **7 Chart Types:** Bar, Line, Area, Pie, Donut, Radar, and Composed charts (with per-series rendering options).
-* **Customization Options:** Custom chart titles, subtitles, legend positioning, gridlines, stacked bar mode, custom color swatches, and axis labeling.
-* **Live Preview:** Real-time chart preview while editing data or configuration.
-* **Full Persistence:** Dynamic JSON parsing guards ensure safe note rehydration and lossless ZIP backup/restore.
+* **7 Chart Types:** Bar, Line, Area, Pie, Donut, Radar, and Composed charts (with per-series type configuration where supported).
+* **Customization Options:** Custom titles, subtitles, legend position, gridlines, stacked bar mode, custom color swatches, and axis labeling.
+* **Live Preview:** Real-time chart rendering while editing data matrix or options.
+* **Persistence:** Preserved across note saves, rehydration, and ZIP backup exports/imports.
 
 ### Images & Attachments
-* **Local Attachment Storage:** Device photos uploaded to Dexie `db.attachments` with custom `noma-attachment://` URI references.
-* **Canvas Compression & Resizing:** Client-side photo resizing and quality compression prior to local storage.
-* **Attachment Reconciliation:** Automated background cleanup of orphaned attachments with creation grace periods to conserve storage.
-* **Backup & Restore:** Full binary attachment preservation inside exported ZIP backups.
+* **Local Attachment Storage:** Device photos stored in Dexie `db.attachments` using custom `noma-attachment://` URI references.
+* **Canvas Compression & Resizing:** Client-side photo resizing and quality compression prior to storage.
+* **Attachment Reconciliation:** Automated background cleanup of unreferenced attachments to manage local storage usage.
+* **Backup & Restore:** Binary image attachments are bundled within local ZIP backup archives and Google Drive backups.
 
 ### Security
 * **App Lock System:** Guard application entry with local credential verification (PBKDF2-HMAC-SHA256).
-* **Multiple Unlock Methods:** Unlock via Noma Pattern, Noma Password, or native Android Biometrics (`androidx.biometric`).
-* **Rate Limiting & Lockout:** Protection against brute-force attempts with exponential lockout delays up to 30 minutes.
+* **Unlock Options:** Unlock via Noma Pattern, Noma Password, or native Android Biometrics (`androidx.biometric`).
+* **Rate Limiting & Lockout:** Protection against repeated failed unlock attempts with exponential lockout delays up to 30 minutes.
 * **Configurable Lock Timeout:** Set automatic re-locking timers (immediate, 1 min, 5 mins, 15 mins, etc.).
-* **Launcher Shortcut Security:** Launcher shortcuts enforce active App Lock authentication before exposing note creation views.
-* **Credential Sanitization:** Security credential hashes and salts are strictly stripped during backup export to prevent hash leakage.
+* **Launcher Shortcut Protection:** Launcher shortcuts check active App Lock authentication before presenting note creation views.
+* **Security Credential Handling:** Security credential hashes and salts are omitted from backup export payloads.
 
 ### Backup & Restore
-* **Local ZIP Backups:** Export full database backups (notes, attachments, reminders, tables, charts) into compressed `.zip` files.
+* **Local ZIP Backups:** Export database backups (notes, attachments, reminders, tables, charts) into compressed `.zip` files.
 * **Android SAF Integration:** Storage Access Framework tree picker support on Android 10+ for native file destination selection.
-* **Google Drive Integration:** Direct cloud backup export/import to your personal Google Drive (via OAuth 2.0 GIS on Web, native authorization client on Android).
-* **Sanitized Exports:** App Lock password/pattern hashes are excluded from backup payloads for total security.
+* **Google Drive Cloud Backups:** Export and restore backup archives to/from personal Google Drive (via OAuth 2.0 GIS on Web, native authorization client on Android).
+* **Security Exclusions:** Password and pattern credential hashes are explicitly excluded from backup payloads.
 
-### Authentication & Cloud
-* **Firebase Authentication:** Secure authentication supporting Email/Password (with verification flow) and Google Sign-In.
-* **Native Android Auth:** Uses `@shardev/capacitor-google-auth` for native Google Sign-In bypassing mobile webview limits.
-* **Account-Isolated Storage:** Database separation (`noma_guest` vs `noma_<uid>`) ensuring total isolation between user accounts.
-* **Guest Migration:** Smoothly transfer guest data into a newly created account upon sign-in.
+### Authentication & Cloud Backups
+* **Firebase Authentication:** Optional user account sign-in supporting Email/Password (with verification flow) and Google Sign-In.
+* **Native Android Auth:** Uses `@shardev/capacitor-google-auth` for native Google Sign-In on Android.
+* **Account Isolation:** Database separation (`noma_guest` vs `noma_<uid>`) isolating data between signed-in accounts and guest mode.
+* **Guest Data Migration:** Transfer guest notes into a newly authenticated user database upon sign-in.
+* *Note:* Firebase is used strictly for authentication and account management. Cloud note storage is performed via explicit Google Drive backup exports rather than background real-time sync.
 
 ### Android
-* **Native Mobile Experience:** Capacitor 7 Android app built with native components and lifecycle integration.
-* **Biometric Lock:** Strong biometric hardware authentication (`BIOMETRIC_STRONG`).
-* **Launcher Shortcut:** Static launcher shortcut ("Note") triggering deep-link URI `app.noma.notes://new-note`.
-* **SAF Storage:** Native Base64 chunked file streaming for Android Storage Access Framework exports.
+* **Native Mobile Integration:** Built with Capacitor 7 for native Android components and lifecycle handling.
+* **Biometric Lock:** Hardware biometric authentication support (`BIOMETRIC_STRONG`).
+* **Launcher Shortcut:** Static launcher shortcut ("Note") opening deep-link URI `app.noma.notes://new-note`.
+* **SAF File Streaming:** Native Base64 chunked file streaming for Android Storage Access Framework exports.
 
 ### Web/PWA
-* **Progressive Web App:** Built with Serwist service worker for instant cold start and full offline availability.
-* **IndexedDB Persistence:** High-performance local storage via Dexie.js.
-* **Production Deployment:** Deployed on Vercel at [https://mynoma.vercel.app](https://mynoma.vercel.app).
+* **Progressive Web App:** Offline accessibility powered by a Serwist service worker.
+* **IndexedDB Persistence:** Local storage via Dexie.js.
+* **Production Deployment:** Live web application deployed at [https://mynoma.vercel.app](https://mynoma.vercel.app).
 
 ### Contact & Feedback
-Users can reach out directly to developer Jubayer for bug reports, feature requests, questions, or feedback:
-* **Email:** [dev.jubayer00j@gmail.com](mailto:dev.jubayer00j@gmail.com)
-* **Telegram:** [t.me/jubayer00j](https://t.me/jubayer00j)
-* **Messenger:** [m.me/jubayer00j](https://m.me/jubayer00j)
-* **WhatsApp:** [+8801610017288](https://wa.me/+8801610017288)
+Feedback, bug reports, and feature suggestions are welcome:
+* **In-App Contact:** Access the Contact & Feedback view directly within Noma's settings menu.
+* **Public Developer Contacts:**
+  * **Email:** [dev.jubayer00j@gmail.com](mailto:dev.jubayer00j@gmail.com)
+  * **Telegram:** [t.me/jubayer00j](https://t.me/jubayer00j)
+  * **Messenger:** [m.me/jubayer00j](https://m.me/jubayer00j)
+  * **WhatsApp:** [+8801610017288](https://wa.me/+8801610017288)
 
 ---
 
 ## Privacy & Security
 
-Noma prioritizes user privacy through a local-first design:
+Noma prioritizes data privacy:
 
-* **Local Data Storage:** Notes and attachments are stored in your browser's IndexedDB or device storage. Data is not uploaded to third-party servers unless you explicitly sign in to Firebase or initiate a Google Drive backup.
-* **App Lock vs Encryption:** App Lock provides local access control (verifying password/pattern hashes locally and triggering biometric prompts). *App Lock acts as an access barrier; it is not encryption-at-rest.*
-* **Sanitized Exports:** Backup archives sanitize security credentials to ensure export files never contain password or pattern hashes.
+* **Local Data Primary Store:** Notes and attachments reside in your device's IndexedDB storage. Data is not transmitted to external cloud servers unless you sign in to Firebase or initiate a Google Drive backup export.
+* **App Lock vs Encryption:** App Lock acts as a local UI access control barrier (verifying password/pattern hashes locally and triggering biometric prompts). *App Lock does not provide encryption-at-rest.*
+* **Backup Security:** App Lock credential hashes are excluded from backup exports to ensure exported files do not contain authentication hashes.
 
 ---
 
@@ -155,7 +158,7 @@ Noma prioritizes user privacy through a local-first design:
 * **Node.js:** v18.0.0 or higher
 * **npm** or **bun**
 
-### Installation & Development Commands
+### Development Commands
 
 1. **Clone the repository:**
    ```bash
@@ -172,15 +175,15 @@ Noma prioritizes user privacy through a local-first design:
    ```bash
    npm run dev
    ```
-   *Access the app at `http://localhost:5173`.*
+   *Access the application at `http://localhost:5173`.*
 
 4. **Production PWA Build:**
    ```bash
    npm run build
    ```
-   *Runs `scripts/build-pwa.mjs` to produce optimized Vite client bundle and Serwist service worker.*
+   *Executes `scripts/build-pwa.mjs` to generate the Vite client bundle and Serwist service worker.*
 
-5. **Vite Production Build (Standard):**
+5. **Vite Production Build:**
    ```bash
    npm run build:vite
    ```
@@ -199,7 +202,7 @@ Noma prioritizes user privacy through a local-first design:
 
 ## Android Development
 
-The native Android application is integrated using Capacitor 7 and resides in the `android/` directory.
+The native Android project is managed using Capacitor 7 and located in the `android/` directory.
 
 ### Build Steps
 
@@ -214,10 +217,10 @@ The native Android application is integrated using Capacitor 7 and resides in th
    cd android
    ./gradlew assembleDebug
    ```
-   *The generated APK will be located at `android/app/build/outputs/apk/debug/app-debug.apk`.*
+   *Output APK location: `android/app/build/outputs/apk/debug/app-debug.apk`.*
 
 3. **GitHub Actions CI:**
-   Automated debug APK builds are configured in `.github/workflows/android.yml`.
+   Automated debug APK workflow is configured in `.github/workflows/android.yml`.
 
 ---
 
@@ -248,10 +251,10 @@ noma/
 
 ## Contributing
 
-Contributions are welcome! If you find a bug or have an idea for a feature, feel free to open an issue or submit a pull request.
+Contributions are welcome! If you encounter an issue or wish to propose an enhancement:
 
-1. Fork the repository.
-2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+1. Fork the repository (`https://github.com/isit00j/noma`).
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
 3. Commit your changes (`git commit -m 'feat: add amazing feature'`).
 4. Push to the branch (`git push origin feature/amazing-feature`).
 5. Open a Pull Request.
@@ -260,12 +263,12 @@ Contributions are welcome! If you find a bug or have an idea for a feature, feel
 
 ## Project Status
 
-* **Web Application:** Fully functional production PWA live at [https://mynoma.vercel.app](https://mynoma.vercel.app).
-* **Offline Storage:** Fully operational using IndexedDB local storage and Serwist service worker caching.
-* **Android Application:** Android native application fully built using Capacitor 7 with local notification support, biometric App Lock, Storage Access Framework backups, and launcher shortcuts.
+* **Web Application:** Production PWA live at [https://mynoma.vercel.app](https://mynoma.vercel.app).
+* **Offline Storage:** Operating via IndexedDB storage and Serwist service worker caching.
+* **Android Application:** Integrated native Android build using Capacitor 7 featuring local notifications, biometric App Lock, Storage Access Framework backups, and launcher shortcuts.
 
 ---
 
 ## License
 
-Noma is open-source software. Please check the repository repository settings or contact the maintainer for license terms.
+No license has been specified yet.
