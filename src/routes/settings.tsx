@@ -38,16 +38,13 @@ import { AppLockSection } from "@/components/noma/app-lock-section";
 export const Route = createFileRoute("/settings")({
   ssr: false,
   head: () => ({
+    links: [{ rel: "canonical", href: "https://mynoma.vercel.app/settings" }],
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Settings — Noma" },
       {
         name: "description",
         content: "Tune Noma's reading comfort, manage backups, and connect Google Drive.",
-      },
-      { property: "og:title", content: "Settings — Noma" },
-      {
-        property: "og:description",
-        content: "Appearance, backups, Google Drive and account settings for Noma.",
       },
     ],
   }),

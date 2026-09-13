@@ -60,6 +60,7 @@ function GuestMigrationDialog() {
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <meta name="robots" content="noindex, nofollow" />
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
@@ -128,6 +129,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
+      { property: "og:site_name", content: "Noma" },
       { property: "og:title", content: "Noma — Calm, offline-first notes" },
       {
         property: "og:description",
@@ -135,7 +137,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "A minimalist note-taking app that works offline and keeps your notes on your device.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://mynoma.vercel.app/noma-icon-512.png" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Noma — Calm, offline-first notes" },
+      {
+        name: "twitter:description",
+        content:
+          "A minimalist note-taking app that works offline and keeps your notes on your device.",
+      },
+      { name: "twitter:image", content: "https://mynoma.vercel.app/noma-icon-512.png" },
       { name: "theme-color", content: "#0B0F1A" },
     ],
     links: [

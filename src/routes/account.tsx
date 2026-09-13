@@ -35,15 +35,12 @@ import { friendlyAuthError, useAuth } from "@/lib/noma/auth";
 export const Route = createFileRoute("/account")({
   ssr: false,
   head: () => ({
+    links: [{ rel: "canonical", href: "https://mynoma.vercel.app/account" }],
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Account — Noma" },
       {
         name: "description",
-        content: "Manage your local Noma profile and view account details.",
-      },
-      { property: "og:title", content: "Account — Noma" },
-      {
-        property: "og:description",
         content: "Manage your local Noma profile and view account details.",
       },
     ],
