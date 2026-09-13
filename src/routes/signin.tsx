@@ -7,17 +7,14 @@ import { useAuth } from "@/lib/noma/auth";
 export const Route = createFileRoute("/signin")({
   ssr: false,
   head: () => ({
+    links: [{ rel: "canonical", href: "https://mynoma.vercel.app/signin" }],
     meta: [
+      { name: "robots", content: "noindex, nofollow" },
       { title: "Sign in — Noma" },
       {
         name: "description",
         content:
           "Sign in to your Noma account with Google or email, or keep writing without an account in Local Mode.",
-      },
-      { property: "og:title", content: "Sign in — Noma" },
-      {
-        property: "og:description",
-        content: "Optional Noma account — your notes always stay on this device.",
       },
     ],
   }),

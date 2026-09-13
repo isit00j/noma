@@ -1,14 +1,8 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+Allow: /contact
+Disallow: /account
+Disallow: /settings
+Disallow: /signin
+
+Sitemap: https://mynoma.vercel.app/sitemap.xml
