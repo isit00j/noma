@@ -149,6 +149,128 @@
   --noma-wash-2: oklch(0.541 0.247 293 / 12%);
 }
 
+/*
+ * Nature theme — "paper + leaves + quiet garden".
+ *
+ * A fully-resolved warm light theme applied via `html.nature`. It overrides the
+ * light token layer (same token names, no second system), so every component,
+ * state and utility keeps working unchanged. Declared after `.dark` and paired
+ * with a matching specificity so tokens win the cascade. `.dark` never combines
+ * with `.nature` (resolveTheme pins nature to light).
+ */
+.nature {
+  --radius: 0.875rem;
+  /* Warm ivory paper. */
+  --background: oklch(0.972 0.011 95);
+  --foreground: oklch(0.3 0.035 150);
+  /* Soft cream card surface that sits slightly above the page. */
+  --card: oklch(0.993 0.008 95);
+  --card-foreground: oklch(0.3 0.035 150);
+  --popover: oklch(0.995 0.007 95);
+  --popover-foreground: oklch(0.3 0.035 150);
+  /* Deep botanical green — sophisticated, not cartoon-like. */
+  --primary: oklch(0.47 0.083 152);
+  --primary-foreground: oklch(0.982 0.012 105);
+  /* Sage-tinted secondary surface for selected/secondary states. */
+  --secondary: oklch(0.925 0.028 125);
+  --secondary-foreground: oklch(0.32 0.042 150);
+  --muted: oklch(0.945 0.017 105);
+  --muted-foreground: oklch(0.475 0.03 110);
+  --accent: oklch(0.93 0.032 125);
+  --accent-foreground: oklch(0.3 0.042 150);
+  --destructive: oklch(0.55 0.19 25);
+  --destructive-foreground: oklch(0.985 0.008 95);
+  /* Muted sage borders; inputs a touch stronger for legibility. */
+  --border: oklch(0.5 0.055 145 / 18%);
+  --input: oklch(0.5 0.055 145 / 26%);
+  --ring: oklch(0.47 0.083 152);
+  /* Botanical chart series: sage, olive, moss, clay, fern. */
+  --chart-1: oklch(0.55 0.09 150);
+  --chart-2: oklch(0.5 0.07 110);
+  --chart-3: oklch(0.65 0.11 130);
+  --chart-4: oklch(0.58 0.1 55);
+  --chart-5: oklch(0.42 0.06 152);
+  --sidebar: oklch(0.958 0.014 100);
+  --sidebar-foreground: oklch(0.32 0.038 150);
+  --sidebar-primary: oklch(0.47 0.083 152);
+  --sidebar-primary-foreground: oklch(0.982 0.012 105);
+  /* Sage selected state, as in the reference navigation. */
+  --sidebar-accent: oklch(0.895 0.043 128);
+  --sidebar-accent-foreground: oklch(0.29 0.042 150);
+  --sidebar-border: oklch(0.5 0.055 145 / 15%);
+  --sidebar-ring: oklch(0.47 0.083 152);
+  /* Sage→olive brand gradient with a soft moss glow. */
+  --noma-gradient: linear-gradient(135deg, oklch(0.55 0.085 150), oklch(0.48 0.07 115));
+  --noma-glow: 0 0 0 1px oklch(0.5 0.055 145 / 12%), 0 14px 34px -18px oklch(0.42 0.06 152 / 40%);
+  --noma-wash-1: oklch(0.55 0.085 150 / 9%);
+  --noma-wash-2: oklch(0.62 0.09 95 / 12%);
+}
+
+/* Warm ivory text on the sage gradient CTA (Nature only). */
+.nature .noma-cta {
+  color: oklch(0.982 0.012 105);
+}
+
+/* Highlighted text: soft moss marker on warm paper. */
+.nature .noma-editor .tiptap mark {
+  background: oklch(0.68 0.1 130 / 45%);
+}
+
+/*
+ * Botanical accents (Nature only).
+ *
+ * Extremely restrained: a leaf-shaped divider end on settings sections and a
+ * faint watermark behind the App Lock screen. Pure CSS, non-interactive and
+ * pointer-transparent so they can never block focus or touch targets.
+ */
+.nature .noma-leaf-divider {
+  position: relative;
+  overflow: hidden;
+}
+.nature .noma-leaf-divider::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 22px;
+  height: 10px;
+  border-top: 1px solid oklch(0.47 0.083 152 / 35%);
+  border-right: 1px solid oklch(0.47 0.083 152 / 35%);
+  border-top-right-radius: 999px 999px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Faint leaf watermark used behind the App Lock screen. */
+.nature .noma-leaf-watermark {
+  position: relative;
+  overflow: hidden;
+}
+.nature .noma-leaf-watermark::before {
+  content: "";
+  position: absolute;
+  right: -14%;
+  bottom: -18%;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(
+    ellipse 60% 60% at 70% 70%,
+    oklch(0.55 0.085 150 / 12%),
+    transparent 70%
+  );
+  border-radius: 0 60% 0 60%;
+  transform: rotate(12deg);
+  pointer-events: none;
+}
+
+/* Offline-first: never animate the decorative accents. */
+@media (prefers-reduced-motion: reduce) {
+  .nature .noma-leaf-divider::after,
+  .nature .noma-leaf-watermark::before {
+    transition: none;
+  }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

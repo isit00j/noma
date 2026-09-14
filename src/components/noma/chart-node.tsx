@@ -1,6 +1,6 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -89,7 +89,30 @@ export interface AdvancedChartData {
   options?: AdvancedChartOptions;
 }
 
-const DEFAULT_SERIES_COLORS = [
+/**
+ * Palette used when a series has no explicit color. Persisted data keeps its
+ * concrete oklch() colors; the fallbacks are resolved at render time so charts
+ * follow the active theme (blue/purple in light+dark, sage/olive in Nature).
+ */
+const FALLBACK_SERIES_COLORS = [
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
+];
+
+/** Static oklch values shown before the palette effect resolves (SSR/first paint). */
+const LIGHT_CHART_FALLBACKS = [
+  "oklch(0.578 0.192 260)",
+  "oklch(0.51 0.24 293)",
+  "oklch(0.66 0.14 255)",
+  "oklch(0.72 0.1 280)",
+  "oklch(0.62 0.14 320)",
+];
+
+/** The exact legacy default palette that older notes persisted into their data. */
+const LEGACY_DEFAULT_COLORS = new Set<string>([
   "oklch(0.578 0.192 260)",
   "oklch(0.51 0.24 293)",
   "oklch(0.66 0.14 255)",
@@ -97,7 +120,42 @@ const DEFAULT_SERIES_COLORS = [
   "oklch(0.62 0.14 320)",
   "oklch(0.6 0.18 150)",
   "oklch(0.65 0.2 40)",
-];
+]);
+
+/**
+ * Recharts emits fill/stroke as SVG presentation attributes, where CSS var()
+ * does not resolve. Resolving the token values at render time keeps default
+ * series colored by the active theme without touching persisted chart data.
+ * Re-resolves when the root theme class changes so switching Light/Nature/Dark
+ * recolors charts instantly.
+ */
+function useResolvedChartPalette(): string[] {
+  const [palette, setPalette] = useState<string[]>(LIGHT_CHART_FALLBACKS);
+  const [themeKey, setThemeKey] = useState("");
+  useEffect(() => {
+    const root = document.documentElement;
+    setThemeKey(
+      `${root.classList.contains("dark") ? "d" : "l"}${root.classList.contains("nature") ? "n" : ""}`,
+    );
+    const observer = new MutationObserver(() => {
+      setThemeKey(
+        `${root.classList.contains("dark") ? "d" : "l"}${root.classList.contains("nature") ? "n" : ""}`,
+      );
+    });
+    observer.observe(root, { attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const styles = getComputedStyle(document.documentElement);
+    const read = (name: string) =>
+      styles.getPropertyValue(name).trim() || LIGHT_CHART_FALLBACKS[0]!;
+    setPalette(FALLBACK_SERIES_COLORS.map((token) => read(token.slice(4, -1))));
+  }, [themeKey]);
+  return palette;
+}
+
+/** Kept for data migration: new series are seeded with concrete light values. */
+const DEFAULT_SERIES_COLORS = LIGHT_CHART_FALLBACKS;
 
 const VALID_TYPES = new Set<AdvancedChartType>([
   "bar",
@@ -301,6 +359,14 @@ export function ChartRenderer({
   className?: string;
 }) {
   const { type, title, subtitle, categories, series, options } = chartData;
+  const palette = useResolvedChartPalette();
+  // Old notes persist the app's original default oklch colors. Remap those exact
+  // values to the active palette at render time (custom colors pass through).
+  const seriesColor = (s: { color?: string | undefined }, idx: number) => {
+    const raw = s.color?.trim();
+    if (raw && LEGACY_DEFAULT_COLORS.has(raw)) return palette[idx % palette.length]!;
+    return raw || palette[idx % palette.length]!;
+  };
   const showGrid = options?.showGrid ?? true;
   const showLegend = options?.showLegend ?? true;
   const legendPos = options?.legendPosition ?? "bottom";
@@ -405,7 +471,7 @@ export function ChartRenderer({
                   dataKey={s.id}
                   name={s.name}
                   {...(stacked ? { stackId: "a" } : {})}
-                  fill={s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!}
+                  fill={seriesColor(s, idx)}
                   radius={stacked ? [0, 0, 0, 0] : [4, 4, 0, 0]}
                 />
               ))}
@@ -428,7 +494,7 @@ export function ChartRenderer({
                   type={smooth ? "monotone" : "linear"}
                   dataKey={s.id}
                   name={s.name}
-                  stroke={s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!}
+                  stroke={seriesColor(s, idx)}
                   strokeWidth={2.5}
                   dot={markers ? { r: 3.5 } : false}
                 />
@@ -447,7 +513,7 @@ export function ChartRenderer({
                 />
               )}
               {series.map((s, idx) => {
-                const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
+                const color = seriesColor(s, idx);
                 return (
                   <Area
                     key={s.id}
@@ -483,10 +549,7 @@ export function ChartRenderer({
                 labelLine={false}
               >
                 {pieData.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={DEFAULT_SERIES_COLORS[index % DEFAULT_SERIES_COLORS.length]!}
-                  />
+                  <Cell key={`cell-${index}`} fill={palette[index % palette.length]!} />
                 ))}
               </Pie>
             </PieChart>
@@ -503,7 +566,7 @@ export function ChartRenderer({
                 />
               )}
               {series.map((s, idx) => {
-                const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
+                const color = seriesColor(s, idx);
                 return (
                   <Radar
                     key={s.id}
@@ -532,7 +595,7 @@ export function ChartRenderer({
                 />
               )}
               {series.map((s, idx) => {
-                const color = s.color ?? DEFAULT_SERIES_COLORS[idx % DEFAULT_SERIES_COLORS.length]!;
+                const color = seriesColor(s, idx);
                 const compType = s.type ?? (idx % 2 === 1 ? "line" : "bar");
                 if (compType === "line") {
                   return (

@@ -1,5 +1,8 @@
 export type ContentFormat = "tiptap-html";
 
+/** User-selectable appearance. "nature" is a standalone warm light theme. */
+export type ThemeSetting = "light" | "dark" | "system" | "nature";
+
 export interface Note {
   id: string;
   title: string;
@@ -46,7 +49,7 @@ export interface AttachmentMeta {
 
 export interface AppSettings {
   id: "app";
-  theme: "light" | "dark" | "system";
+  theme: ThemeSetting;
   fontSize: number;
   editorWidth: number;
   lineHeight: number;

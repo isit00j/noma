@@ -217,7 +217,7 @@ export function LockScreen() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-8 select-none">
+    <div className="noma-leaf-watermark flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-8 select-none">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="flex flex-col items-center space-y-2">
           <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
