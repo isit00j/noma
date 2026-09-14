@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSettings } from "@/hooks/use-noma";
 import { useAppLock } from "@/lib/noma/AppLockContext";
+import { PatternLock } from "@/components/noma/pattern-lock";
 
 export function LockScreen() {
   const { settings } = useSettings();
@@ -31,8 +32,7 @@ export function LockScreen() {
 
   const [passwordInput, setPasswordInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [patternPoints, setPatternPoints] = useState<number[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [patternError, setPatternError] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   const availableMethods = settings.unlockMethods;
@@ -125,95 +125,25 @@ export function LockScreen() {
     }
   }
 
-  // 3x3 Pattern SVG Grid Canvas drawing logic
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const getPointIndex = (clientX: number, clientY: number): number | null => {
-    if (!svgRef.current) return null;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    const size = rect.width;
-    const step = size / 3;
-
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        const cx = col * step + step / 2;
-        const cy = row * step + step / 2;
-        const dist = Math.hypot(x - cx, y - cy);
-        if (dist < step / 2.5) {
-          return row * 3 + col;
-        }
-      }
-    }
-    return null;
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore if setPointerCapture unsupported in test environment
-    }
-    setIsDrawing(true);
-    const idx = getPointIndex(e.clientX, e.clientY);
-    if (idx !== null) {
-      setPatternPoints([idx]);
-    } else {
-      setPatternPoints([]);
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing) return;
-    const idx = getPointIndex(e.clientX, e.clientY);
-    if (idx !== null && !patternPoints.includes(idx)) {
-      setPatternPoints((prev) => [...prev, idx]);
-    }
-  };
-
-  const handlePointerUp = async (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-
-    if (patternPoints.length < 4) {
-      if (patternPoints.length > 0) {
+  const handlePatternComplete = async (points: number[]) => {
+    if (points.length < 4) {
+      if (points.length > 0) {
         toast.error("Pattern must connect at least 4 dots.");
       }
-      setPatternPoints([]);
       return;
     }
 
     setBusy(true);
+    setPatternError(false);
     try {
-      const res = await unlockWithPattern(patternPoints);
+      const res = await unlockWithPattern(points);
       if (!res.success) {
+        setPatternError(true);
         toast.error(res.error ?? "Incorrect pattern");
       }
     } finally {
       setBusy(false);
-      setPatternPoints([]);
     }
-  };
-
-  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-    setPatternPoints([]);
   };
 
   return (
@@ -275,56 +205,13 @@ export function LockScreen() {
             <TabsContent value="pattern" className="mt-6 space-y-4">
               <p className="text-sm text-muted-foreground">Draw your Noma pattern</p>
               <div className="mx-auto flex justify-center">
-                <svg
-                  ref={svgRef}
-                  className="size-64 touch-none rounded-xl border border-border bg-card shadow-sm"
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={(e) => void handlePointerUp(e)}
-                  onPointerCancel={handlePointerCancel}
-                >
-                  {/* Grid Lines */}
-                  {patternPoints.map((pt, i) => {
-                    if (i === 0) return null;
-                    const prevPt = patternPoints[i - 1];
-                    if (prevPt === undefined) return null;
-                    const x1 = (prevPt % 3) * 85 + 42.5;
-                    const y1 = Math.floor(prevPt / 3) * 85 + 42.5;
-                    const x2 = (pt % 3) * 85 + 42.5;
-                    const y2 = Math.floor(pt / 3) * 85 + 42.5;
-                    return (
-                      <line
-                        key={`line-${i}`}
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke="hsl(var(--primary))"
-                        strokeWidth="5"
-                        strokeLinecap="round"
-                      />
-                    );
-                  })}
-                  {/* Grid Dots */}
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => {
-                    const cx = (idx % 3) * 85 + 42.5;
-                    const cy = Math.floor(idx / 3) * 85 + 42.5;
-                    const selected = patternPoints.includes(idx);
-                    return (
-                      <circle
-                        key={idx}
-                        cx={cx}
-                        cy={cy}
-                        r={selected ? "14" : "10"}
-                        className={
-                          selected
-                            ? "fill-primary transition-all duration-150"
-                            : "fill-muted-foreground/30 hover:fill-muted-foreground/60 transition-all duration-150"
-                        }
-                      />
-                    );
-                  })}
-                </svg>
+                <PatternLock
+                  size={260}
+                  disabled={lockoutRemainingSeconds > 0 || busy}
+                  error={patternError}
+                  onComplete={(pts) => void handlePatternComplete(pts)}
+                  onChange={() => setPatternError(false)}
+                />
               </div>
             </TabsContent>
           )}

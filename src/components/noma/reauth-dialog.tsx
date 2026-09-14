@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSettings } from "@/hooks/use-noma";
 import { useAppLock } from "@/lib/noma/AppLockContext";
+import { PatternLock } from "@/components/noma/pattern-lock";
 
 interface ReauthDialogProps {
   open: boolean;
@@ -34,12 +35,10 @@ export function ReauthDialog({
   const { biometricAvailable, verifyCurrentCredential } = useAppLock();
 
   const [passwordInput, setPasswordInput] = useState("");
-  const [patternPoints, setPatternPoints] = useState<number[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [patternError, setPatternError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const availableMethods = settings.unlockMethods;
-  const svgRef = useRef<SVGSVGElement>(null);
 
   const activeTabs = [
     availableMethods.biometric && biometricAvailable && "biometric",
@@ -97,89 +96,26 @@ export function ReauthDialog({
     }
   };
 
-  // Pattern SVG grid helpers
-  const getPointIndex = (clientX: number, clientY: number): number | null => {
-    if (!svgRef.current) return null;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    const size = rect.width;
-    const step = size / 3;
-
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        const cx = col * step + step / 2;
-        const cy = row * step + step / 2;
-        if (Math.hypot(x - cx, y - cy) < step / 2.5) {
-          return row * 3 + col;
-        }
-      }
-    }
-    return null;
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore if setPointerCapture unsupported
-    }
-    setIsDrawing(true);
-    const idx = getPointIndex(e.clientX, e.clientY);
-    setPatternPoints(idx !== null ? [idx] : []);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing) return;
-    const idx = getPointIndex(e.clientX, e.clientY);
-    if (idx !== null && !patternPoints.includes(idx)) {
-      setPatternPoints((prev) => [...prev, idx]);
-    }
-  };
-
-  const handlePointerUp = async (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-
-    if (patternPoints.length < 4) {
-      if (patternPoints.length > 0) toast.error("Pattern must connect at least 4 dots.");
-      setPatternPoints([]);
+  const handlePatternComplete = async (points: number[]) => {
+    if (points.length < 4) {
+      if (points.length > 0) toast.error("Pattern must connect at least 4 dots.");
       return;
     }
 
     setBusy(true);
+    setPatternError(false);
     try {
-      const res = await verifyCurrentCredential("pattern", patternPoints);
+      const res = await verifyCurrentCredential("pattern", points);
       if (res.success) {
-        setPatternPoints([]);
         onSuccess();
         onOpenChange(false);
       } else {
+        setPatternError(true);
         toast.error(res.error ?? "Incorrect Noma pattern.");
-        setPatternPoints([]);
       }
     } finally {
       setBusy(false);
     }
-  };
-
-  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-    setPatternPoints([]);
   };
 
   return (
@@ -230,50 +166,13 @@ export function ReauthDialog({
           {availableMethods.pattern && (
             <TabsContent value="pattern" className="mt-4 space-y-3">
               <div className="mx-auto flex justify-center">
-                <svg
-                  ref={svgRef}
-                  className="size-56 touch-none rounded-xl border border-border bg-card shadow-sm"
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={(e) => void handlePointerUp(e)}
-                  onPointerCancel={handlePointerCancel}
-                >
-                  {patternPoints.map((pt, i) => {
-                    if (i === 0) return null;
-                    const prevPt = patternPoints[i - 1];
-                    if (prevPt === undefined) return null;
-                    const x1 = (prevPt % 3) * 74 + 37;
-                    const y1 = Math.floor(prevPt / 3) * 74 + 37;
-                    const x2 = (pt % 3) * 74 + 37;
-                    const y2 = Math.floor(pt / 3) * 74 + 37;
-                    return (
-                      <line
-                        key={`line-${i}`}
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke="hsl(var(--primary))"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                      />
-                    );
-                  })}
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => {
-                    const cx = (idx % 3) * 74 + 37;
-                    const cy = Math.floor(idx / 3) * 74 + 37;
-                    const selected = patternPoints.includes(idx);
-                    return (
-                      <circle
-                        key={idx}
-                        cx={cx}
-                        cy={cy}
-                        r={selected ? "12" : "8"}
-                        className={selected ? "fill-primary" : "fill-muted-foreground/30"}
-                      />
-                    );
-                  })}
-                </svg>
+                <PatternLock
+                  size={230}
+                  disabled={busy}
+                  error={patternError}
+                  onComplete={(pts) => void handlePatternComplete(pts)}
+                  onChange={() => setPatternError(false)}
+                />
               </div>
             </TabsContent>
           )}
