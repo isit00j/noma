@@ -65,7 +65,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-b border-border py-8 last:border-0">
+    <section className="noma-leaf-divider border-b border-border py-8 last:border-0">
       <h2 className="font-serif text-xl font-medium">{title}</h2>
       {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       <div className="mt-5 space-y-5">{children}</div>
@@ -164,16 +164,17 @@ function SettingsPage() {
         <Section title="Appearance" description="Noma remembers these on this device.">
           <div className="flex items-center justify-between gap-4">
             <Label>Theme</Label>
-            <div className="flex gap-1 rounded-md border border-border p-0.5">
-              {(["light", "dark", "system"] as const).map((theme) => (
+            <div className="flex flex-wrap justify-end gap-1 rounded-md border border-border p-0.5">
+              {(["light", "dark", "system", "nature"] as const).map((theme) => (
                 <Button
                   key={theme}
                   size="sm"
                   variant={settings.theme === theme ? "secondary" : "ghost"}
                   className="capitalize"
+                  aria-pressed={settings.theme === theme}
                   onClick={() => void update({ theme })}
                 >
-                  {theme}
+                  {theme === "nature" ? "🌿 Nature" : theme}
                 </Button>
               ))}
             </div>

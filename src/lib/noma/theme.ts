@@ -1,9 +1,11 @@
-export type ThemeChoice = "light" | "dark" | "system";
+export type ThemeChoice = "light" | "dark" | "system" | "nature";
 
 /** Mirror of the stored preference so the theme can apply before IndexedDB opens. */
 export const THEME_STORAGE_KEY = "noma-theme";
 
+/** Nature is a fully-resolved warm light theme, so it never flips to dark tokens. */
 export function resolveTheme(choice: ThemeChoice): "light" | "dark" {
+  if (choice === "nature") return "light";
   if (choice === "system") {
     if (typeof window === "undefined") return "dark";
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -17,6 +19,7 @@ export function applyTheme(choice: ThemeChoice) {
   const resolved = resolveTheme(choice);
   const root = document.documentElement;
   root.classList.toggle("dark", resolved === "dark");
+  root.classList.toggle("nature", choice === "nature");
   root.style.colorScheme = resolved;
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, choice);
@@ -26,4 +29,4 @@ export function applyTheme(choice: ThemeChoice) {
 }
 
 /** Inline, render-blocking snippet that prevents a theme flash on first paint. */
-export const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var c=localStorage.getItem('${THEME_STORAGE_KEY}')||'system';var d=c==='dark'||(c==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
+export const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var c=localStorage.getItem('${THEME_STORAGE_KEY}')||'system';var n=c==='nature';var d=c==='dark'||(!n&&c==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.classList.toggle('nature',n);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
