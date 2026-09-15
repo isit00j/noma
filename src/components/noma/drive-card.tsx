@@ -35,6 +35,7 @@ import { useAuth } from "@/lib/noma/auth";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   backupNow,
+  CANONICAL_BACKUP_NAME,
   connectDrive,
   disconnectDrive,
   fetchDriveBackup,
@@ -412,32 +413,77 @@ export function DriveCard({
             </p>
           )}
 
-          {!restoreLoading && !preview && (
-            <ul className="max-h-72 space-y-2 overflow-y-auto">
-              {(restoreFiles ?? []).length === 0 && (
-                <li className="py-4 text-sm text-muted-foreground">
-                  No Noma backups found in your Drive yet.
-                </li>
-              )}
-              {(restoreFiles ?? []).map((file) => (
-                <li key={file.id}>
-                  <button
-                    type="button"
-                    onClick={() => void loadPreview(file)}
-                    className={`w-full rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50 ${tap}`}
-                  >
-                    <span className="block text-sm font-medium">
-                      {new Date(file.modifiedTime).toLocaleString()}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {file.name}
-                      {formatSize(file.size) ? ` · ${formatSize(file.size)}` : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {!restoreLoading &&
+            !preview &&
+            (() => {
+              const files = restoreFiles ?? [];
+              const canonicalFile = files.find((f) => f.name === CANONICAL_BACKUP_NAME);
+              const legacyFiles = files.filter((f) => f.name !== CANONICAL_BACKUP_NAME);
+
+              if (files.length === 0) {
+                return (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No Noma backups found in your Drive yet.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="max-h-72 space-y-4 overflow-y-auto pr-1">
+                  {canonicalFile && (
+                    <div>
+                      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Active Backup
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => void loadPreview(canonicalFile)}
+                        className={`w-full rounded-lg border border-primary/40 bg-accent/30 p-3.5 text-left transition-colors hover:bg-accent/60 ${tap}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-foreground">Noma Backup</span>
+                          {formatSize(canonicalFile.size) && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatSize(canonicalFile.size)}
+                            </span>
+                          )}
+                        </div>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Last updated {new Date(canonicalFile.modifiedTime).toLocaleString()}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+
+                  {legacyFiles.length > 0 && (
+                    <div>
+                      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Older Backups
+                      </h4>
+                      <ul className="space-y-2">
+                        {legacyFiles.map((file) => (
+                          <li key={file.id}>
+                            <button
+                              type="button"
+                              onClick={() => void loadPreview(file)}
+                              className={`w-full rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/50 ${tap}`}
+                            >
+                              <span className="block text-sm font-medium">
+                                {new Date(file.modifiedTime).toLocaleString()}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {file.name}
+                                {formatSize(file.size) ? ` · ${formatSize(file.size)}` : ""}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
           {!restoreLoading && preview && (
             <div className={`space-y-1 text-sm text-muted-foreground ${fade}`}>

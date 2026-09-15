@@ -6,6 +6,7 @@ import type { BackupManifest } from "./types";
 /** Narrowest scope that still lets Noma manage only the files it creates. */
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 const FOLDER_NAME = "Noma Backups";
+export const CANONICAL_BACKUP_NAME = "Noma Backup.zip";
 const STATE_KEY = "noma.drive.connection";
 
 export const isDriveConfigured = Boolean(googleDriveClientId);
@@ -16,6 +17,8 @@ export interface DriveConnection {
   lastBackupAt: number | null;
   /** Cached so Noma never has to scan the user's Drive. */
   folderId: string | null;
+  /** Cached canonical backup file ID in Google Drive. */
+  backupFileId: string | null;
   /** Fingerprint of the local library at the last successful backup. */
   lastSignature: string | null;
 }
@@ -86,6 +89,7 @@ export function getConnection(ownerId: string | null): DriveConnection | null {
       connectedAt: parsed.connectedAt ?? Date.now(),
       lastBackupAt: parsed.lastBackupAt ?? null,
       folderId: parsed.folderId ?? null,
+      backupFileId: parsed.backupFileId ?? null,
       lastSignature: parsed.lastSignature ?? null,
     };
   } catch {
@@ -113,6 +117,7 @@ function patchConnection(ownerId: string | null, patch: Partial<DriveConnection>
     connectedAt: Date.now(),
     lastBackupAt: null,
     folderId: null,
+    backupFileId: null,
     lastSignature: null,
   };
   return setConnection(ownerId, { ...base, ...patch })!;
@@ -438,6 +443,40 @@ async function ensureFolder(token: string, ownerId: string | null): Promise<stri
   return folderId;
 }
 
+export async function resolveCanonicalFileId(
+  token: string,
+  folderId: string,
+  ownerId: string | null,
+): Promise<string | null> {
+  const cachedId = getConnection(ownerId)?.backupFileId;
+  if (cachedId) {
+    try {
+      const res = await driveFetch(`drive/v3/files/${cachedId}?fields=id,name,trashed`, token);
+      const file = (await res.json()) as { id?: string; name?: string; trashed?: boolean };
+      if (file.id && !file.trashed) {
+        return file.id;
+      }
+    } catch (error) {
+      if (error instanceof DriveError && error.needsReconnect) throw error;
+      // Stale cached file ID — clear and proceed to search folder
+    }
+    patchConnection(ownerId, { backupFileId: null });
+  }
+
+  const query = encodeURIComponent(
+    `'${folderId}' in parents and name='${CANONICAL_BACKUP_NAME}' and trashed=false`,
+  );
+  const data = (await (
+    await driveFetch(`drive/v3/files?q=${query}&fields=files(id)&spaces=drive&pageSize=1`, token)
+  ).json()) as { files?: Array<{ id: string }> };
+
+  const foundId = data.files?.[0]?.id ?? null;
+  if (foundId) {
+    patchConnection(ownerId, { backupFileId: foundId });
+  }
+  return foundId;
+}
+
 export async function connectDrive(ownerId: string | null): Promise<DriveConnection> {
   const token = await authorize(ownerId, "consent");
   log("access token acquired, verifying with Drive API…");
@@ -449,7 +488,8 @@ export async function connectDrive(ownerId: string | null): Promise<DriveConnect
   log("Drive API verification ok", { hasEmail: Boolean(email) });
   const folderId = await ensureFolder(token, ownerId);
   log("Noma Backups folder ready", folderId);
-  return patchConnection(ownerId, { email, connectedAt: Date.now(), folderId });
+  const backupFileId = await resolveCanonicalFileId(token, folderId, ownerId);
+  return patchConnection(ownerId, { email, connectedAt: Date.now(), folderId, backupFileId });
 }
 
 export async function disconnectDrive(ownerId: string | null): Promise<void> {
@@ -477,56 +517,125 @@ export async function listDriveBackups(ownerId: string | null): Promise<DriveBac
   const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const data = (await (
     await driveFetch(
-      `drive/v3/files?q=${query}&fields=files(id,name,size,modifiedTime)&orderBy=modifiedTime desc&pageSize=20`,
+      `drive/v3/files?q=${query}&fields=files(id,name,size,modifiedTime)&orderBy=modifiedTime desc&pageSize=30`,
       token,
     )
   ).json()) as { files?: Array<{ id: string; name: string; size?: string; modifiedTime: string }> };
-  return (data.files ?? [])
-    .filter((file) => file.name.startsWith("Noma-Backup") && file.name.endsWith(".zip"))
+  const all = (data.files ?? [])
+    .filter(
+      (file) =>
+        file.name === CANONICAL_BACKUP_NAME ||
+        (file.name.startsWith("Noma-Backup") && file.name.endsWith(".zip")),
+    )
     .map((file) => ({
       id: file.id,
       name: file.name,
       modifiedTime: new Date(file.modifiedTime).getTime(),
       size: file.size ? Number(file.size) : null,
     }));
+
+  const canonical = all.find((f) => f.name === CANONICAL_BACKUP_NAME);
+  const legacy = all.filter((f) => f.name !== CANONICAL_BACKUP_NAME);
+
+  return canonical ? [canonical, ...legacy] : legacy;
 }
+
+/** In-flight concurrency guard to prevent overlapping backup runs per account. */
+const activeBackups = new Map<
+  string,
+  Promise<{ connection: DriveConnection; manifest: BackupManifest }>
+>();
 
 export async function backupNow(
   db: import("./db").NomaDatabase,
   ownerId: string | null,
 ): Promise<{ connection: DriveConnection; manifest: BackupManifest }> {
-  const token = await authorize(ownerId);
-  const folderId = await ensureFolder(token, ownerId);
-  const { blob, payload } = await buildBackupZip(db, ownerId);
-
-  const metadata = { name: backupObjectName(), mimeType: "application/zip", parents: [folderId] };
-  const form = new FormData();
-  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-  form.append("file", blob);
-
-  try {
-    await driveFetch("upload/drive/v3/files?uploadType=multipart&fields=id", token, {
-      method: "POST",
-      body: form,
-    });
-  } catch (error) {
-    await recordBackup(
-      db,
-      "google-drive",
-      "failed",
-      payload.notes.length,
-      (error as Error).message,
-    );
-    throw error;
+  const lockKey = ownerId ?? "guest";
+  const existingPromise = activeBackups.get(lockKey);
+  if (existingPromise) {
+    return existingPromise;
   }
 
-  const connection = patchConnection(ownerId, {
-    lastBackupAt: Date.now(),
-    folderId,
-    lastSignature: await librarySignature(db),
-  });
-  await recordBackup(db, "google-drive", "success", payload.notes.length);
-  return { connection, manifest: payload.manifest };
+  const backupPromise = (async () => {
+    try {
+      const token = await authorize(ownerId);
+      const folderId = await ensureFolder(token, ownerId);
+      const existingFileId = await resolveCanonicalFileId(token, folderId, ownerId);
+      const { blob, payload } = await buildBackupZip(db, ownerId);
+
+      let finalFileId = existingFileId;
+
+      if (existingFileId) {
+        try {
+          const response = await driveFetch(
+            `upload/drive/v3/files/${existingFileId}?uploadType=media&fields=id`,
+            token,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/zip" },
+              body: blob,
+            },
+          );
+          const updated = (await response.json()) as { id?: string };
+          finalFileId = updated.id ?? existingFileId;
+        } catch (error) {
+          await recordBackup(
+            db,
+            "google-drive",
+            "failed",
+            payload.notes.length,
+            (error as Error).message,
+          );
+          throw error;
+        }
+      } else {
+        const metadata = {
+          name: CANONICAL_BACKUP_NAME,
+          mimeType: "application/zip",
+          parents: [folderId],
+        };
+        const form = new FormData();
+        form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+        form.append("file", blob);
+
+        try {
+          const response = await driveFetch(
+            "upload/drive/v3/files?uploadType=multipart&fields=id",
+            token,
+            {
+              method: "POST",
+              body: form,
+            },
+          );
+          const created = (await response.json()) as { id?: string };
+          finalFileId = created.id ?? null;
+        } catch (error) {
+          await recordBackup(
+            db,
+            "google-drive",
+            "failed",
+            payload.notes.length,
+            (error as Error).message,
+          );
+          throw error;
+        }
+      }
+
+      const connection = patchConnection(ownerId, {
+        lastBackupAt: Date.now(),
+        folderId,
+        backupFileId: finalFileId,
+        lastSignature: await librarySignature(db),
+      });
+      await recordBackup(db, "google-drive", "success", payload.notes.length);
+      return { connection, manifest: payload.manifest };
+    } finally {
+      activeBackups.delete(lockKey);
+    }
+  })();
+
+  activeBackups.set(lockKey, backupPromise);
+  return backupPromise;
 }
 
 export async function fetchDriveBackup(
@@ -557,5 +666,6 @@ export async function hasUnbackedChanges(
 ): Promise<boolean> {
   const connection = getConnection(ownerId);
   if (!connection) return false;
+  if (!connection.backupFileId || !connection.lastBackupAt) return true;
   return (await librarySignature(db)) !== connection.lastSignature;
 }
