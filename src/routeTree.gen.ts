@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SigninRouteImport } from './routes/signin'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -44,6 +50,7 @@ const SigninRoute = SigninRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/app': typeof AppRoute
   '/contact': typeof ContactRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/app': typeof AppRoute
   '/contact': typeof ContactRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
@@ -59,21 +67,30 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/app': typeof AppRoute
   '/contact': typeof ContactRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/account' | '/contact' | '/settings' | '/signin'
+  fullPaths: '/' | '/account' | '/app' | '/contact' | '/settings' | '/signin'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/contact' | '/settings' | '/signin'
-  id: '__root__' | '/' | '/account' | '/contact' | '/settings' | '/signin'
+  to: '/' | '/account' | '/app' | '/contact' | '/settings' | '/signin'
+  id:
+    | '__root__'
+    | '/'
+    | '/account'
+    | '/app'
+    | '/contact'
+    | '/settings'
+    | '/signin'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  AppRoute: typeof AppRoute
   ContactRoute: typeof ContactRoute
   SettingsRoute: typeof SettingsRoute
   SigninRoute: typeof SigninRoute
@@ -93,6 +110,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -122,6 +146,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  AppRoute: AppRoute,
   ContactRoute: ContactRoute,
   SettingsRoute: SettingsRoute,
   SigninRoute: SigninRoute,
