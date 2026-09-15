@@ -50,6 +50,7 @@ public class MainActivity extends BridgeActivity {
                                 ((ViewGroup) splashOverlay.getParent()).removeView(splashOverlay);
                                 splashOverlay = null;
                             }
+                            WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
                             if (insetsController != null) {
                                 insetsController.show(WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.navigationBars());
                             }
