@@ -451,9 +451,18 @@ export async function resolveCanonicalFileId(
   const cachedId = getConnection(ownerId)?.backupFileId;
   if (cachedId) {
     try {
-      const res = await driveFetch(`drive/v3/files/${cachedId}?fields=id,name,trashed`, token);
-      const file = (await res.json()) as { id?: string; name?: string; trashed?: boolean };
-      if (file.id && !file.trashed) {
+      const res = await driveFetch(
+        `drive/v3/files/${cachedId}?fields=id,name,trashed,parents`,
+        token,
+      );
+      const file = (await res.json()) as {
+        id?: string;
+        name?: string;
+        trashed?: boolean;
+        parents?: string[];
+      };
+      const isParentValid = !file.parents || file.parents.includes(folderId);
+      if (file.id && !file.trashed && file.name === CANONICAL_BACKUP_NAME && isParentValid) {
         return file.id;
       }
     } catch (error) {
@@ -609,6 +618,39 @@ export async function backupNow(
           );
           const created = (await response.json()) as { id?: string };
           finalFileId = created.id ?? null;
+
+          // Re-query Noma Backups folder to reconcile near-simultaneous creations across devices/tabs.
+          const dedupeQuery = encodeURIComponent(
+            `'${folderId}' in parents and name='${CANONICAL_BACKUP_NAME}' and trashed=false`,
+          );
+          const dupsData = (await (
+            await driveFetch(
+              `drive/v3/files?q=${dedupeQuery}&fields=files(id,createdTime)&orderBy=createdTime asc`,
+              token,
+            )
+          ).json()) as { files?: Array<{ id: string; createdTime?: string }> };
+
+          const duplicates = dupsData.files ?? [];
+          if (duplicates.length > 1) {
+            // Keep the oldest created canonical file as the surviving canonical backup.
+            const survivor = duplicates[0];
+            if (survivor?.id) {
+              finalFileId = survivor.id;
+
+              // Safely trash duplicate Noma Backup.zip files created by race conditions.
+              for (const dup of duplicates.slice(1)) {
+                try {
+                  await driveFetch(`drive/v3/files/${dup.id}`, token, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ trashed: true }),
+                  });
+                } catch {
+                  /* non-fatal if trash cleanup fails */
+                }
+              }
+            }
+          }
         } catch (error) {
           await recordBackup(
             db,
