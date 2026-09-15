@@ -32,7 +32,7 @@ async function main() {
     }
   }
 
-  console.log("\n=== Stage 2: Generating Application Shell ===");
+  console.log("\n=== Stage 2: Generating Application Shell & Web Homepage ===");
   try {
     const serverPath = isVercel
       ? path.resolve(rootDir, ".vercel/output/functions/__server.func/index.mjs")
@@ -43,74 +43,78 @@ async function main() {
     // Import the compiled Nitro server handler directly
     const app = await import(pathToFileURL(serverPath).href);
 
-    // Simulate a request to get the shell from /app (bypassing SSR marketing landing page)
-    const req = new Request("http://localhost/app", {
-      headers: {
-        accept: "text/html",
-        "X-TSS_SHELL": "true",
-      },
-    });
+    const renderRoute = async (urlPath) => {
+      const reqUrl = `http://localhost${urlPath}`;
+      if (app.default && app.default.fetch) {
+        const req = new Request(reqUrl, {
+          headers: {
+            accept: "text/html",
+            "X-TSS_SHELL": "true",
+          },
+        });
+        const env = {};
+        const ctx = {
+          waitUntil: () => {},
+          passThroughOnException: () => {},
+        };
+        const res = await app.default.fetch(req, env, ctx);
+        if (!res.ok) throw new Error(`Failed to fetch ${urlPath}, status: ${res.status}`);
+        return await res.text();
+      } else if (typeof app.default === "function") {
+        const mockReq = {
+          url: urlPath,
+          method: "GET",
+          headers: {
+            accept: "text/html",
+            "x-tss_shell": "true",
+          },
+        };
 
-    console.log("Executing server handler to fetch shell...");
+        let responseBody = "";
+        const mockRes = {
+          statusCode: 200,
+          setHeader: () => {},
+          end: (chunk) => {
+            if (chunk) responseBody += chunk;
+          },
+          write: (chunk) => {
+            if (chunk) responseBody += chunk;
+          },
+        };
 
-    let html;
+        await app.default(mockReq, mockRes);
+        return responseBody;
+      } else {
+        throw new Error("Unable to determine how to execute the server handler.");
+      }
+    };
 
-    // Vercel edge/serverless handler vs Cloudflare worker handler
-    if (app.default && app.default.fetch) {
-      const env = {};
-      const ctx = {
-        waitUntil: () => {},
-        passThroughOnException: () => {},
-      };
-      const res = await app.default.fetch(req, env, ctx);
-      if (!res.ok) throw new Error(`Failed to fetch shell, status: ${res.status}`);
-      html = await res.text();
-    } else if (typeof app.default === "function") {
-      // Fallback if it exports a standard request handler
-      const { Readable } = await import("stream");
-
-      const mockReq = {
-        url: "/app",
-        method: "GET",
-        headers: {
-          accept: "text/html",
-          "x-tss_shell": "true",
-        },
-      };
-
-      let responseBody = "";
-      const mockRes = {
-        statusCode: 200,
-        setHeader: () => {},
-        end: (chunk) => {
-          if (chunk) responseBody += chunk;
-        },
-        write: (chunk) => {
-          if (chunk) responseBody += chunk;
-        },
-      };
-
-      await app.default(mockReq, mockRes);
-      html = responseBody;
-    } else {
-      throw new Error("Unable to determine how to execute the server handler.");
-    }
-
-    if (!html.includes("<html") || !html.includes("assets/")) {
-      throw new Error(
-        `Failed to generate a valid HTML shell. Output: ${html.substring(0, 100)}...`,
-      );
+    // Render clean application shell from /app for Capacitor/Android
+    console.log("Executing server handler to fetch clean app shell (/app)...");
+    const appShellHtml = await renderRoute("/app");
+    if (!appShellHtml.includes("<html") || !appShellHtml.includes("assets/")) {
+      throw new Error(`Invalid HTML app shell output: ${appShellHtml.substring(0, 100)}...`);
     }
 
     if (fs.existsSync(outputPublicDir)) {
-      fs.writeFileSync(path.join(outputPublicDir, "index.html"), html);
+      fs.writeFileSync(path.join(outputPublicDir, "index.html"), appShellHtml);
+      console.log(
+        `Successfully wrote native app shell to .output/public/index.html (${appShellHtml.length} bytes)`,
+      );
     }
 
+    // Render full SSR marketing/SEO homepage from / for Vercel static homepage
     if (isVercel && fs.existsSync(vercelStaticDir)) {
-      fs.writeFileSync(path.join(vercelStaticDir, "index.html"), html);
+      console.log("Executing server handler to fetch SSR marketing/SEO homepage (/)...");
+      const homepageHtml = await renderRoute("/");
+      if (!homepageHtml.includes("<html") || !homepageHtml.includes("assets/")) {
+        throw new Error(`Invalid HTML homepage output: ${homepageHtml.substring(0, 100)}...`);
+      }
+      fs.writeFileSync(path.join(vercelStaticDir, "index.html"), homepageHtml);
+      console.log(
+        `Successfully wrote SSR marketing homepage to .vercel/output/static/index.html (${homepageHtml.length} bytes)`,
+      );
     }
-
-    console.log(`Successfully wrote index.html (${html.length} bytes)`);
   } catch (e) {
     console.error("Failed to generate application shell using direct handler invocation:");
     console.error(e);
