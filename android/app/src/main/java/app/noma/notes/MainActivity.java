@@ -42,6 +42,10 @@ public class MainActivity extends BridgeActivity {
 
         splashOverlay.postDelayed(() -> {
             if (splashOverlay != null && splashOverlay.getParent() != null) {
+                WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+                if (insetsController != null) {
+                    insetsController.show(WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.navigationBars());
+                }
                 splashOverlay.animate()
                         .alpha(0f)
                         .setDuration(300)
@@ -49,10 +53,6 @@ public class MainActivity extends BridgeActivity {
                             if (splashOverlay != null && splashOverlay.getParent() != null) {
                                 ((ViewGroup) splashOverlay.getParent()).removeView(splashOverlay);
                                 splashOverlay = null;
-                            }
-                            WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
-                            if (insetsController != null) {
-                                insetsController.show(WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.navigationBars());
                             }
                         })
                         .start();
