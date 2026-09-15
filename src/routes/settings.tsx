@@ -34,6 +34,7 @@ import {
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { DriveCard } from "@/components/noma/drive-card";
 import { AppLockSection } from "@/components/noma/app-lock-section";
+import { ThemePicker } from "@/components/noma/theme-picker";
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
@@ -161,23 +162,13 @@ function SettingsPage() {
       <div className="mx-auto max-w-2xl px-5 pb-20 sm:px-6">
         <AppLockSection />
 
-        <Section title="Appearance" description="Noma remembers these on this device.">
-          <div className="flex items-center justify-between gap-4">
-            <Label>Theme</Label>
-            <div className="flex flex-wrap justify-end gap-1 rounded-md border border-border p-0.5">
-              {(["light", "dark", "system", "nature"] as const).map((theme) => (
-                <Button
-                  key={theme}
-                  size="sm"
-                  variant={settings.theme === theme ? "secondary" : "ghost"}
-                  className="capitalize"
-                  aria-pressed={settings.theme === theme}
-                  onClick={() => void update({ theme })}
-                >
-                  {theme === "nature" ? "🌿 Nature" : theme}
-                </Button>
-              ))}
-            </div>
+        <Section
+          title="Appearance"
+          description="Noma remembers these on this device. Choose the atmosphere of Noma."
+        >
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium">Theme</Label>
+            <ThemePicker value={settings.theme} onChange={(theme) => void update({ theme })} />
           </div>
 
           <div className="space-y-2">

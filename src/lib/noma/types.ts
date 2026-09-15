@@ -1,7 +1,7 @@
 export type ContentFormat = "tiptap-html";
 
-/** User-selectable appearance. "nature" is a standalone warm light theme. */
-export type ThemeSetting = "light" | "dark" | "system" | "nature";
+/** User-selectable appearance. "nature" is a standalone warm light theme. "amoled" is pure black. */
+export type ThemeSetting = "light" | "dark" | "system" | "nature" | "amoled";
 
 export interface Note {
   id: string;

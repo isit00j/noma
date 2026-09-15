@@ -23,6 +23,7 @@ import {
 import { useSettings } from "@/hooks/use-noma";
 import { useAppLock } from "@/lib/noma/AppLockContext";
 import { ReauthDialog } from "@/components/noma/reauth-dialog";
+import { PatternLock } from "@/components/noma/pattern-lock";
 
 function Section({
   title,
@@ -57,9 +58,8 @@ export function AppLockSection() {
   const [patternPoints, setPatternPoints] = useState<number[]>([]);
   const [confirmPatternPoints, setConfirmPatternPoints] = useState<number[]>([]);
   const [patternStep, setPatternStep] = useState<"draw" | "confirm">("draw");
-  const [isDrawing, setIsDrawing] = useState(false);
-
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [patternError, setPatternError] = useState(false);
+  const [patternKey, setPatternKey] = useState(0);
 
   const requestAuthorizedChange = (action: () => Promise<void>) => {
     if (settings.appLockEnabled) {
@@ -192,91 +192,26 @@ export function AppLockSection() {
     }
   };
 
-  // Pattern SVG Canvas drawing logic
-  const getPointIndex = (clientX: number, clientY: number): number | null => {
-    if (!svgRef.current) return null;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    const size = rect.width;
-    const step = size / 3;
-
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        const cx = col * step + step / 2;
-        const cy = row * step + step / 2;
-        if (Math.hypot(x - cx, y - cy) < step / 2.5) {
-          return row * 3 + col;
-        }
-      }
-    }
-    return null;
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore if setPointerCapture unsupported
-    }
-    setIsDrawing(true);
-    const idx = getPointIndex(e.clientX, e.clientY);
-    const initial = idx !== null ? [idx] : [];
-    if (patternStep === "draw") setPatternPoints(initial);
-    else setConfirmPatternPoints(initial);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing) return;
-    const idx = getPointIndex(e.clientX, e.clientY);
-    if (idx !== null) {
-      if (patternStep === "draw" && !patternPoints.includes(idx)) {
-        setPatternPoints((prev) => [...prev, idx]);
-      } else if (patternStep === "confirm" && !confirmPatternPoints.includes(idx)) {
-        setConfirmPatternPoints((prev) => [...prev, idx]);
-      }
-    }
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-  };
-
-  const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
-    setIsDrawing(false);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Ignore
-    }
-    if (patternStep === "draw") setPatternPoints([]);
-    else setConfirmPatternPoints([]);
-  };
-
-  const savePatternSetup = async () => {
+  const handlePatternComplete = async (pts: number[]) => {
     if (patternStep === "draw") {
-      if (patternPoints.length < 4) {
+      if (pts.length < 4) {
         toast.error("Pattern must connect at least 4 dots.");
+        setPatternError(true);
         return;
       }
+      setPatternPoints(pts);
       setPatternStep("confirm");
+      setPatternKey((k) => k + 1);
       return;
     }
 
-    if (patternPoints.join("-") !== confirmPatternPoints.join("-")) {
+    if (patternPoints.join("-") !== pts.join("-")) {
       toast.error("Patterns do not match. Try again.");
+      setPatternError(true);
       setPatternStep("draw");
       setPatternPoints([]);
       setConfirmPatternPoints([]);
+      setPatternKey((k) => k + 1);
       return;
     }
 
@@ -424,7 +359,9 @@ export function AppLockSection() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">
-              {patternStep === "draw" ? "Draw Noma Pattern" : "Confirm Noma Pattern"}
+              {patternStep === "draw"
+                ? "Draw your Noma pattern"
+                : "Draw the pattern again to confirm"}
             </DialogTitle>
             <DialogDescription>
               {patternStep === "draw"
@@ -434,65 +371,30 @@ export function AppLockSection() {
           </DialogHeader>
 
           <div className="mx-auto flex justify-center py-2">
-            <svg
-              ref={svgRef}
-              className="size-60 touch-none rounded-xl border border-border bg-card shadow-sm"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
-            >
-              {activePoints.map((pt, i) => {
-                if (i === 0) return null;
-                const prevPt = activePoints[i - 1];
-                if (prevPt === undefined) return null;
-                const x1 = (prevPt % 3) * 80 + 40;
-                const y1 = Math.floor(prevPt / 3) * 80 + 40;
-                const x2 = (pt % 3) * 80 + 40;
-                const y2 = Math.floor(pt / 3) * 80 + 40;
-                return (
-                  <line
-                    key={`line-${i}`}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke="hsl(var(--primary))"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                  />
-                );
-              })}
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => {
-                const cx = (idx % 3) * 80 + 40;
-                const cy = Math.floor(idx / 3) * 80 + 40;
-                const selected = activePoints.includes(idx);
-                return (
-                  <circle
-                    key={idx}
-                    cx={cx}
-                    cy={cy}
-                    r={selected ? "14" : "10"}
-                    className={selected ? "fill-primary" : "fill-muted-foreground/30"}
-                  />
-                );
-              })}
-            </svg>
+            <PatternLock
+              key={patternKey}
+              size={240}
+              error={patternError}
+              onComplete={(pts) => void handlePatternComplete(pts)}
+              onChange={() => setPatternError(false)}
+            />
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button
               variant="ghost"
               onClick={() => {
                 setPatternPoints([]);
                 setConfirmPatternPoints([]);
                 setPatternStep("draw");
+                setPatternError(false);
+                setPatternKey((k) => k + 1);
               }}
             >
               Reset
             </Button>
-            <Button onClick={() => void savePatternSetup()}>
-              {patternStep === "draw" ? "Next" : "Save Pattern"}
+            <Button variant="outline" onClick={() => setPatternModalOpen(false)}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
