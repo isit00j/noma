@@ -66,6 +66,8 @@ function Index() {
     setMounted(true);
   }, []);
 
+  // On Native Capacitor (Android), directly bypass the marketing page to AppGate/Workspace.
+  // On public Web, SSR initially renders the marketing/SEO page before React hydration.
   if (!mounted && !Capacitor.isNativePlatform()) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-4xl flex-col px-6 py-12 bg-background text-foreground">

@@ -43,8 +43,8 @@ async function main() {
     // Import the compiled Nitro server handler directly
     const app = await import(pathToFileURL(serverPath).href);
 
-    // Simulate a request to get the shell
-    const req = new Request("http://localhost/", {
+    // Simulate a request to get the shell from /app (bypassing SSR marketing landing page)
+    const req = new Request("http://localhost/app", {
       headers: {
         accept: "text/html",
         "X-TSS_SHELL": "true",
@@ -70,7 +70,7 @@ async function main() {
       const { Readable } = await import("stream");
 
       const mockReq = {
-        url: "/",
+        url: "/app",
         method: "GET",
         headers: {
           accept: "text/html",
