@@ -537,6 +537,16 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const loadedNoteId = useRef(note.id);
 
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const dbRef = useRef(db);
+  useEffect(() => {
+    dbRef.current = db;
+  }, [db]);
+
   const editor = useEditor(
     {
       immediatelyRender: false,
@@ -568,9 +578,9 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
       editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
       onUpdate: ({ editor: instance }) => {
         const html = instance.getHTML();
-        onChange({ content: html });
-        if (db) {
-          scheduleDebouncedAttachmentCleanup(db);
+        onChangeRef.current({ content: html });
+        if (dbRef.current) {
+          scheduleDebouncedAttachmentCleanup(dbRef.current);
         }
       },
     },

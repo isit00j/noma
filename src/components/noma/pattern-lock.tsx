@@ -39,9 +39,38 @@ export function PatternLock({
   size = 260,
   className = "",
 }: PatternLockProps) {
-  const [selectedPoints, setSelectedPoints] = useState<number[]>([]);
+  const [selectedPoints, setSelectedPointsState] = useState<number[]>([]);
+  const selectedPointsRef = useRef<number[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [livePointer, setLivePointer] = useState<Point | null>(null);
+
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const isMountedRef = useRef(true);
+  const rafId = useRef<number | null>(null);
+
+  const updateSelectedPoints = useCallback((points: number[]) => {
+    selectedPointsRef.current = points;
+    setSelectedPointsState(points);
+  }, []);
+
+  const clearPendingRaf = useCallback(() => {
+    if (rafId.current !== null) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearPendingRaf();
+    };
+  }, [clearPendingRaf]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const filterId = useId();
@@ -106,10 +135,10 @@ export function PatternLock({
     return updated;
   }, []);
 
-  const rafId = useRef<number | null>(null);
-
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (disabled) return;
+
+    clearPendingRaf();
 
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -126,8 +155,8 @@ export function PatternLock({
 
     const idx = getPointIndex(e.clientX, e.clientY);
     const newPoints = idx !== null ? [idx] : [];
-    setSelectedPoints(newPoints);
-    onChange?.(newPoints);
+    updateSelectedPoints(newPoints);
+    onChangeRef.current?.(newPoints);
   };
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -137,10 +166,12 @@ export function PatternLock({
     const clientY = e.clientY;
     const currentTarget = e.currentTarget;
 
-    if (rafId.current) cancelAnimationFrame(rafId.current);
+    clearPendingRaf();
 
     rafId.current = requestAnimationFrame(() => {
-      if (!currentTarget) return;
+      rafId.current = null;
+      if (!currentTarget || !isMountedRef.current) return;
+
       const rect = currentTarget.getBoundingClientRect();
       const scale = size / rect.width;
       const px = (clientX - rect.left) * scale;
@@ -149,21 +180,22 @@ export function PatternLock({
 
       const idx = getPointIndex(clientX, clientY);
       if (idx !== null) {
-        setSelectedPoints((prevPoints) => {
-          const next = addNodeWithIntermediates(prevPoints, idx);
-          if (next.length !== prevPoints.length || next.some((val, i) => val !== prevPoints[i])) {
-            onChange?.(next);
-            return next;
-          }
-          return prevPoints;
-        });
+        const currentPoints = selectedPointsRef.current;
+        const next = addNodeWithIntermediates(currentPoints, idx);
+        if (
+          next.length !== currentPoints.length ||
+          next.some((val, i) => val !== currentPoints[i])
+        ) {
+          updateSelectedPoints(next);
+          onChangeRef.current?.(next);
+        }
       }
     });
   };
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
-    if (rafId.current) cancelAnimationFrame(rafId.current);
+    clearPendingRaf();
     setIsDrawing(false);
     setLivePointer(null);
 
@@ -175,10 +207,11 @@ export function PatternLock({
       // Ignore
     }
 
-    onComplete?.(selectedPoints);
+    onComplete?.(selectedPointsRef.current);
   };
 
   const handlePointerCancel = (e: React.PointerEvent<SVGSVGElement>) => {
+    clearPendingRaf();
     setIsDrawing(false);
     setLivePointer(null);
     try {
@@ -188,21 +221,22 @@ export function PatternLock({
     } catch {
       // Ignore
     }
-    setSelectedPoints([]);
-    onChange?.([]);
+    updateSelectedPoints([]);
+    onChangeRef.current?.([]);
   };
 
   // Reset selected points when error clears or disabled changes
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
-        setSelectedPoints([]);
-        onChange?.([]);
+        if (!isMountedRef.current) return;
+        updateSelectedPoints([]);
+        onChangeRef.current?.([]);
       }, 400);
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [error, onChange]);
+  }, [error, updateSelectedPoints]);
 
   const strokeColor = error ? "var(--destructive)" : success ? "var(--primary)" : "var(--primary)";
 
