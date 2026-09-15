@@ -630,29 +630,63 @@ export async function backupNow(
         }
       }
 
-      // Reconcile any duplicate canonical files created by race conditions or multi-device syncs.
-      // The file created or updated in this current run (finalFileId) is ALWAYS preserved as canonical.
+      // Reconcile duplicate canonical files created by race conditions or multi-device syncs.
+      // Deterministically select the survivor across all concurrent clients (oldest createdTime, tie-break by ID).
       if (finalFileId) {
         try {
           const dedupeQuery = encodeURIComponent(
             `'${folderId}' in parents and name='${CANONICAL_BACKUP_NAME}' and trashed=false`,
           );
           const dupsData = (await (
-            await driveFetch(`drive/v3/files?q=${dedupeQuery}&fields=files(id)&pageSize=10`, token)
-          ).json()) as { files?: Array<{ id: string }> };
+            await driveFetch(
+              `drive/v3/files?q=${dedupeQuery}&fields=files(id,createdTime)&pageSize=20`,
+              token,
+            )
+          ).json()) as { files?: Array<{ id: string; createdTime?: string }> };
 
           const duplicates = dupsData.files ?? [];
           if (duplicates.length > 1) {
-            for (const dup of duplicates) {
-              if (dup.id && dup.id !== finalFileId) {
+            // Sort deterministically across all concurrent clients: oldest createdTime first, tie-break by id ascending.
+            duplicates.sort((a, b) => {
+              const timeA = a.createdTime ? new Date(a.createdTime).getTime() : 0;
+              const timeB = b.createdTime ? new Date(b.createdTime).getTime() : 0;
+              if (timeA !== timeB) return timeA - timeB;
+              return a.id.localeCompare(b.id);
+            });
+
+            const survivor = duplicates[0];
+            if (survivor?.id) {
+              // If current run created/updated a file other than the deterministic survivor,
+              // patch the current backup payload into the survivor so contents are never lost.
+              if (finalFileId !== survivor.id) {
                 try {
-                  await driveFetch(`drive/v3/files/${dup.id}`, token, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ trashed: true }),
-                  });
+                  await driveFetch(
+                    `upload/drive/v3/files/${survivor.id}?uploadType=media&fields=id`,
+                    token,
+                    {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/zip" },
+                      body: blob,
+                    },
+                  );
+                  finalFileId = survivor.id;
                 } catch {
-                  /* non-fatal if trash cleanup fails */
+                  /* if patching survivor fails, retain finalFileId as active backup */
+                }
+              }
+
+              // Trash all duplicate Noma Backup.zip files except the surviving canonical ID.
+              for (const dup of duplicates) {
+                if (dup.id && dup.id !== finalFileId) {
+                  try {
+                    await driveFetch(`drive/v3/files/${dup.id}`, token, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ trashed: true }),
+                    });
+                  } catch {
+                    /* non-fatal if trash cleanup fails */
+                  }
                 }
               }
             }
