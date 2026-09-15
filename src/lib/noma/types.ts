@@ -109,7 +109,7 @@ export interface BackupManifest {
   libraryId?: string | null;
 }
 
-export const NOMA_VERSION = "1.0.0";
+export const NOMA_VERSION = "1.0.1";
 export const BACKUP_FORMAT_VERSION = 2;
 
 export const DEFAULT_SETTINGS: AppSettings = {
