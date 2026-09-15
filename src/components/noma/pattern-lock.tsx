@@ -106,6 +106,8 @@ export function PatternLock({
     return updated;
   }, []);
 
+  const rafId = useRef<number | null>(null);
+
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (disabled) return;
 
@@ -131,27 +133,37 @@ export function PatternLock({
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing || disabled) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scale = size / rect.width;
-    const px = (e.clientX - rect.left) * scale;
-    const py = (e.clientY - rect.top) * scale;
-    setLivePointer({ x: px, y: py });
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const currentTarget = e.currentTarget;
 
-    const idx = getPointIndex(e.clientX, e.clientY);
-    if (idx !== null) {
-      const next = addNodeWithIntermediates(selectedPoints, idx);
-      if (
-        next.length !== selectedPoints.length ||
-        next.some((val, i) => val !== selectedPoints[i])
-      ) {
-        setSelectedPoints(next);
-        onChange?.(next);
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+
+    rafId.current = requestAnimationFrame(() => {
+      if (!currentTarget) return;
+      const rect = currentTarget.getBoundingClientRect();
+      const scale = size / rect.width;
+      const px = (clientX - rect.left) * scale;
+      const py = (clientY - rect.top) * scale;
+      setLivePointer({ x: px, y: py });
+
+      const idx = getPointIndex(clientX, clientY);
+      if (idx !== null) {
+        setSelectedPoints((prevPoints) => {
+          const next = addNodeWithIntermediates(prevPoints, idx);
+          if (next.length !== prevPoints.length || next.some((val, i) => val !== prevPoints[i])) {
+            onChange?.(next);
+            return next;
+          }
+          return prevPoints;
+        });
       }
-    }
+    });
   };
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing) return;
+    if (rafId.current) cancelAnimationFrame(rafId.current);
     setIsDrawing(false);
     setLivePointer(null);
 

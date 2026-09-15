@@ -201,40 +201,56 @@ export function Workspace() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleNewNote, searchOpen]);
 
-  const actions: NoteActions = {
-    open: openNote,
-    togglePin: (note) => void togglePinned(db!, note),
-    toggleFavorite: (note) => void toggleFavorite(db!, note),
-    setArchived: (note, archived) => void setArchived(db!, note, archived),
-    setReminder: (note) => setReminderTargetNote(note),
-    duplicate: async (note) => {
-      const copy = await duplicateNote(db!, note.id);
-      if (copy) toast.success("Note duplicated");
-    },
-    move: (note, folderId) => void moveNote(db!, note.id, folderId),
-    trash: (note) => {
-      void trashNote(db!, note.id);
-      if (activeNoteId === note.id) setActiveNoteId(null);
-      toast.success("Moved to Trash", {
-        action: { label: "Undo", onClick: () => void restoreNote(db!, note.id) },
-      });
-    },
-    restore: (note) => {
-      void restoreNote(db!, note.id);
-      toast.success("Note restored");
-    },
-    deleteForever: (note) =>
-      setConfirmation({
-        title: "Delete this note permanently?",
-        description: `“${noteTitle(note)}” and its attachments will be removed from this device. This can't be undone.`,
-        actionLabel: "Delete permanently",
-        onConfirm: async () => {
-          await deleteNoteForever(db!, note.id);
-          if (activeNoteId === note.id) setActiveNoteId(null);
-          toast.success("Note deleted");
-        },
-      }),
-  };
+  const actions: NoteActions = useMemo(
+    () => ({
+      open: openNote,
+      togglePin: (note) => {
+        if (db) void togglePinned(db, note);
+      },
+      toggleFavorite: (note) => {
+        if (db) void toggleFavorite(db, note);
+      },
+      setArchived: (note, archived) => {
+        if (db) void setArchived(db, note, archived);
+      },
+      setReminder: (note) => setReminderTargetNote(note),
+      duplicate: async (note) => {
+        if (!db) return;
+        const copy = await duplicateNote(db, note.id);
+        if (copy) toast.success("Note duplicated");
+      },
+      move: (note, folderId) => {
+        if (db) void moveNote(db, note.id, folderId);
+      },
+      trash: (note) => {
+        if (!db) return;
+        void trashNote(db, note.id);
+        if (activeNoteId === note.id) setActiveNoteId(null);
+        toast.success("Moved to Trash", {
+          action: { label: "Undo", onClick: () => void restoreNote(db, note.id) },
+        });
+      },
+      restore: (note) => {
+        if (db) {
+          void restoreNote(db, note.id);
+          toast.success("Note restored");
+        }
+      },
+      deleteForever: (note) =>
+        setConfirmation({
+          title: "Delete this note permanently?",
+          description: `“${noteTitle(note)}” and its attachments will be removed from this device. This can't be undone.`,
+          actionLabel: "Delete permanently",
+          onConfirm: async () => {
+            if (!db) return;
+            await deleteNoteForever(db, note.id);
+            if (activeNoteId === note.id) setActiveNoteId(null);
+            toast.success("Note deleted");
+          },
+        }),
+    }),
+    [db, openNote, activeNoteId],
+  );
 
   const searchResults = useMemo(
     () =>
