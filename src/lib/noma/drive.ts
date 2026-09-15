@@ -618,27 +618,33 @@ export async function backupNow(
           );
           const created = (await response.json()) as { id?: string };
           finalFileId = created.id ?? null;
+        } catch (error) {
+          await recordBackup(
+            db,
+            "google-drive",
+            "failed",
+            payload.notes.length,
+            (error as Error).message,
+          );
+          throw error;
+        }
+      }
 
-          // Re-query Noma Backups folder to reconcile near-simultaneous creations across devices/tabs.
+      // Reconcile any duplicate canonical files created by race conditions or multi-device syncs.
+      // The file created or updated in this current run (finalFileId) is ALWAYS preserved as canonical.
+      if (finalFileId) {
+        try {
           const dedupeQuery = encodeURIComponent(
             `'${folderId}' in parents and name='${CANONICAL_BACKUP_NAME}' and trashed=false`,
           );
           const dupsData = (await (
-            await driveFetch(
-              `drive/v3/files?q=${dedupeQuery}&fields=files(id,createdTime)&orderBy=createdTime asc`,
-              token,
-            )
-          ).json()) as { files?: Array<{ id: string; createdTime?: string }> };
+            await driveFetch(`drive/v3/files?q=${dedupeQuery}&fields=files(id)&pageSize=10`, token)
+          ).json()) as { files?: Array<{ id: string }> };
 
           const duplicates = dupsData.files ?? [];
           if (duplicates.length > 1) {
-            // Keep the oldest created canonical file as the surviving canonical backup.
-            const survivor = duplicates[0];
-            if (survivor?.id) {
-              finalFileId = survivor.id;
-
-              // Safely trash duplicate Noma Backup.zip files created by race conditions.
-              for (const dup of duplicates.slice(1)) {
+            for (const dup of duplicates) {
+              if (dup.id && dup.id !== finalFileId) {
                 try {
                   await driveFetch(`drive/v3/files/${dup.id}`, token, {
                     method: "PATCH",
@@ -651,15 +657,8 @@ export async function backupNow(
               }
             }
           }
-        } catch (error) {
-          await recordBackup(
-            db,
-            "google-drive",
-            "failed",
-            payload.notes.length,
-            (error as Error).message,
-          );
-          throw error;
+        } catch {
+          /* non-fatal if deduplication cleanup fails */
         }
       }
 
