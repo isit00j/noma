@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 interface Point {
   x: number;
@@ -44,6 +44,8 @@ export function PatternLock({
   const [livePointer, setLivePointer] = useState<Point | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const filterId = useId();
+  const filterUrl = `url(#${filterId})`;
 
   const getNodeCenter = useCallback(
     (index: number): Point => {
@@ -137,13 +139,14 @@ export function PatternLock({
 
     const idx = getPointIndex(e.clientX, e.clientY);
     if (idx !== null) {
-      setSelectedPoints((prev) => {
-        const next = addNodeWithIntermediates(prev, idx);
-        if (next !== prev) {
-          onChange?.(next);
-        }
-        return next;
-      });
+      const next = addNodeWithIntermediates(selectedPoints, idx);
+      if (
+        next.length !== selectedPoints.length ||
+        next.some((val, i) => val !== selectedPoints[i])
+      ) {
+        setSelectedPoints(next);
+        onChange?.(next);
+      }
     }
   };
 
@@ -189,11 +192,7 @@ export function PatternLock({
     return undefined;
   }, [error, onChange]);
 
-  const strokeColor = error
-    ? "var(--destructive)"
-    : success
-      ? "var(--primary)"
-      : "var(--primary)";
+  const strokeColor = error ? "var(--destructive)" : success ? "var(--primary)" : "var(--primary)";
 
   const nodeFillColor = error
     ? "var(--destructive)"
@@ -221,7 +220,7 @@ export function PatternLock({
         onPointerCancel={handlePointerCancel}
       >
         <defs>
-          <filter id="noma-node-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="3" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
@@ -327,7 +326,7 @@ export function PatternLock({
                   cy={y}
                   r={isCurrentEndpoint ? "11" : "9"}
                   fill={nodeFillColor}
-                  filter="url(#noma-node-glow)"
+                  filter={filterUrl}
                   className="transition-all duration-150"
                 />
               )}
