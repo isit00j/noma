@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { AppGate } from "@/components/noma/app-gate";
 import { Workspace } from "@/components/noma/workspace";
 
@@ -65,7 +66,7 @@ function Index() {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
+  if (!mounted && !Capacitor.isNativePlatform()) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-4xl flex-col px-6 py-12 bg-background text-foreground">
         <header className="border-b border-border pb-6">
