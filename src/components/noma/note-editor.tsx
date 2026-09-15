@@ -537,42 +537,55 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const loadedNoteId = useRef(note.id);
 
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
-      }),
-      TextStyle,
-      Color,
-      BackgroundColor,
-      Highlight,
-      NomaImageNode.configure({ inline: false }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      Placeholder.configure({ placeholder: "Start writing…" }),
-      NomaChartNode,
-    ],
-    content: note.content,
-    editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
-    onUpdate: ({ editor: instance }) => {
-      const html = instance.getHTML();
-      onChange({ content: html });
-      if (db) {
-        scheduleDebouncedAttachmentCleanup(db);
-      }
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const dbRef = useRef(db);
+  useEffect(() => {
+    dbRef.current = db;
+  }, [db]);
+
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+        }),
+        Underline,
+        Link.configure({
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
+        }),
+        TextStyle,
+        Color,
+        BackgroundColor,
+        Highlight,
+        NomaImageNode.configure({ inline: false }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        Placeholder.configure({ placeholder: "Start writing…" }),
+        NomaChartNode,
+      ],
+      content: note.content,
+      editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
+      onUpdate: ({ editor: instance }) => {
+        const html = instance.getHTML();
+        onChangeRef.current({ content: html });
+        if (dbRef.current) {
+          scheduleDebouncedAttachmentCleanup(dbRef.current);
+        }
+      },
     },
-  });
+    [note.id],
+  );
 
   // Swap document when a different note is opened, without clobbering typing.
   useEffect(() => {

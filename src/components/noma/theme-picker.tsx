@@ -64,14 +64,14 @@ function ThemePreviewMiniCard({ id }: { id: ThemeSetting }) {
 
   if (id === "dark") {
     return (
-      <div className="relative h-20 w-full overflow-hidden rounded-lg border border-[#2a3449] bg-[#131927] p-2 flex flex-col justify-between shadow-xs">
+      <div className="relative h-20 w-full overflow-hidden rounded-lg border border-[#22293d] bg-[#0d121d] p-2 flex flex-col justify-between shadow-xs">
         <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-8 rounded-full bg-[#6366f1]" />
+          <div className="h-1.5 w-8 rounded-full bg-gradient-to-r from-[#6366f1] to-[#38bdf8]" />
           <div className="h-1.5 w-4 rounded-full bg-[#64748b]/40" />
         </div>
-        <div className="space-y-1.5 rounded-md bg-[#1e2638] p-2 border border-[#2d384e]">
-          <div className="h-2 w-3/4 rounded bg-[#475569]" />
-          <div className="h-1.5 w-1/2 rounded bg-[#334155]" />
+        <div className="space-y-1.5 rounded-md bg-[#161c2b] p-2 border border-[#263147]">
+          <div className="h-2 w-3/4 rounded bg-[#3b4968]" />
+          <div className="h-1.5 w-1/2 rounded bg-[#2a3650]" />
         </div>
       </div>
     );
@@ -119,11 +119,11 @@ function ThemePreviewMiniCard({ id }: { id: ThemeSetting }) {
         </div>
       </div>
       {/* Dark side */}
-      <div className="w-1/2 bg-[#131927] p-2 flex flex-col justify-between">
+      <div className="w-1/2 bg-[#0d121d] p-2 flex flex-col justify-between">
         <div className="h-1.5 w-6 rounded-full bg-[#6366f1]" />
-        <div className="space-y-1 rounded bg-[#1e2638] p-1 border border-[#2d384e]">
-          <div className="h-1.5 w-full rounded bg-[#475569]" />
-          <div className="h-1 w-2/3 rounded bg-[#334155]" />
+        <div className="space-y-1 rounded bg-[#161c2b] p-1 border border-[#263147]">
+          <div className="h-1.5 w-full rounded bg-[#3b4968]" />
+          <div className="h-1 w-2/3 rounded bg-[#2a3650]" />
         </div>
       </div>
     </div>
