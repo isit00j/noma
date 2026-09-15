@@ -696,6 +696,11 @@ export async function backupNow(
         }
       }
 
+      // Final resolution: verify and resolve the true non-trashed canonical file ID one last time
+      // to guarantee that no trashed ID is ever cached if a race condition occurred.
+      const verifiedCanonicalId = await resolveCanonicalFileId(token, folderId, ownerId);
+      finalFileId = verifiedCanonicalId ?? finalFileId;
+
       const connection = patchConnection(ownerId, {
         lastBackupAt: Date.now(),
         folderId,
