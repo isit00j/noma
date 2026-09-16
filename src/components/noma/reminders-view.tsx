@@ -1,10 +1,17 @@
 import { format } from "date-fns";
-import { Bell, CheckCircle2, Clock, Trash2, AlertCircle } from "lucide-react";
+import { AlarmClock, Bell, CheckCircle2, Clock, Trash2, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { noteTitle, updateReminderStatus, deleteNoteReminder } from "@/lib/noma/notes";
+import {
+  buildPhoneAlarmSetOptions,
+  isPhoneAlarmSupported,
+  isUserCancelled,
+  NomaAlarm,
+  resolveToneMode,
+} from "@/lib/noma/phone-alarm";
 import type { Note, Reminder } from "@/lib/noma/types";
 
 interface RemindersViewProps {
@@ -16,6 +23,7 @@ interface RemindersViewProps {
 export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewProps) {
   const { db } = useDatabase();
   const now = Date.now();
+  const phoneAlarmSupported = isPhoneAlarmSupported();
 
   const noteMap = useMemo(() => {
     const map = new Map<string, Note>();
@@ -48,13 +56,63 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
   ) => {
     if (!db) return;
     await updateReminderStatus(db, reminder.id, newStatus);
-    toast.success(newStatus === "completed" ? "Reminder marked as completed" : "Reminder updated");
+    if (reminder.alertType === "phone-alarm" && newStatus !== "pending") {
+      // Noma cannot cancel the alarm already handed to the Clock app.
+      toast.success("Reminder updated — dismiss or delete the alarm in your Clock app too");
+    } else {
+      toast.success(
+        newStatus === "completed" ? "Reminder marked as completed" : "Reminder updated",
+      );
+    }
   };
 
   const handleDelete = async (reminder: Reminder) => {
     if (!db) return;
     await deleteNoteReminder(db, reminder.noteId);
-    toast.success("Reminder deleted");
+    if (reminder.alertType === "phone-alarm") {
+      toast.success(
+        "Reminder deleted — the alarm in your Clock app stays until you remove it there",
+      );
+    } else {
+      toast.success("Reminder deleted");
+    }
+  };
+
+  /**
+   * Re-open the Clock app for a phone-alarm reminder. Needed because
+   * ACTION_SET_ALARM is fire-and-forget: Noma can't tell whether the user
+   * completed the alarm setup in the Clock app, so this offers a manual retry.
+   */
+  const handleOpenInClockApp = async (reminder: Reminder) => {
+    const note = noteMap.get(reminder.noteId);
+    try {
+      const avail = await NomaAlarm.checkAlarmCapability();
+      if (!avail.available) {
+        toast.error("No alarm-clock app found on this device.");
+        return;
+      }
+      let ringtoneUri = reminder.alarmToneUri;
+      if (ringtoneUri) {
+        const v = await NomaAlarm.validateToneUri({ uri: ringtoneUri }).catch(() => null);
+        if (!v?.accessible) {
+          ringtoneUri = undefined;
+          toast.warning("Saved alarm tone is no longer available — using the system default.");
+        }
+      }
+      await NomaAlarm.setAlarm(
+        buildPhoneAlarmSetOptions(reminder.scheduledAt, note ? noteTitle(note) : "Untitled note", {
+          alertType: "phone-alarm",
+          alarmToneMode: resolveToneMode(reminder),
+          alarmToneUri: ringtoneUri,
+          alarmToneName: reminder.alarmToneName,
+          alarmVibrate: reminder.alarmVibrate ?? true,
+        }),
+      );
+    } catch (e) {
+      if (!isUserCancelled(e)) {
+        toast.error("Couldn't open your Clock app.");
+      }
+    }
   };
 
   const renderSection = (
@@ -100,6 +158,12 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
                     >
                       {isOverdue ? "Overdue" : reminder.status}
                     </span>
+                    {reminder.alertType === "phone-alarm" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+                        <AlarmClock className="size-3" aria-hidden="true" />
+                        Phone alarm
+                      </span>
+                    )}
                   </div>
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="size-3.5" />
@@ -108,6 +172,20 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
                 </div>
 
                 <div className="flex items-center gap-1.5 self-end sm:self-center">
+                  {phoneAlarmSupported &&
+                    reminder.alertType === "phone-alarm" &&
+                    reminder.status === "pending" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => void handleOpenInClockApp(reminder)}
+                        title="Open this alarm in your Clock app"
+                      >
+                        <AlarmClock className="size-3.5 text-violet-500" />
+                        Clock app
+                      </Button>
+                    )}
                   {reminder.status === "pending" ? (
                     <Button
                       variant="outline"

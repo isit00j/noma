@@ -303,9 +303,13 @@ export async function applyBackup(
   await cleanupOrphanedReminders(db);
   await cleanupOrphanedAttachments(db);
 
-  // Re-schedule notifications for active pending reminders after restore
+  // Re-schedule notifications for active pending reminders after restore.
+  // Phone-alarm reminders are excluded: their alerts live in the external
+  // Clock app and must never be silently converted into Noma notifications.
   const activeReminders = await db.reminders
-    .filter((r) => r.status === "pending" && r.scheduledAt > Date.now())
+    .filter(
+      (r) => r.status === "pending" && r.scheduledAt > Date.now() && r.alertType !== "phone-alarm",
+    )
     .toArray();
 
   for (const reminder of activeReminders) {

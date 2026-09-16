@@ -77,6 +77,12 @@ export interface AppSettings {
 
 export type ReminderStatus = "pending" | "completed" | "dismissed";
 
+/** How a reminder should alert the user. Absent (older reminders) resolves to "notification". */
+export type ReminderAlertType = "notification" | "phone-alarm";
+
+/** Alarm-tone selection mode for phone-alarm reminders. */
+export type AlarmToneMode = "system" | "system-picker" | "custom";
+
 export interface Reminder {
   id: string;
   noteId: string;
@@ -84,7 +90,17 @@ export interface Reminder {
   status: ReminderStatus;
   createdAt: number;
   updatedAt: number;
-  notificationId?: number;
+  notificationId?: number | undefined;
+  /** Android-only. When "phone-alarm", the alert is handed to the device Clock app. */
+  alertType?: ReminderAlertType | undefined;
+  /** Alarm tone mode; defaults to "system" when phone-alarm is selected. */
+  alarmToneMode?: AlarmToneMode | undefined;
+  /** content:// URI of the chosen ringtone/audio (system-picker or custom). */
+  alarmToneUri?: string | undefined;
+  /** Lightweight display name for the chosen tone, e.g. "My Alarm.mp3". */
+  alarmToneName?: string | undefined;
+  /** Whether vibration was requested for the phone alarm. Defaults to true. */
+  alarmVibrate?: boolean | undefined;
 }
 
 export interface BackupRecord {
