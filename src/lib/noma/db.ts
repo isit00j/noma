@@ -61,6 +61,24 @@ export class NomaDatabase extends Dexie {
       tasks: "id, listId, parentTaskId, dueAt, completed, updatedAt, createdAt, *labelIds, noteId",
       taskLists: "id, updatedAt",
     });
+
+    // v4 — Index taskLists.createdAt. The Tasks UI orders lists by creation
+    // time; without this index Dexie throws SchemaError on open of the Tasks
+    // view ("KeyPath createdAt on object store taskLists is not indexed"),
+    // which the root error boundary renders as a full-page load failure.
+    // Additive only, no data migration. v3 never shipped to production, so
+    // this only upgrades the in-testing v3 databases.
+    this.version(4).stores({
+      notes: "id, updatedAt, createdAt, folderId, pinned, favorite, archived, deleted, *tagIds",
+      folders: "id, name, parentId",
+      tags: "id, name",
+      attachments: "id, noteId",
+      settings: "id",
+      backups: "id, createdAt",
+      reminders: "id, noteId, taskId, scheduledAt, status, createdAt, updatedAt",
+      tasks: "id, listId, parentTaskId, dueAt, completed, updatedAt, createdAt, *labelIds, noteId",
+      taskLists: "id, updatedAt, createdAt",
+    });
   }
 }
 
