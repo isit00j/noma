@@ -29,6 +29,13 @@ export interface AppLockContextValue {
   biometricStatus: BiometricCheckResult | null;
   lockoutRemainingSeconds: number;
   unlockWithBiometric: () => Promise<boolean>;
+  /**
+   * Shows the OS biometric prompt to authorize a security-setting change
+   * (e.g. toggling Biometric Unlock). Reuses the existing native
+   * NomaBiometric.authenticate flow — Noma only receives the result, never
+   * any biometric data. Guards against concurrent prompts.
+   */
+  authenticateForSettingsChange: () => Promise<SettingsAuthResult>;
   unlockWithPassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   unlockWithPattern: (points: number[]) => Promise<{ success: boolean; error?: string }>;
   setPassword: (password: string) => Promise<void>;
@@ -39,6 +46,13 @@ export interface AppLockContextValue {
   ) => Promise<{ success: boolean; error?: string }>;
   lock: () => void;
   wipeLocalDataAndSecurity: () => Promise<void>;
+}
+
+export interface SettingsAuthResult {
+  success: boolean;
+  /** True when the user cancelled/dismissed the OS prompt. */
+  cancelled?: boolean;
+  error?: string;
 }
 
 const AppLockContext = createContext<AppLockContextValue | null>(null);
@@ -232,6 +246,50 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       return false;
     }
   }, [settings.unlockMethods.biometric, biometricStatus?.available, handleSuccessfulAttempt]);
+
+  /**
+   * Guards a security-setting change (e.g. toggling Biometric Unlock) behind
+   * the OS biometric prompt. Uses the existing NomaBiometric.authenticate
+   * native flow — the OS owns enrollment and verification; Noma only learns
+   * the result. Never resolves success without the OS confirming it, so
+   * callers can safely persist only on `success`.
+   */
+  const authenticateForSettingsChange = useCallback(async (): Promise<SettingsAuthResult> => {
+    if (!Capacitor.isNativePlatform()) {
+      return { success: false, error: "Biometric verification is only available on Android." };
+    }
+    if (!biometricStatus?.available) {
+      return {
+        success: false,
+        error: biometricStatus?.message ?? "Biometric authentication is unavailable.",
+      };
+    }
+    if (isBiometricPromptActive.current) {
+      return { success: false, error: "Verification already in progress." };
+    }
+
+    isBiometricPromptActive.current = true;
+    try {
+      const res = await NomaBiometric.authenticate({
+        title: "Verify it's you",
+        subtitle: "Confirm your biometric to change this setting",
+        cancelTitle: "Cancel",
+      });
+      isBiometricPromptActive.current = false;
+
+      if (res.success) return { success: true };
+      // ERROR_USER_CANCELED (3) / ERROR_NEGATIVE_BUTTON (13): dismissed, not failed.
+      const cancelled = res.errorCode === 3 || res.errorCode === 13;
+      return {
+        success: false,
+        cancelled,
+        error: res.errorMessage ?? "Biometric verification failed.",
+      };
+    } catch {
+      isBiometricPromptActive.current = false;
+      return { success: false, error: "Biometric authentication error." };
+    }
+  }, [biometricStatus]);
 
   const unlockWithPassword = useCallback(
     async (password: string): Promise<{ success: boolean; error?: string }> => {
@@ -462,6 +520,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         biometricStatus,
         lockoutRemainingSeconds,
         unlockWithBiometric,
+        authenticateForSettingsChange,
         unlockWithPassword,
         unlockWithPattern,
         setPassword,

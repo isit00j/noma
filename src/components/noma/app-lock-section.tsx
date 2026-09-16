@@ -45,10 +45,14 @@ function Section({
 
 export function AppLockSection() {
   const { settings, update } = useSettings();
-  const { biometricAvailable, setPassword, setPattern } = useAppLock();
+  const { biometricAvailable, setPassword, setPattern, authenticateForSettingsChange } =
+    useAppLock();
 
   const [reauthOpen, setReauthOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+  /** Guards the Biometric Unlock toggle while the OS prompt is active. */
+  const biometricToggleGuard = useRef(false);
+  const [verifyingBiometric, setVerifyingBiometric] = useState(false);
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -110,31 +114,46 @@ export function AppLockSection() {
     }
   };
 
-  const handleToggleBiometric = (enabled: boolean) => {
-    if (enabled && !biometricAvailable) {
+  /**
+   * Toggling Biometric Unlock requires the OS to verify the device biometric
+   * FIRST. The persisted setting (and therefore the switch) only changes
+   * after successful authentication; on failure/cancel the switch snaps back
+   * to the persisted state automatically.
+   */
+  const handleToggleBiometric = async (enabled: boolean) => {
+    // Ignore rapid repeated taps while a verification is in flight.
+    if (biometricToggleGuard.current) return;
+
+    if (!Capacitor.isNativePlatform() || !biometricAvailable) {
       toast.error("Biometric hardware unavailable or not enrolled.");
       return;
     }
 
-    if (enabled) {
-      if (!settings.unlockMethods.pattern && !settings.unlockMethods.password) {
-        toast.error("Biometric requires at least one Noma fallback (Pattern or Password).");
-        openPasswordSetup();
+    if (enabled && !settings.unlockMethods.pattern && !settings.unlockMethods.password) {
+      toast.error("Biometric requires at least one Noma fallback (Pattern or Password).");
+      openPasswordSetup();
+      return;
+    }
+
+    biometricToggleGuard.current = true;
+    setVerifyingBiometric(true);
+    try {
+      const result = await authenticateForSettingsChange();
+      if (!result.success) {
+        if (result.cancelled) {
+          toast.message("Verification cancelled. Biometric unlock unchanged.");
+        } else {
+          toast.error(result.error ?? "Biometric verification failed. Biometric unlock unchanged.");
+        }
         return;
       }
-      requestAuthorizedChange(async () => {
-        await update({
-          unlockMethods: { ...settings.unlockMethods, biometric: true },
-        });
-        toast.success("Biometric unlock enabled.");
+      await update({
+        unlockMethods: { ...settings.unlockMethods, biometric: enabled },
       });
-    } else {
-      requestAuthorizedChange(async () => {
-        await update({
-          unlockMethods: { ...settings.unlockMethods, biometric: false },
-        });
-        toast.success("Biometric unlock disabled.");
-      });
+      toast.success(enabled ? "Biometric unlock enabled." : "Biometric unlock disabled.");
+    } finally {
+      biometricToggleGuard.current = false;
+      setVerifyingBiometric(false);
     }
   };
 
@@ -268,8 +287,8 @@ export function AppLockSection() {
           </div>
           <Switch
             checked={settings.unlockMethods.biometric}
-            disabled={!Capacitor.isNativePlatform() || !biometricAvailable}
-            onCheckedChange={handleToggleBiometric}
+            disabled={!Capacitor.isNativePlatform() || !biometricAvailable || verifyingBiometric}
+            onCheckedChange={(checked) => void handleToggleBiometric(checked)}
           />
         </div>
 
