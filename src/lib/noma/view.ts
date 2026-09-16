@@ -1,7 +1,16 @@
 import type { Folder, Note, Tag } from "./types";
 
 export type ViewKind =
-  "all" | "recent" | "pinned" | "favorites" | "archive" | "trash" | "folder" | "tag" | "reminders";
+  | "all"
+  | "recent"
+  | "pinned"
+  | "favorites"
+  | "archive"
+  | "trash"
+  | "folder"
+  | "tag"
+  | "reminders"
+  | "tasks";
 
 export interface ViewState {
   kind: ViewKind;
@@ -59,6 +68,10 @@ export function viewTitle(view: ViewState, folders: Folder[], tags: Tag[]): stri
       return "Trash";
     case "reminders":
       return "Reminders";
+    case "tasks":
+      // Android-only destination; the sidebar entry is platform-gated so the
+      // web/PWA build never selects this view.
+      return "Tasks";
     case "folder":
       return folders.find((folder) => folder.id === view.id)?.name ?? "Folder";
     case "tag": {

@@ -8,6 +8,7 @@ import {
   Folder as FolderIcon,
   Hash,
   HelpCircle,
+  ListTodo,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -17,6 +18,7 @@ import {
   Trash2,
   UserRound,
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { useAuth } from "@/lib/noma/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +45,8 @@ interface SidebarProps {
   onRenameTag: (tag: Tag) => void;
   onDeleteTag: (tag: Tag) => void;
   onCollapse?: () => void;
+  /** Android-only: quiet count of tasks needing attention (overdue + due today). */
+  taskAttentionCount?: number;
 }
 
 function NavItem({
@@ -55,7 +59,7 @@ function NavItem({
   label: string;
   icon: typeof FileText;
   active: boolean;
-  count?: number;
+  count?: number | undefined;
   onClick: () => void;
 }) {
   return (
@@ -93,6 +97,7 @@ export function NomaSidebar({
   onRenameTag,
   onDeleteTag,
   onCollapse,
+  taskAttentionCount,
 }: SidebarProps) {
   const auth = useAuth();
   const accountLabel = auth.user ? "Account" : "Sign in";
@@ -184,6 +189,15 @@ export function NomaSidebar({
             active={sameView(view, { kind: "reminders" })}
             onClick={() => onSelectView({ kind: "reminders" })}
           />
+          {Capacitor.isNativePlatform() && (
+            <NavItem
+              label="Tasks"
+              icon={ListTodo}
+              count={taskAttentionCount}
+              active={sameView(view, { kind: "tasks" })}
+              onClick={() => onSelectView({ kind: "tasks" })}
+            />
+          )}
         </div>
 
         <div>

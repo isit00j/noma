@@ -15,7 +15,7 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { toast } from "sonner";
@@ -28,6 +28,8 @@ import { PromptDialog, type PromptRequest } from "./prompt-dialog";
 import { ReminderDialog } from "./reminder-dialog";
 import { RemindersView } from "./reminders-view";
 import { NomaSidebar } from "./sidebar";
+// Android-only: lazy so the web/PWA bundle never pays for the task UI.
+const TasksView = lazy(() => import("./tasks-view").then((m) => ({ default: m.TasksView })));
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -83,7 +85,27 @@ import {
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
+import { getOverdueTasks, getTodayTasks } from "@/lib/noma/tasks";
 import { cn } from "@/lib/utils";
+
+function TasksLoadingFallback() {
+  return (
+    <div
+      className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6"
+      aria-busy="true"
+      aria-label="Loading tasks"
+    >
+      <div className="h-11 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+      <div className="h-9 animate-pulse rounded-lg bg-muted/70 motion-reduce:animate-none" />
+      {[0, 1, 2].map((row) => (
+        <div
+          key={row}
+          className="h-12 animate-pulse rounded-lg bg-muted/50 motion-reduce:animate-none"
+        />
+      ))}
+    </div>
+  );
+}
 
 interface Confirmation {
   title: string;
@@ -212,12 +234,26 @@ export function Workspace() {
       ),
     [reminders],
   );
+  // Tasks is an Android-only destination: the sidebar entry is platform-gated,
+  // and the view itself only renders on native — web/PWA falls back to notes.
+  const isNativeApp = Capacitor.isNativePlatform();
+  // Quiet badge for tasks needing attention (overdue + due today). Native only.
+  const taskAttentionCount = useLiveQuery(async () => {
+    if (!db || !isNativeApp) return 0;
+    const now = Date.now();
+    const [today, overdue] = await Promise.all([getTodayTasks(db, now), getOverdueTasks(db, now)]);
+    return today.length + overdue.length;
+  }, [db, isNativeApp]);
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
   const { isLocked, isLockStateResolving } = useAppLock();
   const { action: shortcutAction, consumeShortcut } = usePendingShortcut();
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
+  // Android-only gate for the Tasks destination: on web/PWA the tasks view
+  // can never be selected (no sidebar entry), and this keeps it unreachable
+  // even if the view state were set programmatically.
+  const showTasks = view.kind === "tasks" && isNativeApp;
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   /** Whether the open note is shown in the Read View or the editor. */
   const [noteMode, setNoteMode] = useState<"read" | "edit">("read");
@@ -622,6 +658,7 @@ export function Workspace() {
         })
       }
       onCollapse={() => void updateSettings({ sidebarCollapsed: true })}
+      taskAttentionCount={taskAttentionCount ?? 0}
     />
   );
 
@@ -803,25 +840,29 @@ export function Workspace() {
           ) : (
             <>
               <h1 className="truncate font-serif text-lg font-medium">
-                {viewTitle(view, allFolders, allTags)}
+                {showTasks ? "Tasks" : viewTitle(view, allFolders, allTags)}
               </h1>
-              <span className="ml-1 text-xs text-muted-foreground tabular-nums">
-                {visibleNotes.length}
-              </span>
+              {!showTasks && (
+                <span className="ml-1 text-xs text-muted-foreground tabular-nums">
+                  {visibleNotes.length}
+                </span>
+              )}
               <div className="ml-auto flex items-center gap-1">
                 {!online && (
                   <span className="mr-1 hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                     <WifiOff className="size-3.5" /> Offline
                   </span>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Search notes"
-                  onClick={() => setSearchOpen(true)}
-                >
-                  <Search className="size-4" />
-                </Button>
+                {!showTasks && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Search notes"
+                    onClick={() => setSearchOpen(true)}
+                  >
+                    <Search className="size-4" />
+                  </Button>
+                )}
                 {view.kind === "trash" && visibleNotes.length > 0 && (
                   <Button
                     variant="ghost"
@@ -842,10 +883,12 @@ export function Workspace() {
                     Empty Trash
                   </Button>
                 )}
-                <Button size="sm" className="gap-1.5" onClick={handleNewNote}>
-                  <Plus className="size-4" />
-                  <span className="hidden sm:inline">New Note</span>
-                </Button>
+                {!showTasks && (
+                  <Button size="sm" className="gap-1.5" onClick={handleNewNote}>
+                    <Plus className="size-4" />
+                    <span className="hidden sm:inline">New Note</span>
+                  </Button>
+                )}
               </div>
             </>
           )}
@@ -873,6 +916,10 @@ export function Workspace() {
                 lineHeight={settings.lineHeight}
               />
             )
+          ) : showTasks ? (
+            <Suspense fallback={<TasksLoadingFallback />}>
+              <TasksView onOpenNote={openNote} />
+            </Suspense>
           ) : view.kind === "reminders" ? (
             <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={openNote} />
           ) : notes === undefined ? (
