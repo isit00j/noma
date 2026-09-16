@@ -208,7 +208,7 @@ export function Workspace() {
       new Set(
         (reminders ?? [])
           .filter((r) => r.alertType === "phone-alarm" && r.status === "pending")
-          .map((r) => r.noteId),
+          .flatMap((r) => (r.noteId ? [r.noteId] : [])),
       ),
     [reminders],
   );

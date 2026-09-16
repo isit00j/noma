@@ -730,14 +730,16 @@ export async function fetchDriveBackup(
 /** Cheap fingerprint of the local library, used to skip redundant uploads. */
 export async function librarySignature(db: import("./db").NomaDatabase): Promise<string> {
   const d = db;
-  const [notes, folders, tags, attachments] = await Promise.all([
+  const [notes, folders, tags, attachments, tasks] = await Promise.all([
     d.notes.toArray(),
     d.folders.count(),
     d.tags.count(),
     d.attachments.count(),
+    d.tasks.toArray(),
   ]);
   const latest = notes.reduce((max, note) => Math.max(max, note.updatedAt), 0);
-  return `${notes.length}:${folders}:${tags}:${attachments}:${latest}`;
+  const latestTask = tasks.reduce((max, task) => Math.max(max, task.updatedAt), 0);
+  return `${notes.length}:${folders}:${tags}:${attachments}:${latest}:${tasks.length}:${latestTask}`;
 }
 
 export async function hasUnbackedChanges(

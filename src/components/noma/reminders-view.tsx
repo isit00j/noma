@@ -32,7 +32,11 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
   }, [notes]);
 
   const { upcoming, overdue, completed } = useMemo(() => {
-    const sorted = [...reminders].sort((a, b) => a.scheduledAt - b.scheduledAt);
+    // This view is notes-only (PR #48 behaviour): task-linked reminders are
+    // rendered by the Android tasks UI, never here.
+    const sorted = reminders
+      .filter((r) => r.taskId == null)
+      .sort((a, b) => a.scheduledAt - b.scheduledAt);
     const up: Reminder[] = [];
     const over: Reminder[] = [];
     const comp: Reminder[] = [];
@@ -67,7 +71,7 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
   };
 
   const handleDelete = async (reminder: Reminder) => {
-    if (!db) return;
+    if (!db || !reminder.noteId) return;
     await deleteNoteReminder(db, reminder.noteId);
     if (reminder.alertType === "phone-alarm") {
       toast.success(
@@ -84,7 +88,7 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
    * completed the alarm setup in the Clock app, so this offers a manual retry.
    */
   const handleOpenInClockApp = async (reminder: Reminder) => {
-    const note = noteMap.get(reminder.noteId);
+    const note = reminder.noteId ? noteMap.get(reminder.noteId) : undefined;
     try {
       const avail = await NomaAlarm.checkAlarmCapability();
       if (!avail.available) {
@@ -134,7 +138,7 @@ export function RemindersView({ reminders, notes, onOpenNote }: RemindersViewPro
         </h2>
         <div className="divide-y divide-border/60 rounded-lg border bg-card">
           {list.map((reminder) => {
-            const note = noteMap.get(reminder.noteId);
+            const note = reminder.noteId ? noteMap.get(reminder.noteId) : undefined;
             const dateStr = format(reminder.scheduledAt, "PPP 'at' p");
 
             return (

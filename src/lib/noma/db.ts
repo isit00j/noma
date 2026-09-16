@@ -8,6 +8,8 @@ import {
   type Note,
   type Reminder,
   type Tag,
+  type Task,
+  type TaskList,
 } from "./types";
 
 export class NomaDatabase extends Dexie {
@@ -18,6 +20,8 @@ export class NomaDatabase extends Dexie {
   settings!: Table<AppSettings, string>;
   backups!: Table<BackupRecord, string>;
   reminders!: Table<Reminder, string>;
+  tasks!: Table<Task, string>;
+  taskLists!: Table<TaskList, string>;
 
   constructor(databaseName: string) {
     super(databaseName);
@@ -41,6 +45,21 @@ export class NomaDatabase extends Dexie {
       settings: "id",
       backups: "id, createdAt",
       reminders: "id, noteId, scheduledAt, status, createdAt, updatedAt",
+    });
+
+    // v3 — Android-only tasks. Adds tasks + taskLists stores; reminders gain a
+    // taskId index so task reminders can be queried independently of notes.
+    // Additive only, no data migration.
+    this.version(3).stores({
+      notes: "id, updatedAt, createdAt, folderId, pinned, favorite, archived, deleted, *tagIds",
+      folders: "id, name, parentId",
+      tags: "id, name",
+      attachments: "id, noteId",
+      settings: "id",
+      backups: "id, createdAt",
+      reminders: "id, noteId, taskId, scheduledAt, status, createdAt, updatedAt",
+      tasks: "id, listId, parentTaskId, dueAt, completed, updatedAt, createdAt, *labelIds, noteId",
+      taskLists: "id, updatedAt",
     });
   }
 }
@@ -72,14 +91,17 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
   // Settings contains account-specific security controls (appLockEnabled, unlockMethods,
   // passwordHash, passwordSalt, patternHash, patternSalt, failedAttempts, lockoutUntil).
   // The destination database's existing security settings must remain authoritative.
-  const [notes, folders, tags, attachments, backups, reminders] = await Promise.all([
-    source.notes.toArray(),
-    source.folders.toArray(),
-    source.tags.toArray(),
-    source.attachments.toArray(),
-    source.backups.toArray(),
-    source.reminders ? source.reminders.toArray() : Promise.resolve([]),
-  ]);
+  const [notes, folders, tags, attachments, backups, reminders, tasks, taskLists] =
+    await Promise.all([
+      source.notes.toArray(),
+      source.folders.toArray(),
+      source.tags.toArray(),
+      source.attachments.toArray(),
+      source.backups.toArray(),
+      source.reminders ? source.reminders.toArray() : Promise.resolve([]),
+      source.tasks ? source.tasks.toArray() : Promise.resolve([]),
+      source.taskLists ? source.taskLists.toArray() : Promise.resolve([]),
+    ]);
 
   await target.transaction(
     "rw",
@@ -90,6 +112,8 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       target.attachments,
       target.backups,
       target.reminders,
+      target.tasks,
+      target.taskLists,
     ],
     async () => {
       if (notes.length) await target.notes.bulkPut(notes);
@@ -98,6 +122,8 @@ export async function copyDatabase(source: NomaDatabase, target: NomaDatabase): 
       if (attachments.length) await target.attachments.bulkPut(attachments);
       if (backups.length) await target.backups.bulkPut(backups);
       if (reminders.length) await target.reminders.bulkPut(reminders);
+      if (tasks.length) await target.tasks.bulkPut(tasks);
+      if (taskLists.length) await target.taskLists.bulkPut(taskLists);
     },
   );
 }

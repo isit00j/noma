@@ -124,7 +124,10 @@ function scheduleWebTimer(reminder: Reminder) {
       ) {
         try {
           new Notification("Reminder from Noma", {
-            body: "You have a scheduled note reminder.",
+            body:
+              reminder.taskId != null
+                ? "You have a scheduled task reminder."
+                : "You have a scheduled note reminder.",
             icon: "/noma-icon-192.png",
             tag: reminder.id,
           });
@@ -151,7 +154,10 @@ export async function scheduleNotification(reminder: Reminder): Promise<number |
 
   // PRIVACY REQUIREMENT: Do not leak sensitive note content in notification text.
   const title = "Reminder from Noma";
-  const body = "You have a scheduled note reminder.";
+  const body =
+    reminder.taskId != null
+      ? "You have a scheduled task reminder."
+      : "You have a scheduled note reminder.";
 
   if (isNative) {
     try {
@@ -166,7 +172,7 @@ export async function scheduleNotification(reminder: Reminder): Promise<number |
               title,
               body,
               schedule: { at: scheduledDate },
-              extra: { noteId: reminder.noteId, reminderId: reminder.id },
+              extra: { noteId: reminder.noteId, taskId: reminder.taskId, reminderId: reminder.id },
             },
           ],
         });
@@ -209,9 +215,16 @@ export async function rehydrateReminders(db: NomaDatabase): Promise<void> {
             {
               id: notifId,
               title: "Reminder from Noma",
-              body: "You have a scheduled note reminder.",
+              body:
+                reminder.taskId != null
+                  ? "You have a scheduled task reminder."
+                  : "You have a scheduled note reminder.",
               schedule: { at: scheduledDate },
-              extra: { noteId: reminder.noteId, reminderId: reminder.id },
+              extra: {
+                noteId: reminder.noteId,
+                taskId: reminder.taskId,
+                reminderId: reminder.id,
+              },
             },
           ],
         }).catch((e) => console.warn("Failed rehydrating native notification:", e));

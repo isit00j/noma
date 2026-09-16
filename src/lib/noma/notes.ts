@@ -227,7 +227,7 @@ export interface SetReminderOptions {
   alarmVibrate?: boolean | undefined;
 }
 
-function applyAlertFields(
+export function applyAlertFields(
   reminder: Reminder,
   options?: SetReminderOptions,
 ): { alertType: ReminderAlertType; scheduled: boolean } {
@@ -329,12 +329,17 @@ export async function updateReminderStatus(
   if (!existing) return;
 
   const now = Date.now();
+  const isTaskReminder = existing.taskId != null;
 
   if (status !== "pending") {
     await cancelNotification(existing.id, existing.notificationId);
-    await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.transaction("rw", db.reminders, db.notes, db.tasks, async () => {
       await db.reminders.update(reminderId, { status, updatedAt: now });
-      await db.notes.update(existing.noteId, { reminderAt: null, updatedAt: now });
+      if (isTaskReminder && existing.taskId) {
+        await db.tasks.update(existing.taskId, { reminderAt: null, updatedAt: now });
+      } else if (existing.noteId) {
+        await db.notes.update(existing.noteId, { reminderAt: null, updatedAt: now });
+      }
     });
   } else {
     // Reopening as pending
@@ -351,16 +356,23 @@ export async function updateReminderStatus(
       notifId = await scheduleNotification(updatedReminder);
     }
 
-    await db.transaction("rw", db.reminders, db.notes, async () => {
+    await db.transaction("rw", db.reminders, db.notes, db.tasks, async () => {
       await db.reminders.update(reminderId, {
         status: "pending",
         updatedAt: now,
         ...(notifId !== undefined ? { notificationId: notifId } : {}),
       });
-      await db.notes.update(existing.noteId, {
-        reminderAt: existing.scheduledAt,
-        updatedAt: now,
-      });
+      if (isTaskReminder && existing.taskId) {
+        await db.tasks.update(existing.taskId, {
+          reminderAt: existing.scheduledAt,
+          updatedAt: now,
+        });
+      } else if (existing.noteId) {
+        await db.notes.update(existing.noteId, {
+          reminderAt: existing.scheduledAt,
+          updatedAt: now,
+        });
+      }
     });
   }
 }
@@ -368,10 +380,12 @@ export async function updateReminderStatus(
 export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> {
   const notes = await db.notes.toArray();
   const validNoteIds = new Set(notes.map((n) => n.id));
-  const reminders = await db.reminders.toArray();
+  // Task-linked reminders are owned by cleanupOrphanedTaskReminders — this
+  // function must never treat them as orphans or duplicates of note reminders.
+  const reminders = (await db.reminders.toArray()).filter((r) => r.taskId == null);
 
   // 1. Remove orphaned reminders (whose note no longer exists)
-  const orphaned = reminders.filter((r) => !validNoteIds.has(r.noteId));
+  const orphaned = reminders.filter((r) => r.noteId == null || !validNoteIds.has(r.noteId));
   for (const r of orphaned) {
     await cancelNotification(r.id, r.notificationId);
     await db.reminders.delete(r.id);
@@ -380,7 +394,7 @@ export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> 
   // 2. Group non-orphaned reminders by noteId and clean up accidental duplicates
   const reminderGroups = new Map<string, Reminder[]>();
   for (const r of reminders) {
-    if (!validNoteIds.has(r.noteId)) continue;
+    if (r.noteId == null || !validNoteIds.has(r.noteId)) continue;
     const group = reminderGroups.get(r.noteId) ?? [];
     group.push(r);
     reminderGroups.set(r.noteId, group);
@@ -399,10 +413,10 @@ export async function cleanupOrphanedReminders(db: NomaDatabase): Promise<void> 
   }
 
   // 3. Re-read/recompute remaining reminders from database after deletions
-  const survivingReminders = await db.reminders.toArray();
+  const survivingReminders = (await db.reminders.toArray()).filter((r) => r.taskId == null);
   const survivingMap = new Map<string, Reminder>();
   for (const r of survivingReminders) {
-    survivingMap.set(r.noteId, r);
+    if (r.noteId != null) survivingMap.set(r.noteId, r);
   }
 
   // 4. Enforce note.reminderAt accuracy against surviving post-deletion state

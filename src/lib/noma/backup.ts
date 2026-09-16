@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { type NomaDatabase, newId } from "./db";
 import { cleanupOrphanedReminders } from "./notes";
+import { cleanupOrphanedTaskReminders } from "./task-reminders";
 import { cleanupOrphanedAttachments } from "./media";
 import { scheduleNotification } from "./notifications";
 import { sanitizeHtml } from "./sanitize";
@@ -13,6 +14,8 @@ import {
   type Note,
   type Reminder,
   type Tag,
+  type Task,
+  type TaskList,
 } from "./types";
 
 export interface ExportOptions {
@@ -23,6 +26,7 @@ export interface ExportOptions {
   includeTags?: boolean;
   includeSettings?: boolean;
   includeReminders?: boolean;
+  includeTasks?: boolean;
 }
 
 export interface BackupPayload {
@@ -32,6 +36,8 @@ export interface BackupPayload {
   tags: Tag[];
   attachments: AttachmentMeta[];
   reminders: Reminder[];
+  tasks: Task[];
+  taskLists: TaskList[];
   settings: Record<string, unknown> | null;
 }
 
@@ -54,6 +60,7 @@ export async function collectBackup(
     includeTags = true,
     includeSettings = true,
     includeReminders = true,
+    includeTasks = true,
   } = options;
 
   let notes = await db.notes.toArray();
@@ -66,9 +73,14 @@ export async function collectBackup(
   const attachments = includeAttachments
     ? (await db.attachments.toArray()).filter((a) => noteIdSet.has(a.noteId))
     : [];
+  // Task-linked reminders ride along with tasks, not notes.
   const reminders = includeReminders
-    ? (await db.reminders.toArray()).filter((r) => noteIdSet.has(r.noteId))
+    ? (await db.reminders.toArray()).filter(
+        (r) => (r.noteId != null && noteIdSet.has(r.noteId)) || (includeTasks && r.taskId != null),
+      )
     : [];
+  const tasks = includeTasks ? await db.tasks.toArray() : [];
+  const taskLists = includeTasks ? await db.taskLists.toArray() : [];
   const rawSettings = includeSettings ? ((await db.settings.get("app")) ?? null) : null;
   const sanitizedSettings = rawSettings
     ? {
@@ -100,12 +112,15 @@ export async function collectBackup(
       tagCount: tags.length,
       attachmentCount: attachments.length,
       reminderCount: reminders.length,
+      taskCount: tasks.length,
     },
     notes,
     folders,
     tags,
     attachments,
     reminders,
+    tasks,
+    taskLists,
     settings: sanitizedSettings as unknown as Record<string, unknown> | null,
   };
 }
@@ -121,6 +136,8 @@ export async function buildBackupZip(
   zip.file("folders.json", JSON.stringify(payload.folders, null, 2));
   zip.file("tags.json", JSON.stringify(payload.tags, null, 2));
   zip.file("reminders.json", JSON.stringify(payload.reminders, null, 2));
+  zip.file("tasks.json", JSON.stringify(payload.tasks, null, 2));
+  zip.file("tasklists.json", JSON.stringify(payload.taskLists, null, 2));
   zip.file("settings.json", JSON.stringify(payload.settings, null, 2));
 
   const notesFolder = zip.folder("notes")!;
@@ -232,6 +249,9 @@ export async function readBackupZip(
     tags: (await readJson<Tag[]>(zip, "tags.json")) ?? [],
     attachments,
     reminders: (await readJson<Reminder[]>(zip, "reminders.json")) ?? [],
+    // Older backups predate tasks: missing files read as empty.
+    tasks: (await readJson<Task[]>(zip, "tasks.json")) ?? [],
+    taskLists: (await readJson<TaskList[]>(zip, "tasklists.json")) ?? [],
     settings: await readJson<Record<string, unknown>>(zip, "settings.json"),
   };
 }
@@ -241,14 +261,17 @@ export async function applyBackup(
   payload: BackupPayload,
   mode: "merge" | "replace",
 ): Promise<void> {
-  // Deduplicate payload.reminders by noteId so backup restore never introduces duplicate reminders for a note
+  // Deduplicate payload.reminders by owning entity so backup restore never
+  // introduces duplicate reminders for a note or task. Note and task rows use
+  // separate key namespaces because only one of noteId/taskId is ever set.
   const deduplicatedReminders: Reminder[] = [];
   if (payload.reminders?.length) {
     const reminderMap = new Map<string, Reminder>();
     for (const r of payload.reminders) {
-      const existing = reminderMap.get(r.noteId);
+      const key = r.taskId != null ? `task:${r.taskId}` : `note:${r.noteId ?? ""}`;
+      const existing = reminderMap.get(key);
       if (!existing || r.updatedAt > existing.updatedAt) {
-        reminderMap.set(r.noteId, r);
+        reminderMap.set(key, r);
       }
     }
     deduplicatedReminders.push(...reminderMap.values());
@@ -256,11 +279,7 @@ export async function applyBackup(
 
   await db.transaction(
     "rw",
-    db.notes,
-    db.folders,
-    db.tags,
-    db.attachments,
-    db.reminders,
+    [db.notes, db.folders, db.tags, db.attachments, db.reminders, db.tasks, db.taskLists],
     async () => {
       if (mode === "replace") {
         await Promise.all([
@@ -269,12 +288,16 @@ export async function applyBackup(
           db.tags.clear(),
           db.attachments.clear(),
           db.reminders.clear(),
+          db.tasks.clear(),
+          db.taskLists.clear(),
         ]);
         await db.folders.bulkPut(payload.folders);
         await db.tags.bulkPut(payload.tags);
         await db.notes.bulkPut(payload.notes);
         await db.attachments.bulkPut(payload.attachments);
         if (deduplicatedReminders.length) await db.reminders.bulkPut(deduplicatedReminders);
+        if (payload.tasks?.length) await db.tasks.bulkPut(payload.tasks);
+        if (payload.taskLists?.length) await db.taskLists.bulkPut(payload.taskLists);
       } else {
         for (const folder of payload.folders) {
           if (!(await db.folders.get(folder.id))) await db.folders.put(folder);
@@ -295,12 +318,20 @@ export async function applyBackup(
           if (!existing || reminder.updatedAt > existing.updatedAt)
             await db.reminders.put(reminder);
         }
+        for (const taskList of payload.taskLists ?? []) {
+          if (!(await db.taskLists.get(taskList.id))) await db.taskLists.put(taskList);
+        }
+        for (const task of payload.tasks ?? []) {
+          const existing = await db.tasks.get(task.id);
+          if (!existing || task.updatedAt > existing.updatedAt) await db.tasks.put(task);
+        }
       }
     },
   );
 
   // Clean up any remaining orphans or duplicate reminders
   await cleanupOrphanedReminders(db);
+  await cleanupOrphanedTaskReminders(db);
   await cleanupOrphanedAttachments(db);
 
   // Re-schedule notifications for active pending reminders after restore.

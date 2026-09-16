@@ -143,6 +143,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         localNewDb = null;
         setPendingGuestDb(null);
         if (dbToRehydrate) {
+          // Task-linked reminder rows (reminders with taskId set) live in the
+          // same store and match the same status/scheduledAt predicate, so
+          // this single rehydration already reschedules them. There is no
+          // separate task reminder engine.
           void rehydrateReminders(dbToRehydrate);
         }
       }
