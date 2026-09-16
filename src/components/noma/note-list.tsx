@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { notePreview, noteTitle } from "@/lib/noma/notes";
+import { noteAccentBucket, noteAccentClass } from "@/lib/noma/note-accent";
 import type { Folder, Note, Tag } from "@/lib/noma/types";
 import type { ViewState } from "@/lib/noma/view";
 
@@ -94,6 +95,9 @@ const NoteItem = memo(function NoteItem({
   const preview = notePreview(note);
   const hasAttachments = note.content.includes("noma-attachment://");
   const noteTags = note.tagIds.filter((id) => tagNameMap.has(id)).slice(0, 3);
+  // Cheap, deterministic fingerprint (tiny string hash); the memoised component
+  // only recomputes it when its props change, so long lists stay fast.
+  const accentClass = noteAccentClass(noteAccentBucket(note));
 
   return (
     <li>
@@ -102,8 +106,10 @@ const NoteItem = memo(function NoteItem({
           "group relative rounded-xl border border-border/60 bg-card shadow-xs transition-[border-color,box-shadow,background-color] duration-150",
           "hover:border-border hover:shadow-sm hover:bg-accent/20",
           isActive && "border-primary/40 bg-accent/30 shadow-sm",
+          accentClass,
         )}
       >
+        <span aria-hidden="true" className="note-accent-rail" />
         <button
           type="button"
           onClick={() => actions.open(note)}
