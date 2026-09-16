@@ -6,6 +6,7 @@ import {
   Bell,
   Copy,
   FolderInput,
+  Image as ImageIcon,
   MoreHorizontal,
   NotebookPen,
   Pin,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { notePreview, noteTitle } from "@/lib/noma/notes";
+import { noteAccentBucket, noteAccentClass } from "@/lib/noma/note-accent";
 import type { Folder, Note, Tag } from "@/lib/noma/types";
 import type { ViewState } from "@/lib/noma/view";
 
@@ -89,130 +91,158 @@ const NoteItem = memo(function NoteItem({
   isActive,
   actions,
 }: NoteItemProps) {
+  const title = noteTitle(note);
+  const preview = notePreview(note);
+  const hasAttachments = note.content.includes("noma-attachment://");
+  const noteTags = note.tagIds.filter((id) => tagNameMap.has(id)).slice(0, 3);
+  // Cheap, deterministic fingerprint (tiny string hash); the memoised component
+  // only recomputes it when its props change, so long lists stay fast.
+  const accentClass = noteAccentClass(noteAccentBucket(note));
+
   return (
     <li>
       <div
         className={cn(
-          "group relative flex items-start gap-3 px-5 py-4 transition-colors hover:bg-accent/40 active:bg-accent/60 sm:px-6",
-          isActive && "bg-accent/60",
+          "group relative rounded-xl border border-border/60 bg-card shadow-xs transition-[border-color,box-shadow,background-color] duration-150",
+          "hover:border-border hover:shadow-sm hover:bg-accent/20",
+          isActive && "border-primary/40 bg-accent/30 shadow-sm",
+          accentClass,
         )}
       >
+        <span aria-hidden="true" className="note-accent-rail" />
         <button
           type="button"
           onClick={() => actions.open(note)}
-          className="min-w-0 flex-1 text-left focus-visible:outline-none"
+          aria-label={`Open ${title}`}
+          className="block w-full min-w-0 rounded-xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:p-5"
         >
-          <div className="flex items-center gap-2">
-            {note.pinned && <Pin className="size-3.5 shrink-0 text-muted-foreground" />}
-            {note.favorite && (
-              <Star className="size-3.5 shrink-0 fill-current text-muted-foreground" />
+          <div className="flex items-center gap-2 pr-9">
+            {note.pinned && (
+              <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-label="Pinned" />
             )}
-            {note.reminderAt && <Bell className="size-3.5 shrink-0 text-primary" />}
-            <h3 className="truncate font-serif text-[17px] font-medium">{noteTitle(note)}</h3>
+            {note.favorite && (
+              <Star
+                className="size-3.5 shrink-0 fill-current text-muted-foreground"
+                aria-label="Favorite"
+              />
+            )}
+            {note.reminderAt && (
+              <Bell className="size-3.5 shrink-0 text-primary" aria-label="Has reminder" />
+            )}
+            {hasAttachments && (
+              <ImageIcon
+                className="size-3.5 shrink-0 text-muted-foreground"
+                aria-label="Has attachments"
+              />
+            )}
+            <h3 className="truncate font-serif text-[17px] font-medium tracking-tight">{title}</h3>
           </div>
-          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-            {notePreview(note) || "Empty note"}
+          <p className="mt-1.5 line-clamp-2 pr-9 text-sm leading-relaxed text-muted-foreground">
+            {preview || "Empty note"}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>{formatDistanceToNowStrict(note.updatedAt, { addSuffix: true })}</span>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+            <span className="tabular-nums">
+              {formatDistanceToNowStrict(note.updatedAt, { addSuffix: true })}
+            </span>
             {note.reminderAt && (
               <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
-                <Bell className="size-3" />
+                <Bell className="size-3" aria-hidden="true" />
                 {format(note.reminderAt, "MMM d, p")}
               </span>
             )}
             {note.folderId && folderNameMap.has(note.folderId) && (
-              <span>{folderNameMap.get(note.folderId)}</span>
+              <span className="inline-flex max-w-32 items-center gap-1 truncate">
+                {folderNameMap.get(note.folderId)}
+              </span>
             )}
-            {note.tagIds
-              .filter((id) => tagNameMap.has(id))
-              .slice(0, 3)
-              .map((id) => (
-                <span key={id} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
-                  #{tagNameMap.get(id)}
-                </span>
-              ))}
+            {noteTags.map((id) => (
+              <span key={id} className="rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                #{tagNameMap.get(id)}
+              </span>
+            ))}
           </div>
         </button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100"
-              aria-label={`Actions for ${noteTitle(note)}`}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {note.deleted ? (
-              <>
-                <DropdownMenuItem onClick={() => actions.restore(note)}>
-                  <RotateCcw className="size-4" /> Restore
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => actions.deleteForever(note)}
-                >
-                  <Trash2 className="size-4" /> Delete permanently
-                </DropdownMenuItem>
-              </>
-            ) : (
-              <>
-                <DropdownMenuItem onClick={() => actions.togglePin(note)}>
-                  <Pin className="size-4" /> {note.pinned ? "Unpin" : "Pin"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => actions.toggleFavorite(note)}>
-                  <Star className="size-4" /> {note.favorite ? "Remove favorite" : "Favorite"}
-                </DropdownMenuItem>
-                {actions.setReminder && (
-                  <DropdownMenuItem onClick={() => actions.setReminder?.(note)}>
-                    <Bell className="size-4 text-primary" />{" "}
-                    {note.reminderAt ? "Edit Reminder" : "Set Reminder"}
+        <div className="absolute top-2.5 right-2.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-9 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100"
+                aria-label={`Actions for ${title}`}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {note.deleted ? (
+                <>
+                  <DropdownMenuItem onClick={() => actions.restore(note)}>
+                    <RotateCcw className="size-4" /> Restore
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => actions.duplicate(note)}>
-                  <Copy className="size-4" /> Duplicate
-                </DropdownMenuItem>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <FolderInput className="size-4" /> Move to
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuItem onClick={() => actions.move(note, null)}>
-                      No folder
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => actions.deleteForever(note)}
+                  >
+                    <Trash2 className="size-4" /> Delete permanently
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => actions.togglePin(note)}>
+                    <Pin className="size-4" /> {note.pinned ? "Unpin" : "Pin"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => actions.toggleFavorite(note)}>
+                    <Star className="size-4" /> {note.favorite ? "Remove favorite" : "Favorite"}
+                  </DropdownMenuItem>
+                  {actions.setReminder && (
+                    <DropdownMenuItem onClick={() => actions.setReminder?.(note)}>
+                      <Bell className="size-4 text-primary" />{" "}
+                      {note.reminderAt ? "Edit Reminder" : "Set Reminder"}
                     </DropdownMenuItem>
-                    {folders.map((folder) => (
-                      <DropdownMenuItem
-                        key={folder.id}
-                        onClick={() => actions.move(note, folder.id)}
-                      >
-                        {folder.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuItem onClick={() => actions.setArchived(note, !note.archived)}>
-                  {note.archived ? (
-                    <ArchiveRestore className="size-4" />
-                  ) : (
-                    <Archive className="size-4" />
                   )}
-                  {note.archived ? "Unarchive" : "Archive"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => actions.trash(note)}
-                >
-                  <Trash2 className="size-4" /> Move to Trash
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  <DropdownMenuItem onClick={() => actions.duplicate(note)}>
+                    <Copy className="size-4" /> Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderInput className="size-4" /> Move to
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onClick={() => actions.move(note, null)}>
+                        No folder
+                      </DropdownMenuItem>
+                      {folders.map((folder) => (
+                        <DropdownMenuItem
+                          key={folder.id}
+                          onClick={() => actions.move(note, folder.id)}
+                        >
+                          {folder.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onClick={() => actions.setArchived(note, !note.archived)}>
+                    {note.archived ? (
+                      <ArchiveRestore className="size-4" />
+                    ) : (
+                      <Archive className="size-4" />
+                    )}
+                    {note.archived ? "Unarchive" : "Archive"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => actions.trash(note)}
+                  >
+                    <Trash2 className="size-4" /> Move to Trash
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </li>
   );
@@ -239,7 +269,7 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
   }
 
   return (
-    <ul className="divide-y divide-border/70">
+    <ul className="mx-auto w-full max-w-3xl space-y-3 p-4 sm:p-6">
       {notes.map((note) => (
         <NoteItem
           key={note.id}

@@ -1148,10 +1148,19 @@ export function ChartEditorDialog({
   );
 }
 
-function NomaChartNodeComponent({ node, updateAttributes, deleteNode, selected }: NodeViewProps) {
+function NomaChartNodeComponent({
+  node,
+  editor,
+  updateAttributes,
+  deleteNode,
+  selected,
+}: NodeViewProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const rawAttrs = node.attrs;
   const chartData = validateAndNormalizeChartData(rawAttrs);
+  // In the read-only Read View there is no editing: hide the edit/delete chrome
+  // and render the chart as a pure reading surface.
+  const readOnly = !editor?.isEditable;
 
   return (
     <div
@@ -1161,27 +1170,30 @@ function NomaChartNodeComponent({ node, updateAttributes, deleteNode, selected }
       )}
       contentEditable={false}
     >
-      <div className="absolute right-2 sm:right-3 top-2 sm:top-3 z-10 flex items-center gap-1 opacity-90 transition-opacity group-hover:opacity-100">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => setEditorOpen(true)}
-          className="h-7 px-2 text-xs gap-1 shadow-xs"
-        >
-          <Edit3 className="size-3.5" /> <span className="hidden sm:inline">Edit Data & Style</span>
-          <span className="inline sm:hidden">Edit</span>
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={deleteNode}
-          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="absolute right-2 sm:right-3 top-2 sm:top-3 z-10 flex items-center gap-1 opacity-90 transition-opacity group-hover:opacity-100">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditorOpen(true)}
+            className="h-7 px-2 text-xs gap-1 shadow-xs"
+          >
+            <Edit3 className="size-3.5" />{" "}
+            <span className="hidden sm:inline">Edit Data & Style</span>
+            <span className="inline sm:hidden">Edit</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={deleteNode}
+            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      )}
 
       <ChartRenderer chartData={chartData} />
 

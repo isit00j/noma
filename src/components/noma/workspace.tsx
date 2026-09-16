@@ -6,18 +6,23 @@ import {
   Menu,
   MoreHorizontal,
   PanelLeft,
+  Pencil,
   Pin,
   Plus,
+  RotateCcw,
   Search,
   Star,
   Trash2,
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Bell } from "lucide-react";
 import { NoteEditor, type SaveState } from "./note-editor";
+import { NoteReadView } from "./note-read-view";
 import { NoteList, type NoteActions } from "./note-list";
 import { PromptDialog, type PromptRequest } from "./prompt-dialog";
 import { ReminderDialog } from "./reminder-dialog";
@@ -61,6 +66,7 @@ import {
   duplicateNote,
   emptyTrash,
   moveNote,
+  notePreview,
   noteTitle,
   renameFolder,
   renameTag,
@@ -75,7 +81,7 @@ import {
   cleanupOrphanedReminders,
 } from "@/lib/noma/notes";
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
-import type { Note, Reminder } from "@/lib/noma/types";
+import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +90,110 @@ interface Confirmation {
   description: string;
   actionLabel: string;
   onConfirm: () => void | Promise<void>;
+}
+
+interface NoteOverflowMenuProps {
+  note: Note;
+  tags: Tag[];
+  folders: Folder[];
+  onCreateTag: () => void;
+  onToggleTag: (tagId: string, checked: boolean) => void;
+  onMoveToFolder: (folderId: string | null) => void;
+  onSetReminder: () => void;
+  onDuplicate: () => void;
+  onToggleArchive: () => void;
+  onTrash: () => void;
+  onRestore: () => void;
+  onDeleteForever: () => void;
+}
+
+/**
+ * Secondary note actions (tags, folder, reminder, duplicate, archive, trash)
+ * shared by the Read View and editor headers so both stay in sync.
+ */
+function NoteOverflowMenu({
+  note,
+  tags,
+  folders,
+  onCreateTag,
+  onToggleTag,
+  onMoveToFolder,
+  onSetReminder,
+  onDuplicate,
+  onToggleArchive,
+  onTrash,
+  onRestore,
+  onDeleteForever,
+}: NoteOverflowMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Note options">
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {note.deleted ? (
+          <>
+            <DropdownMenuItem onClick={onRestore}>
+              <RotateCcw className="size-4" /> Restore
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={onDeleteForever}
+            >
+              <Trash2 className="size-4" /> Delete permanently
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Tags
+            </DropdownMenuLabel>
+            {tags.length === 0 && (
+              <DropdownMenuItem onClick={onCreateTag}>
+                <Plus className="size-4" /> Create a tag
+              </DropdownMenuItem>
+            )}
+            {tags.map((tag) => (
+              <DropdownMenuCheckboxItem
+                key={tag.id}
+                checked={note.tagIds.includes(tag.id)}
+                onCheckedChange={(checked) => onToggleTag(tag.id, checked)}
+              >
+                <Hash className="size-3.5" /> {tag.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Folder
+            </DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onMoveToFolder(null)}>
+              {note.folderId === null && <Check className="size-4" />} No folder
+            </DropdownMenuItem>
+            {folders.map((folder) => (
+              <DropdownMenuItem key={folder.id} onClick={() => onMoveToFolder(folder.id)}>
+                {note.folderId === folder.id && <Check className="size-4" />} {folder.name}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onSetReminder}>
+              <Bell className="size-4 text-primary" />
+              {note.reminderAt ? "Edit Reminder" : "Set Reminder"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDuplicate}>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem onClick={onToggleArchive}>
+              {note.archived ? "Unarchive" : "Archive"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onTrash}>
+              <Trash2 className="size-4" /> Move to Trash
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function Workspace() {
@@ -99,6 +209,10 @@ export function Workspace() {
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  /** Whether the open note is shown in the Read View or the editor. */
+  const [noteMode, setNoteMode] = useState<"read" | "edit">("read");
+  /** Where back navigation from the editor should land. */
+  const [editReturnTo, setEditReturnTo] = useState<"read" | "list">("read");
   const [draft, setDraft] = useState<{ id: string; title?: string; content?: string } | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -114,6 +228,14 @@ export function Workspace() {
     }
   }, [db]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Accumulates unsaved patches so back-navigation can flush them immediately
+   * instead of racing the debounced autosave.
+   */
+  const pendingSaveRef = useRef<{
+    id: string;
+    patch: { title?: string; content?: string };
+  } | null>(null);
 
   const allNotes = useMemo(() => notes ?? [], [notes]);
   const allFolders = useMemo(() => folders ?? [], [folders]);
@@ -129,6 +251,7 @@ export function Workspace() {
       if (!db) return;
       try {
         await updateNote(db!, id, patch);
+        pendingSaveRef.current = null;
         setSaveState(navigator.onLine ? "saved" : "offline");
       } catch {
         setSaveState("idle");
@@ -146,12 +269,32 @@ export function Workspace() {
         id: activeNoteId,
         ...patch,
       }));
+      pendingSaveRef.current = {
+        id: activeNoteId,
+        patch: { ...pendingSaveRef.current?.patch, ...patch },
+      };
       setSaveState("saving");
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => void flushSave(activeNoteId, patch), 400);
+      saveTimer.current = setTimeout(() => {
+        const pending = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        if (pending) void flushSave(pending.id, pending.patch);
+      }, 400);
     },
     [activeNoteId, flushSave],
   );
+
+  /** Flush any pending autosave immediately (used before navigation). */
+  const flushPendingSave = useCallback(async () => {
+    const pending = pendingSaveRef.current;
+    if (!pending) return;
+    pendingSaveRef.current = null;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    await flushSave(pending.id, pending.patch);
+  }, [flushSave]);
 
   useEffect(() => {
     return () => {
@@ -159,11 +302,46 @@ export function Workspace() {
     };
   }, []);
 
+  /**
+   * Tapping an existing note opens the dedicated Read View. Empty notes have
+   * nothing to read, so they open directly in the editor instead.
+   */
   const openNote = useCallback((note: Note) => {
     setDraft(null);
     setSaveState("idle");
     setActiveNoteId(note.id);
+    const isEmpty = !note.title.trim() && !notePreview(note);
+    setNoteMode(isEmpty ? "edit" : "read");
+    setEditReturnTo(isEmpty ? "list" : "read");
   }, []);
+
+  /** Enter the editor for the currently open note (from the Read View). */
+  const openNoteForEdit = useCallback(() => {
+    setEditReturnTo("read");
+    setNoteMode("edit");
+  }, []);
+
+  /** Leave the open note entirely, flushing any pending save first. */
+  const closeNote = useCallback(async () => {
+    await flushPendingSave();
+    setDraft(null);
+    setSaveState("idle");
+    setActiveNoteId(null);
+    setNoteMode("read");
+  }, [flushPendingSave]);
+
+  /**
+   * Back navigation out of the editor: return to the Read View when the note
+   * was opened for reading, otherwise back to the Notes list.
+   */
+  const goBackFromEditor = useCallback(async () => {
+    if (editReturnTo === "read") {
+      await flushPendingSave();
+      setNoteMode("read");
+    } else {
+      await closeNote();
+    }
+  }, [flushPendingSave, closeNote, editReturnTo]);
 
   const handleNewNote = useCallback(async () => {
     if (!db) return;
@@ -172,8 +350,12 @@ export function Workspace() {
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
     setMobileNavOpen(false);
-    openNote(note);
-  }, [openNote, view, db]);
+    setDraft(null);
+    setSaveState("idle");
+    setActiveNoteId(note.id);
+    setNoteMode("edit");
+    setEditReturnTo("list");
+  }, [view, db]);
 
   // Respond to Android shortcut triggers once DB is loaded and App Lock is unlocked
   useEffect(() => {
@@ -195,11 +377,92 @@ export function Workspace() {
         event.preventDefault();
         void handleNewNote();
       }
-      if (event.key === "Escape" && !searchOpen) setActiveNoteId(null);
+      if (event.key === "Escape" && !searchOpen) {
+        if (activeNoteId && noteMode === "edit") void goBackFromEditor();
+        else if (activeNoteId) void closeNote();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleNewNote, searchOpen]);
+  }, [handleNewNote, searchOpen, activeNoteId, noteMode, goBackFromEditor, closeNote]);
+
+  // Latest navigation state for the Android hardware back button, avoiding
+  // stale closures in the native listener.
+  const backStateRef = useRef<{
+    searchOpen: boolean;
+    prompt: PromptRequest | null;
+    confirmation: Confirmation | null;
+    reminderTargetNote: Note | null;
+    activeNoteId: string | null;
+    noteMode: "read" | "edit";
+  }>({
+    searchOpen: false,
+    prompt: null,
+    confirmation: null,
+    reminderTargetNote: null,
+    activeNoteId: null,
+    noteMode: "read",
+  });
+  backStateRef.current = {
+    searchOpen,
+    prompt,
+    confirmation,
+    reminderTargetNote,
+    activeNoteId,
+    noteMode,
+  };
+
+  /**
+   * Android hardware back: dialogs -> search -> editor -> Read View ->
+   * Notes list. Returns true when the press was consumed.
+   */
+  const handleSystemBack = useCallback((): boolean => {
+    const state = backStateRef.current;
+    if (state.reminderTargetNote) {
+      setReminderTargetNote(null);
+      return true;
+    }
+    if (state.confirmation) {
+      setConfirmation(null);
+      return true;
+    }
+    if (state.prompt) {
+      setPrompt(null);
+      return true;
+    }
+    if (state.searchOpen) {
+      setSearchOpen(false);
+      setQuery("");
+      return true;
+    }
+    if (state.activeNoteId && state.noteMode === "edit") {
+      void goBackFromEditor();
+      return true;
+    }
+    if (state.activeNoteId) {
+      void closeNote();
+      return true;
+    }
+    return false;
+  }, [goBackFromEditor, closeNote]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    let handle: PluginListenerHandle | undefined;
+    void CapacitorApp.addListener("backButton", () => {
+      if (!handleSystemBack()) {
+        void CapacitorApp.minimizeApp();
+      }
+    }).then((listener) => {
+      if (cancelled) void listener.remove();
+      else handle = listener;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+  }, [handleSystemBack]);
 
   const actions: NoteActions = useMemo(
     () => ({
@@ -286,8 +549,8 @@ export function Workspace() {
       view={view}
       onSelectView={(next) => {
         setView(next);
-        setActiveNoteId(null);
         setMobileNavOpen(false);
+        void closeNote();
       }}
       onNewNote={handleNewNote}
       onCreateFolder={() =>
@@ -352,6 +615,39 @@ export function Workspace() {
     />
   );
 
+  /** Secondary note actions shared by the Read View and editor headers. */
+  const overflowMenu = activeNote ? (
+    <NoteOverflowMenu
+      note={activeNote}
+      tags={allTags}
+      folders={allFolders}
+      onCreateTag={() =>
+        setPrompt({
+          title: "New tag",
+          confirmLabel: "Create",
+          onConfirm: async (name) => {
+            const tag = await createTag(db!, name);
+            await setNoteTags(db!, activeNote.id, [...activeNote.tagIds, tag.id]);
+          },
+        })
+      }
+      onToggleTag={(tagId, checked) =>
+        void setNoteTags(
+          db!,
+          activeNote.id,
+          checked ? [...activeNote.tagIds, tagId] : activeNote.tagIds.filter((id) => id !== tagId),
+        )
+      }
+      onMoveToFolder={(folderId) => void moveNote(db!, activeNote.id, folderId)}
+      onSetReminder={() => setReminderTargetNote(activeNote)}
+      onDuplicate={() => actions.duplicate(activeNote)}
+      onToggleArchive={() => actions.setArchived(activeNote, !activeNote.archived)}
+      onTrash={() => actions.trash(activeNote)}
+      onRestore={() => actions.restore(activeNote)}
+      onDeleteForever={() => actions.deleteForever(activeNote)}
+    />
+  ) : null;
+
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       {!settings.sidebarCollapsed && (
@@ -390,13 +686,13 @@ export function Workspace() {
             </Button>
           )}
 
-          {activeNote ? (
+          {activeNote && noteMode === "edit" ? (
             <>
               <Button
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-muted-foreground"
-                onClick={() => setActiveNoteId(null)}
+                onClick={() => void goBackFromEditor()}
               >
                 <ArrowLeft className="size-4" />
                 <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
@@ -456,86 +752,43 @@ export function Workspace() {
               >
                 <Star className={cn("size-4", activeNote.favorite && "fill-current")} />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Note options">
-                    <MoreHorizontal className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Tags
-                  </DropdownMenuLabel>
-                  {allTags.length === 0 && (
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setPrompt({
-                          title: "New tag",
-                          confirmLabel: "Create",
-                          onConfirm: async (name) => {
-                            const tag = await createTag(db!, name);
-                            await setNoteTags(db!, activeNote.id, [...activeNote.tagIds, tag.id]);
-                          },
-                        })
-                      }
-                    >
-                      <Plus className="size-4" /> Create a tag
-                    </DropdownMenuItem>
-                  )}
-                  {allTags.map((tag) => (
-                    <DropdownMenuCheckboxItem
-                      key={tag.id}
-                      checked={activeNote.tagIds.includes(tag.id)}
-                      onCheckedChange={(checked) =>
-                        void setNoteTags(
-                          db!,
-                          activeNote.id,
-                          checked
-                            ? [...activeNote.tagIds, tag.id]
-                            : activeNote.tagIds.filter((id) => id !== tag.id),
-                        )
-                      }
-                    >
-                      <Hash className="size-3.5" /> {tag.name}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    Folder
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => void moveNote(db!, activeNote.id, null)}>
-                    {activeNote.folderId === null && <Check className="size-4" />} No folder
-                  </DropdownMenuItem>
-                  {allFolders.map((folder) => (
-                    <DropdownMenuItem
-                      key={folder.id}
-                      onClick={() => void moveNote(db!, activeNote.id, folder.id)}
-                    >
-                      {activeNote.folderId === folder.id && <Check className="size-4" />}{" "}
-                      {folder.name}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setReminderTargetNote(activeNote)}>
-                    <Bell className="size-4 text-primary" />
-                    {activeNote.reminderAt ? "Edit Reminder" : "Set Reminder"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => actions.duplicate(activeNote)}>
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => actions.setArchived(activeNote, !activeNote.archived)}
-                  >
-                    {activeNote.archived ? "Unarchive" : "Archive"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => actions.trash(activeNote)}
-                  >
-                    <Trash2 className="size-4" /> Move to Trash
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {overflowMenu}
+            </>
+          ) : activeNote ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => void closeNote()}
+              >
+                <ArrowLeft className="size-4" />
+                <span className="hidden sm:inline">{viewTitle(view, allFolders, allTags)}</span>
+              </Button>
+              <div className="ml-auto flex items-center gap-1">
+                <Button size="sm" className="noma-cta gap-1.5" onClick={openNoteForEdit}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={activeNote.pinned ? "Unpin note" : "Pin note"}
+                  onClick={() => void togglePinned(db!, activeNote)}
+                  className={cn(activeNote.pinned && "text-foreground")}
+                >
+                  <Pin className={cn("size-4", activeNote.pinned && "fill-current")} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={activeNote.favorite ? "Remove favorite" : "Add favorite"}
+                  onClick={() => void toggleFavorite(db!, activeNote)}
+                >
+                  <Star className={cn("size-4", activeNote.favorite && "fill-current")} />
+                </Button>
+                {overflowMenu}
+              </div>
             </>
           ) : (
             <>
@@ -590,26 +843,38 @@ export function Workspace() {
 
         <div className="noma-scroll flex-1 overflow-y-auto">
           {activeNote ? (
-            <NoteEditor
-              key={activeNote.id}
-              note={activeNote}
-              onChange={handleChange}
-              fontSize={settings.fontSize}
-              editorWidth={settings.editorWidth}
-              lineHeight={settings.lineHeight}
-            />
+            noteMode === "read" ? (
+              <NoteReadView
+                key={activeNote.id}
+                note={activeNote}
+                folders={allFolders}
+                tags={allTags}
+                fontSize={settings.fontSize}
+                editorWidth={settings.editorWidth}
+                lineHeight={settings.lineHeight}
+              />
+            ) : (
+              <NoteEditor
+                key={activeNote.id}
+                note={activeNote}
+                onChange={handleChange}
+                fontSize={settings.fontSize}
+                editorWidth={settings.editorWidth}
+                lineHeight={settings.lineHeight}
+              />
+            )
           ) : view.kind === "reminders" ? (
             <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={openNote} />
           ) : notes === undefined ? (
-            <ul className="divide-y divide-border/70" aria-busy="true" aria-label="Loading notes">
+            <div className="space-y-3 p-4 sm:p-6" aria-busy="true" aria-label="Loading notes">
               {[0, 1, 2, 3].map((row) => (
-                <li key={row} className="px-5 py-4 sm:px-6">
+                <div key={row} className="rounded-xl border border-border/60 bg-card p-4 shadow-xs">
                   <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
                   <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
                   <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <NoteList
               notes={visibleNotes}
