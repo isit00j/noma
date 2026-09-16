@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { formatDistanceToNowStrict, format } from "date-fns";
 import {
+  AlarmClock,
   Archive,
   ArchiveRestore,
   Bell,
@@ -51,6 +52,8 @@ interface NoteListProps {
   view: ViewState;
   activeNoteId: string | null;
   actions: NoteActions;
+  /** Note IDs whose pending reminder is a phone alarm (shows an alarm icon instead of a bell). */
+  phoneAlarmNoteIds?: Set<string>;
 }
 
 const EMPTY_COPY: Record<string, { title: string; body: string }> = {
@@ -81,6 +84,7 @@ interface NoteItemProps {
   folderNameMap: Map<string, string>;
   isActive: boolean;
   actions: NoteActions;
+  isPhoneAlarm: boolean;
 }
 
 const NoteItem = memo(function NoteItem({
@@ -90,6 +94,7 @@ const NoteItem = memo(function NoteItem({
   folderNameMap,
   isActive,
   actions,
+  isPhoneAlarm,
 }: NoteItemProps) {
   const title = noteTitle(note);
   const preview = notePreview(note);
@@ -126,9 +131,15 @@ const NoteItem = memo(function NoteItem({
                 aria-label="Favorite"
               />
             )}
-            {note.reminderAt && (
-              <Bell className="size-3.5 shrink-0 text-primary" aria-label="Has reminder" />
-            )}
+            {note.reminderAt &&
+              (isPhoneAlarm ? (
+                <AlarmClock
+                  className="size-3.5 shrink-0 text-primary"
+                  aria-label="Has phone alarm"
+                />
+              ) : (
+                <Bell className="size-3.5 shrink-0 text-primary" aria-label="Has reminder" />
+              ))}
             {hasAttachments && (
               <ImageIcon
                 className="size-3.5 shrink-0 text-muted-foreground"
@@ -146,7 +157,11 @@ const NoteItem = memo(function NoteItem({
             </span>
             {note.reminderAt && (
               <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
-                <Bell className="size-3" aria-hidden="true" />
+                {isPhoneAlarm ? (
+                  <AlarmClock className="size-3" aria-hidden="true" />
+                ) : (
+                  <Bell className="size-3" aria-hidden="true" />
+                )}
                 {format(note.reminderAt, "MMM d, p")}
               </span>
             )}
@@ -248,7 +263,15 @@ const NoteItem = memo(function NoteItem({
   );
 });
 
-export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: NoteListProps) {
+export function NoteList({
+  notes,
+  folders,
+  tags,
+  view,
+  activeNoteId,
+  actions,
+  phoneAlarmNoteIds,
+}: NoteListProps) {
   const tagNameMap = useMemo(() => new Map(tags.map((tag) => [tag.id, tag.name])), [tags]);
   const folderNameMap = useMemo(
     () => new Map(folders.map((folder) => [folder.id, folder.name])),
@@ -279,6 +302,7 @@ export function NoteList({ notes, folders, tags, view, activeNoteId, actions }: 
           folderNameMap={folderNameMap}
           isActive={activeNoteId === note.id}
           actions={actions}
+          isPhoneAlarm={phoneAlarmNoteIds?.has(note.id) ?? false}
         />
       ))}
     </ul>

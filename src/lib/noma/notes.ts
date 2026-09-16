@@ -2,7 +2,15 @@ import { type NomaDatabase, newId } from "./db";
 import { cancelNotification, scheduleNotification } from "./notifications";
 import { countWords, htmlToPlainText, sanitizeHtml } from "./sanitize";
 import { cleanupOrphanedAttachments } from "./media";
-import type { Folder, Note, Reminder, Tag, AttachmentMeta } from "./types";
+import type {
+  AlarmToneMode,
+  Folder,
+  Note,
+  Reminder,
+  ReminderAlertType,
+  Tag,
+  AttachmentMeta,
+} from "./types";
 
 export async function createNote(db: NomaDatabase, init: Partial<Note> = {}): Promise<Note> {
   const now = Date.now();
@@ -211,10 +219,43 @@ export function noteTitle(note: Note): string {
 
 /* Reminders */
 
+export interface SetReminderOptions {
+  alertType?: ReminderAlertType | undefined;
+  alarmToneMode?: AlarmToneMode | undefined;
+  alarmToneUri?: string | undefined;
+  alarmToneName?: string | undefined;
+  alarmVibrate?: boolean | undefined;
+}
+
+function applyAlertFields(
+  reminder: Reminder,
+  options?: SetReminderOptions,
+): { alertType: ReminderAlertType; scheduled: boolean } {
+  const alertType: ReminderAlertType = options?.alertType ?? reminder.alertType ?? "notification";
+  if (alertType === "phone-alarm") {
+    // Phone alarms are handed to the external Clock app; Noma must not also
+    // schedule its own notification for the same reminder.
+    reminder.alertType = "phone-alarm";
+    reminder.alarmToneMode = options?.alarmToneMode ?? reminder.alarmToneMode ?? "system";
+    reminder.alarmToneUri = options?.alarmToneUri ?? reminder.alarmToneUri;
+    reminder.alarmToneName = options?.alarmToneName ?? reminder.alarmToneName;
+    reminder.alarmVibrate = options?.alarmVibrate ?? reminder.alarmVibrate ?? true;
+    reminder.notificationId = undefined;
+    return { alertType, scheduled: false };
+  }
+  reminder.alertType = "notification";
+  reminder.alarmToneMode = undefined;
+  reminder.alarmToneUri = undefined;
+  reminder.alarmToneName = undefined;
+  reminder.alarmVibrate = undefined;
+  return { alertType, scheduled: true };
+}
+
 export async function setNoteReminder(
   db: NomaDatabase,
   noteId: string,
   scheduledAt: number,
+  options?: SetReminderOptions,
 ): Promise<Reminder> {
   const existingList = await db.reminders.where("noteId").equals(noteId).toArray();
   const primary = existingList[0];
@@ -235,8 +276,11 @@ export async function setNoteReminder(
       status: "pending",
       updatedAt: now,
     };
-    const notifId = await scheduleNotification(updated);
-    if (notifId !== undefined) updated.notificationId = notifId;
+    const { scheduled } = applyAlertFields(updated, options);
+    if (scheduled) {
+      const notifId = await scheduleNotification(updated);
+      if (notifId !== undefined) updated.notificationId = notifId;
+    }
     await db.reminders.put(updated);
     await db.notes.update(noteId, { reminderAt: scheduledAt, updatedAt: now });
     return updated;
@@ -251,8 +295,11 @@ export async function setNoteReminder(
     updatedAt: now,
   };
 
-  const notifId = await scheduleNotification(reminder);
-  if (notifId !== undefined) reminder.notificationId = notifId;
+  const { scheduled } = applyAlertFields(reminder, options);
+  if (scheduled) {
+    const notifId = await scheduleNotification(reminder);
+    if (notifId !== undefined) reminder.notificationId = notifId;
+  }
 
   await db.transaction("rw", db.reminders, db.notes, async () => {
     await db.reminders.put(reminder);
@@ -298,7 +345,9 @@ export async function updateReminderStatus(
     };
 
     let notifId: number | undefined;
-    if (existing.scheduledAt > now) {
+    // Phone alarms live in the external Clock app; reopening only restores the
+    // Noma reminder row — it cannot recreate the Clock alarm.
+    if (existing.scheduledAt > now && existing.alertType !== "phone-alarm") {
       notifId = await scheduleNotification(updatedReminder);
     }
 

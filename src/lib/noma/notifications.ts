@@ -193,8 +193,10 @@ export async function rehydrateReminders(db: NomaDatabase): Promise<void> {
 
   const now = Date.now();
   try {
+    // Phone-alarm reminders are intentionally excluded: their alerts live in
+    // the external Clock app and cannot be recreated silently by Noma.
     const pendingReminders = await db.reminders
-      .filter((r) => r.status === "pending" && r.scheduledAt > now)
+      .filter((r) => r.status === "pending" && r.scheduledAt > now && r.alertType !== "phone-alarm")
       .toArray();
 
     if (isNative) {

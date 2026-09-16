@@ -202,6 +202,16 @@ export function Workspace() {
   const folders = useLiveQuery(() => db?.folders.orderBy("name").toArray() ?? [], [db], undefined);
   const tags = useLiveQuery(() => db?.tags.orderBy("name").toArray() ?? [], [db], undefined);
   const reminders = useLiveQuery(() => db?.reminders.toArray() ?? [], [db], undefined);
+  // Note IDs whose pending reminder hands off to the device Clock app.
+  const phoneAlarmNoteIds = useMemo(
+    () =>
+      new Set(
+        (reminders ?? [])
+          .filter((r) => r.alertType === "phone-alarm" && r.status === "pending")
+          .map((r) => r.noteId),
+      ),
+    [reminders],
+  );
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
   const { isLocked, isLockStateResolving } = useAppLock();
@@ -883,6 +893,7 @@ export function Workspace() {
               view={view}
               activeNoteId={activeNoteId}
               actions={actions}
+              phoneAlarmNoteIds={phoneAlarmNoteIds}
             />
           )}
         </div>
@@ -962,8 +973,8 @@ export function Workspace() {
           onOpenChange={(open) => !open && setReminderTargetNote(null)}
           noteTitle={noteTitle(reminderTargetNote)}
           existingReminder={(reminders ?? []).find((r) => r.noteId === reminderTargetNote.id)}
-          onSave={async (scheduledAt) => {
-            await setNoteReminder(db!, reminderTargetNote.id, scheduledAt);
+          onSave={async (scheduledAt, options) => {
+            await setNoteReminder(db!, reminderTargetNote.id, scheduledAt, options);
             toast.success("Reminder set");
           }}
           onDelete={async () => {
