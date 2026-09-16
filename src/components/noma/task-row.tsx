@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { AlarmClock, Bell, Check, Link2, Repeat } from "lucide-react";
 import type { ReminderAlertType, Task, TaskPriority } from "@/lib/noma/types";
 import { cn } from "@/lib/utils";
-import { formatTaskDue, isTaskOverdue } from "./task-format";
+import { formatTaskDue, isTaskDueToday, isTaskOverdue } from "./task-format";
 
 const PRIORITY_DOT: Record<TaskPriority, string | null> = {
   high: "bg-red-500/80",
@@ -38,8 +39,11 @@ export function TaskRow({
 }: TaskRowProps) {
   const completed = task.completed;
   const overdue = isTaskOverdue(task);
+  const dueToday = task.dueAt != null && !overdue && isTaskDueToday(task.dueAt);
   const priorityDot = PRIORITY_DOT[task.priority];
   const hasSubtasks = subtaskProgress != null && subtaskProgress.total > 0;
+  /** Plays the subtle check-pop animation when this row's checkbox is toggled. */
+  const [popping, setPopping] = useState(false);
 
   const meta: React.ReactNode[] = [];
   if (task.dueAt != null) {
@@ -47,8 +51,12 @@ export function TaskRow({
       <span
         key="due"
         className={cn(
-          "inline-flex items-center gap-1",
-          overdue ? "font-medium text-destructive" : "text-muted-foreground",
+          "inline-flex items-center gap-1 rounded-full px-1.5 py-px",
+          overdue
+            ? "bg-destructive/10 font-medium text-destructive"
+            : dueToday
+              ? "bg-amber-500/10 font-medium text-amber-600 dark:text-amber-400"
+              : "text-muted-foreground",
         )}
       >
         {formatTaskDue(task.dueAt)}
@@ -74,9 +82,39 @@ export function TaskRow({
     );
   }
   if (hasSubtasks) {
+    const done = subtaskProgress.done;
+    const total = subtaskProgress.total;
+    const radius = 5.5;
+    const circumference = 2 * Math.PI * radius;
+    const fraction = total > 0 ? done / total : 0;
     meta.push(
-      <span key="subtasks" className="tabular-nums text-muted-foreground">
-        {subtaskProgress.done}/{subtaskProgress.total}
+      <span key="subtasks" className="inline-flex items-center text-muted-foreground">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="-rotate-90">
+          <circle
+            cx="7"
+            cy="7"
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity="0.2"
+            strokeWidth="2"
+          />
+          <circle
+            cx="7"
+            cy="7"
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="text-primary"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - fraction)}
+          />
+        </svg>
+        <span className="sr-only">
+          {done} of {total} subtasks done
+        </span>
       </span>,
     );
   }
@@ -123,16 +161,19 @@ export function TaskRow({
         }
         onClick={(e) => {
           e.stopPropagation();
+          setPopping(true);
           onToggle(task, !completed);
         }}
         className="flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <span
+          onAnimationEnd={() => setPopping(false)}
           className={cn(
             "flex size-5 items-center justify-center rounded-full border transition-colors",
             completed
               ? "border-primary bg-primary"
               : "border-muted-foreground/40 group-hover:border-muted-foreground",
+            popping && "animate-[task-check-pop_220ms_ease-out]",
           )}
         >
           {completed && <Check className="size-3.5 text-primary-foreground" aria-hidden="true" />}

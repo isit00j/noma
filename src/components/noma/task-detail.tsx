@@ -76,6 +76,7 @@ import {
 } from "@/lib/noma/types";
 import { cn } from "@/lib/utils";
 import { formatTaskDue, isTaskOverdue } from "./task-format";
+import { TaskDuePicker } from "./task-due-picker";
 
 const DAY_MS = 86_400_000;
 
@@ -106,14 +107,6 @@ function atTime(date: Date, time: string | null): number {
     d.setHours(0, 0, 0, 0);
   }
   return d.getTime();
-}
-
-function timeOf(ts: number | null): string {
-  if (ts == null) return "";
-  const d = new Date(ts);
-  return d.getHours() === 0 && d.getMinutes() === 0
-    ? ""
-    : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function Section({
@@ -220,26 +213,7 @@ export function TaskDetail({ taskId, lists, onClose, onOpenNote }: TaskDetailPro
   };
 
   // ---- Due date state ----
-  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
-  const [dueTime, setDueTime] = useState("");
   const [duePickerOpen, setDuePickerOpen] = useState(false);
-  const dueInitialisedFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (taskId == null) {
-      dueInitialisedFor.current = null;
-      return;
-    }
-    if (task === undefined) return; // still loading
-    if (dueInitialisedFor.current === taskId) return;
-    dueInitialisedFor.current = taskId;
-    if (task?.dueAt != null) {
-      setDueDate(new Date(task.dueAt));
-      setDueTime(timeOf(task.dueAt));
-    } else {
-      setDueDate(undefined);
-      setDueTime("");
-    }
-  }, [taskId, task]);
 
   // ---- Reminder form state ----
   const [reminderFormOpen, setReminderFormOpen] = useState(false);
@@ -304,21 +278,12 @@ export function TaskDetail({ taskId, lists, onClose, onOpenNote }: TaskDetailPro
 
   if (!open) return null;
 
-  const saveDue = (date: Date | undefined, time: string) => {
-    setDueDate(date);
-    setDueTime(time);
+  const saveDue = (dueAt: number | null) => {
     if (db && taskId) {
-      void updateTask(db, taskId, {
-        dueAt: date ? atTime(date, time || null) : null,
-      }).catch(() => toast.error("Couldn't save the due date."));
+      void updateTask(db, taskId, { dueAt }).catch(() =>
+        toast.error("Couldn't save the due date."),
+      );
     }
-  };
-
-  const applyDuePreset = (preset: "today" | "tomorrow" | "week") => {
-    const base = new Date();
-    if (preset === "tomorrow") base.setDate(base.getDate() + 1);
-    if (preset === "week") base.setDate(base.getDate() + 7);
-    saveDue(base, dueTime);
   };
 
   const handleToggle = () => {
@@ -530,58 +495,14 @@ export function TaskDetail({ taskId, lists, onClose, onOpenNote }: TaskDetailPro
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3" align="start">
-                  <div className="mb-2 flex gap-1.5">
-                    {(["today", "tomorrow", "week"] as const).map((preset) => (
-                      <Button
-                        key={preset}
-                        variant="secondary"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => applyDuePreset(preset)}
-                      >
-                        {preset === "today"
-                          ? "Today"
-                          : preset === "tomorrow"
-                            ? "Tomorrow"
-                            : "Next week"}
-                      </Button>
-                    ))}
-                  </div>
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={(d) => {
-                      if (d) saveDue(d, dueTime);
+                  <TaskDuePicker
+                    value={task?.dueAt ?? null}
+                    onChange={(v) => {
+                      saveDue(v);
+                      if (v == null) setDuePickerOpen(false);
                     }}
+                    idPrefix="task-detail-due"
                   />
-                  <div className="mt-2 flex items-center gap-2">
-                    <Label htmlFor="task-due-time" className="text-xs text-muted-foreground">
-                      Time
-                    </Label>
-                    <Input
-                      id="task-due-time"
-                      type="time"
-                      value={dueTime}
-                      onChange={(e) => {
-                        if (dueDate) saveDue(dueDate, e.target.value);
-                        else setDueTime(e.target.value);
-                      }}
-                      className="h-8"
-                    />
-                    {dueDate && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs text-muted-foreground"
-                        onClick={() => {
-                          saveDue(undefined, "");
-                          setDuePickerOpen(false);
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    )}
-                  </div>
                 </PopoverContent>
               </Popover>
 

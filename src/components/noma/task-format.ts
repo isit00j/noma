@@ -31,3 +31,8 @@ export function formatTaskDue(dueAt: number, now: number = Date.now()): string {
 export function isTaskOverdue(task: Task, now: number = Date.now()): boolean {
   return !task.completed && task.dueAt != null && task.dueAt < localDayStart(now);
 }
+
+/** True when the task is due at any point during the current local day. */
+export function isTaskDueToday(dueAt: number, now: number = Date.now()): boolean {
+  return localDayStart(dueAt) === localDayStart(now);
+}

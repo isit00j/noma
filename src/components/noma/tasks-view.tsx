@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, isThisYear } from "date-fns";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import {
+  AlarmClock,
+  CalendarDays,
   CalendarPlus,
+  CalendarRange,
+  CheckCircle2,
   ListPlus,
+  ListTodo,
   Pencil,
   Plus,
   Search,
@@ -58,6 +65,7 @@ import {
 } from "@/lib/noma/types";
 import { cn } from "@/lib/utils";
 import { TaskDetail } from "./task-detail";
+import { TaskDuePicker } from "./task-due-picker";
 import { TaskRow } from "./task-row";
 
 type TasksSubView = "today" | "upcoming" | "overdue" | "completed" | "all";
@@ -69,13 +77,6 @@ const TABS: Array<{ value: TasksSubView; label: string }> = [
   { value: "completed", label: "Completed" },
   { value: "all", label: "All" },
 ];
-
-const QUICK_DUE_OPTIONS = [
-  { value: "none", label: "No due date" },
-  { value: "today", label: "Today" },
-  { value: "tomorrow", label: "Tomorrow" },
-  { value: "week", label: "Next week" },
-] as const;
 
 const PRIORITY_FILTERS: Array<{ value: TaskPriority | "any"; label: string }> = [
   { value: "any", label: "Any" },
@@ -90,6 +91,14 @@ const EMPTY_COPY: Record<TasksSubView, { title: string; body: string }> = {
   overdue: { title: "All caught up", body: "Nothing is overdue." },
   completed: { title: "No completed tasks", body: "Finished tasks will appear here." },
   all: { title: "No tasks here yet", body: "Add one above to begin." },
+};
+
+const EMPTY_ICON: Record<TasksSubView, typeof CalendarDays> = {
+  today: CalendarDays,
+  upcoming: CalendarRange,
+  overdue: AlarmClock,
+  completed: CheckCircle2,
+  all: ListTodo,
 };
 
 function groupLabel(dueAt: number): string {
@@ -121,7 +130,7 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
 
   // Quick-add state
   const [draft, setDraft] = useState("");
-  const [quickDue, setQuickDue] = useState<(typeof QUICK_DUE_OPTIONS)[number]["value"]>("none");
+  const [quickDueAt, setQuickDueAt] = useState<number | null>(null);
   const [quickPriority, setQuickPriority] = useState<TaskPriority>("none");
   const [quickOpen, setQuickOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -262,15 +271,6 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
   const filtersActive =
     priorityFilter !== "any" || labelFilter != null || overdueOnly || query.trim() !== "";
 
-  const resolveQuickDue = (): number | null => {
-    if (quickDue === "none") return null;
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    if (quickDue === "tomorrow") d.setDate(d.getDate() + 1);
-    if (quickDue === "week") d.setDate(d.getDate() + 7);
-    return d.getTime();
-  };
-
   const handleQuickAdd = async () => {
     const title = draft.trim();
     if (!title || !db) return;
@@ -279,10 +279,10 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
         title,
         listId: activeListId ?? INBOX_LIST_ID,
         priority: quickPriority,
-        dueAt: resolveQuickDue(),
+        dueAt: quickDueAt,
       });
       setDraft("");
-      setQuickDue("none");
+      setQuickDueAt(null);
       setQuickPriority("none");
       setQuickOpen(false);
       inputRef.current?.focus();
@@ -294,6 +294,9 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
   const handleToggle = (task: Task, completed: boolean) => {
     if (!db) return;
     void completeTask(db, task.id, completed).catch(() => toast.error("Couldn't update the task."));
+    if (Capacitor.isNativePlatform()) {
+      void Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+    }
   };
 
   const selectTab = (tab: TasksSubView) => {
@@ -366,6 +369,7 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
   );
 
   const empty = EMPTY_COPY[subView];
+  const EmptyIcon = EMPTY_ICON[subView];
   const hasTasks = visibleTasks.length > 0 || (subView === "today" && visibleOverdue.length > 0);
 
   return (
@@ -395,44 +399,30 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
               size="icon"
               className={cn(
                 "size-11 shrink-0",
-                (quickDue !== "none" || quickPriority !== "none") && "border-primary/50",
+                (quickDueAt != null || quickPriority !== "none") && "border-primary/50",
               )}
               aria-label="Task options: due date and priority"
             >
               <CalendarPlus className="size-4" />
-              {(quickDue !== "none" || quickPriority !== "none") && (
+              {(quickDueAt != null || quickPriority !== "none") && (
                 <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary" />
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-56 space-y-3 p-3" align="end">
+          <PopoverContent className="w-72 space-y-3 p-3" align="end">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Due</Label>
-              <div className="grid grid-cols-2 gap-1">
-                {QUICK_DUE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setQuickDue(option.value)}
-                    className={cn(
-                      "rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
-                      quickDue === option.value && "bg-muted font-medium",
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              <TaskDuePicker value={quickDueAt} onChange={setQuickDueAt} idPrefix="quick-add-due" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Priority</Label>
               <div className="grid grid-cols-2 gap-1">
                 {(
                   [
-                    { value: "none", label: "None" },
-                    { value: "low", label: "Low" },
-                    { value: "medium", label: "Medium" },
-                    { value: "high", label: "High" },
+                    { value: "none", label: "None", dot: null },
+                    { value: "low", label: "Low", dot: "bg-sky-500/80" },
+                    { value: "medium", label: "Medium", dot: "bg-amber-500/80" },
+                    { value: "high", label: "High", dot: "bg-red-500/80" },
                   ] as const
                 ).map((option) => (
                   <button
@@ -440,10 +430,15 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
                     type="button"
                     onClick={() => setQuickPriority(option.value)}
                     className={cn(
-                      "rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
                       quickPriority === option.value && "bg-muted font-medium",
                     )}
                   >
+                    {option.dot ? (
+                      <span className={cn("size-1.5 shrink-0 rounded-full", option.dot)} />
+                    ) : (
+                      <span className="size-1.5 shrink-0" />
+                    )}
                     {option.label}
                   </button>
                 ))}
@@ -572,9 +567,9 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
             aria-selected={subView === tab.value}
             onClick={() => selectTab(tab.value)}
             className={cn(
-              "flex-1 rounded-md px-1 py-1.5 text-xs font-medium transition-colors",
+              "flex-1 rounded-full px-1 py-1.5 text-xs font-medium transition-colors duration-200",
               subView === tab.value
-                ? "bg-background text-foreground shadow-xs"
+                ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -616,7 +611,13 @@ export function TasksView({ onOpenNote }: TasksViewProps) {
 
       {/* Task list */}
       {!hasTasks ? (
-        <div className="flex flex-col items-center py-14 text-center">
+        <div
+          key={subView}
+          className="flex animate-in flex-col items-center py-14 text-center fade-in duration-300"
+        >
+          <span className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <EmptyIcon className="size-5" aria-hidden="true" />
+          </span>
           <p className="font-serif text-base font-medium text-foreground">{empty.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{empty.body}</p>
         </div>
