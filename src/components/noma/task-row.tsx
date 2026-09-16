@@ -42,8 +42,13 @@ export function TaskRow({
   const dueToday = task.dueAt != null && !overdue && isTaskDueToday(task.dueAt);
   const priorityDot = PRIORITY_DOT[task.priority];
   const hasSubtasks = subtaskProgress != null && subtaskProgress.total > 0;
-  /** Plays the subtle check-pop animation when this row's checkbox is toggled. */
-  const [popping, setPopping] = useState(false);
+  /**
+   * Drives the completion celebration on this row's circle: "complete" plays
+   * the fill + ripple + check-draw, "uncomplete" just settles back quietly.
+   * Cleared when the longest (ripple) animation ends.
+   */
+  const [tapAnim, setTapAnim] = useState<null | "complete" | "uncomplete">(null);
+  const showChecked = completed || tapAnim === "complete";
 
   const meta: React.ReactNode[] = [];
   if (task.dueAt != null) {
@@ -161,22 +166,43 @@ export function TaskRow({
         }
         onClick={(e) => {
           e.stopPropagation();
-          setPopping(true);
+          setTapAnim(completed ? "uncomplete" : "complete");
           onToggle(task, !completed);
         }}
         className="flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <span
-          onAnimationEnd={() => setPopping(false)}
           className={cn(
-            "flex size-5 items-center justify-center rounded-full border transition-colors",
-            completed
+            "relative flex size-5 items-center justify-center rounded-full border transition-colors",
+            showChecked
               ? "border-primary bg-primary"
               : "border-muted-foreground/40 group-hover:border-muted-foreground",
-            popping && "animate-[task-check-pop_220ms_ease-out]",
+            tapAnim === "complete" && "animate-[task-check-pop_260ms_ease-out]",
           )}
         >
-          {completed && <Check className="size-3.5 text-primary-foreground" aria-hidden="true" />}
+          {tapAnim === "complete" ? (
+            <svg
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              className="size-3.5 animate-[task-check-draw_260ms_ease-out_forwards] text-primary-foreground"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4.5 8.5l2.8 2.8L11.8 5" pathLength={20} strokeDasharray={20} />
+            </svg>
+          ) : (
+            showChecked && <Check className="size-3.5 text-primary-foreground" aria-hidden="true" />
+          )}
+          {tapAnim === "complete" && (
+            <span
+              aria-hidden="true"
+              onAnimationEnd={() => setTapAnim(null)}
+              className="absolute -inset-1 animate-[task-ripple_450ms_ease-out_forwards] rounded-full border-2 border-primary"
+            />
+          )}
         </span>
       </button>
 

@@ -642,6 +642,28 @@
   }
 }
 
+/* The tick draws itself in when a task is completed. */
+@keyframes task-check-draw {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Expanding ring for the task completion celebration. */
+@keyframes task-ripple {
+  from {
+    transform: scale(0.5);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
 /* Respect the OS reduced-motion preference: keep state changes, drop the motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
