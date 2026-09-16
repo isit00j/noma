@@ -508,6 +508,23 @@
   pointer-events: none;
 }
 
+/*
+ * Read View — the same document, rendered without any editor chrome.
+ * Task checkboxes are display-only here; links stay tappable for reading.
+ */
+.noma-read .tiptap ul[data-type="taskList"] input[type="checkbox"] {
+  pointer-events: none;
+}
+.noma-read .tiptap a {
+  cursor: pointer;
+}
+
+/* AMOLED stays true-black: cards use the near-black card token, never glow. */
+.amoled .noma-read .tiptap pre,
+.amoled .noma-read .tiptap blockquote {
+  border-color: var(--color-border);
+}
+
 .noma-scroll::-webkit-scrollbar {
   width: 10px;
 }
