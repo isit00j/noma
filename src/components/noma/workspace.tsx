@@ -56,7 +56,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useOnline, useSettings } from "@/hooks/use-noma";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { useAppLock } from "@/lib/noma/AppLockContext";
-import { usePendingShortcut } from "@/lib/noma/shortcut";
+import { usePendingShortcut, usePendingWidgetAction } from "@/lib/noma/shortcut";
 import {
   createFolder,
   createNote,
@@ -85,7 +85,8 @@ import {
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
-import { getOverdueTasks, getTodayTasks } from "@/lib/noma/tasks";
+import { completeTask, getOverdueTasks, getTodayTasks } from "@/lib/noma/tasks";
+import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 function TasksLoadingFallback() {
@@ -248,6 +249,8 @@ export function Workspace() {
   const online = useOnline();
   const { isLocked, isLockStateResolving } = useAppLock();
   const { action: shortcutAction, consumeShortcut } = usePendingShortcut();
+  const { widgetAction, consumeWidgetAction } = usePendingWidgetAction();
+  const navigate = useNavigate();
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
   // Android-only gate for the Tasks destination: on web/PWA the tasks view
@@ -410,6 +413,44 @@ export function Workspace() {
       void handleNewNote();
     }
   }, [shortcutAction, db, isLockStateResolving, isLocked, consumeShortcut, handleNewNote]);
+
+  // Respond to home-screen widget taps once DB is loaded and App Lock is
+  // unlocked. A tap that arrives while locked stays pending and executes
+  // after unlock — widget actions can never bypass App Lock.
+  useEffect(() => {
+    if (!widgetAction || !db || !isNativeApp || isLockStateResolving || isLocked) return;
+    consumeWidgetAction();
+    void (async () => {
+      switch (widgetAction.kind) {
+        case "toggle-task": {
+          const task = await db.tasks.get(widgetAction.taskId);
+          if (!task || task.deleted) break;
+          const wasCompleted = task.completed;
+          await completeTask(db, widgetAction.taskId, !wasCompleted);
+          toast.success(wasCompleted ? "Task reopened" : "Task completed");
+          break;
+        }
+        case "open-note": {
+          const note = await db.notes.get(widgetAction.noteId);
+          if (note && !note.deleted) {
+            setActiveNoteId(widgetAction.noteId);
+            setNoteMode("read");
+          }
+          break;
+        }
+        case "open-tasks":
+          setView({ kind: "tasks" });
+          break;
+        case "open-settings":
+          void navigate({ to: "/settings", hash: "widgets" });
+          break;
+        case "open":
+          setView({ kind: "all" });
+          break;
+      }
+    })().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widgetAction, db, isNativeApp, isLockStateResolving, isLocked]);
 
   // Keyboard shortcuts.
   useEffect(() => {

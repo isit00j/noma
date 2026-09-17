@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, Download, Loader2, LogOut, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppGate } from "@/components/noma/app-gate";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import {
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { DriveCard } from "@/components/noma/drive-card";
 import { AppLockSection } from "@/components/noma/app-lock-section";
+import { WidgetSection } from "@/components/noma/widget-section";
 import { ThemePicker } from "@/components/noma/theme-picker";
 
 export const Route = createFileRoute("/settings")({
@@ -82,6 +83,16 @@ function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<BackupPayload | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+
+  // Widget taps can deep-link straight to the widget settings.
+  useEffect(() => {
+    if (window.location.hash !== "#widgets") return;
+    // Wait a beat for the section to render.
+    const timer = setTimeout(() => {
+      document.getElementById("widgets")?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   const backups = useLiveQuery(
     () => (db ? db.backups.orderBy("createdAt").reverse().limit(5).toArray() : []),
@@ -161,6 +172,7 @@ function SettingsPage() {
 
       <div className="mx-auto max-w-2xl px-5 pb-20 sm:px-6">
         <AppLockSection />
+        <WidgetSection />
 
         <Section
           title="Appearance"
