@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp, type URLOpenListenerEvent } from "@capacitor/app";
 
-let pendingShortcut: { id: number; action: string } | null = null;
+let pendingShortcut: { id: number; action: string; env?: "emulator" | "device" } | null = null;
 let lastProcessedId = 0;
 let isInitialized = false;
 const listeners = new Set<() => void>();
@@ -37,6 +37,41 @@ function processUrl(url: string | undefined) {
       pendingShortcut = { id, action: "new-note" };
       notifyListeners();
     }
+    return;
+  }
+  // TEMP-PERF: automated benchmark trigger for CI emulator runs.
+  // Strict validation: only `app.noma.notes://autoperf` with an optional
+  // `?env=emulator` parameter. Anything else is ignored.
+  const auto = parseAutoPerfUrl(url);
+  if (auto.ok) {
+    const id = Date.now();
+    if (id !== lastProcessedId) {
+      pendingShortcut = { id, action: "autoperf", env: auto.env };
+      notifyListeners();
+    }
+  }
+}
+
+/**
+ * TEMP-PERF: strict validation for the automated-benchmark deep link.
+ * Accepts only `app.noma.notes://autoperf` with an optional `?env=emulator`
+ * query parameter. Delete with `perf-instrumentation.ts`.
+ */
+function parseAutoPerfUrl(urlString: string): { ok: boolean; env: "emulator" | "device" } {
+  const no = { ok: false as const, env: "device" as const };
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "app.noma.notes:") return no;
+    if (parsed.host !== "autoperf") return no;
+    if (parsed.pathname !== "" && parsed.pathname !== "/") return no;
+    if (parsed.hash !== "") return no;
+    const keys = [...parsed.searchParams.keys()];
+    if (keys.some((k) => k !== "env")) return no;
+    const env = parsed.searchParams.get("env");
+    if (env !== null && env !== "emulator") return no;
+    return { ok: true, env: env === "emulator" ? "emulator" : "device" };
+  } catch {
+    return no;
   }
 }
 
@@ -87,6 +122,8 @@ export function usePendingShortcut() {
   }, []);
 
   const action = pendingShortcut?.action ?? null;
+  // TEMP-PERF: environment tag for the autoperf deep link.
+  const shortcutEnv = pendingShortcut?.env ?? null;
 
   const consumeShortcut = () => {
     if (pendingShortcut) {
@@ -96,5 +133,5 @@ export function usePendingShortcut() {
     }
   };
 
-  return { action, consumeShortcut, isValidNewNoteUrl };
+  return { action, shortcutEnv, consumeShortcut, isValidNewNoteUrl };
 }

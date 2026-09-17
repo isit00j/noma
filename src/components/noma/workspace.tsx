@@ -16,6 +16,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { toast } from "sonner";
@@ -83,6 +84,16 @@ import {
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
 // TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
 import { pmark, pmarkPaint, pmeasure } from "@/lib/noma/perf-instrumentation";
+// TEMP-PERF: automated benchmark (remove with perf-instrumentation.ts).
+import { makeAutoEnv, PERF_ENABLED, setLastAutoReport } from "@/lib/noma/perf-instrumentation";
+import {
+  autoBenchmarkQueryParam,
+  blockedAutoReport,
+  consumeAutoBenchmarkRequest,
+  runAutomatedBenchmark,
+  writeAutoReportFile,
+  type AutoBenchmarkDriver,
+} from "@/lib/noma/perf-automation";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
 import { cn } from "@/lib/utils";
@@ -217,7 +228,9 @@ export function Workspace() {
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
   const { isLocked, isLockStateResolving } = useAppLock();
-  const { action: shortcutAction, consumeShortcut } = usePendingShortcut();
+  // TEMP-PERF: shortcutEnv carries the autoperf deep-link environment tag.
+  const { action: shortcutAction, shortcutEnv, consumeShortcut } = usePendingShortcut();
+  const navigate = useNavigate();
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
@@ -232,6 +245,13 @@ export function Workspace() {
   const [query, setQuery] = useState("");
   // TEMP-PERF: one-shot startup marks.
   const perfStartupMarked = useRef(false);
+  // TEMP-PERF: automated benchmark state (remove with perf-instrumentation.ts).
+  const [autoProgress, setAutoProgress] = useState<string | null>(null);
+  const autoStarted = useRef(false);
+  const notesRef = useRef<Note[] | undefined>(undefined);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
   useEffect(() => {
     if (perfStartupMarked.current || dbLoading || !db || notes === undefined) return;
     perfStartupMarked.current = true;
@@ -369,6 +389,85 @@ export function Workspace() {
     setActiveNoteId(null);
     setNoteMode("read");
   }, [flushPendingSave]);
+
+  // TEMP-PERF: automated benchmark trigger + runner (one-shot).
+  // Triggers: /perf "Run Performance Benchmark" button (module flag),
+  // `?autoperf=1` query param, or the `app.noma.notes://autoperf` deep link
+  // (CI emulator). Never runs behind the App Lock screen.
+  useEffect(() => {
+    if (!PERF_ENABLED || !db || dbLoading || notes === undefined || isLockStateResolving) return;
+    if (autoStarted.current) return;
+    let env = consumeAutoBenchmarkRequest();
+    if (!env) env = autoBenchmarkQueryParam();
+    if (!env && shortcutAction === "autoperf") {
+      env = makeAutoEnv(shortcutEnv ?? "device");
+      consumeShortcut();
+    }
+    if (!env) return;
+    autoStarted.current = true;
+
+    if (isLocked) {
+      setLastAutoReport(
+        blockedAutoReport(env, "Noma is locked (App Lock). Unlock Noma and run again."),
+      );
+      navigate({ to: "/perf" });
+      return;
+    }
+
+    const driver: AutoBenchmarkDriver = {
+      db,
+      env,
+      onProgress: (step) => setAutoProgress(step),
+      getNotesCount: () => notesRef.current?.length ?? 0,
+      openNewNoteInEditor: async () => {
+        // Same code path as the New Note button, driven programmatically.
+        pmark("new-note-tap");
+        const note = await createNote(db, {});
+        pmark("new-note-created");
+        pmeasure("new-note-tap-to-created", "new-note-tap", "new-note-created");
+        setDraft(null);
+        setSaveState("idle");
+        setActiveNoteId(note.id);
+        setNoteMode("edit");
+        setEditReturnTo("list");
+        return note.id;
+      },
+      closeEditor: async () => {
+        await closeNote();
+      },
+      deleteNoteById: async (id: string) => {
+        await db.notes.delete(id);
+      },
+    };
+
+    setAutoProgress("Starting automated benchmark…");
+    void runAutomatedBenchmark(driver)
+      .then(async (report) => {
+        try {
+          await writeAutoReportFile(report);
+        } catch (error) {
+          console.error("perf: failed to write report file", error);
+        }
+        setAutoProgress(null);
+        navigate({ to: "/perf" });
+      })
+      .catch((error) => {
+        setAutoProgress(
+          `Benchmark failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }, [
+    db,
+    dbLoading,
+    notes,
+    isLockStateResolving,
+    isLocked,
+    shortcutAction,
+    shortcutEnv,
+    consumeShortcut,
+    navigate,
+    closeNote,
+  ]);
 
   /**
    * Back navigation out of the editor: return to the Read View when the note
@@ -705,6 +804,12 @@ export function Workspace() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
+      {/* TEMP-PERF: automated benchmark progress banner. */}
+      {autoProgress && (
+        <div className="fixed inset-x-0 top-0 z-[100] bg-primary px-4 py-3 text-center text-sm font-medium text-primary-foreground shadow-lg">
+          {autoProgress}
+        </div>
+      )}
       {!settings.sidebarCollapsed && (
         <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
           {sidebar}

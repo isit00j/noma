@@ -1,0 +1,160 @@
+# TEMPORARY: automated perf-baseline CI for the chore/perf-baseline branch.
+#
+# - perf-tests: vitest regression tests for the instrumentation (Dexie ops,
+#   fixture generation/determinism, query timings, search computation,
+#   save/write timing, instrumentation unit tests).
+# - perf-emulator: builds the debug APK, boots an Android emulator
+#   (API 27, x86_64), installs the app, triggers the automated benchmark via
+#   the `app.noma.notes://autoperf?env=emulator` deep link, waits for the
+#   report file, and pulls it via `adb run-as`.
+#
+# Emulator numbers are preliminary smoke numbers and must NEVER be presented
+# as J7 Prime measurements. Delete this workflow when the baseline is done.
+name: Perf Baseline (temporary)
+
+on:
+  push:
+    branches: ["chore/perf-baseline"]
+  workflow_dispatch:
+
+jobs:
+  perf-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run perf regression tests
+        run: npx vitest run
+
+  perf-emulator:
+    needs: [perf-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Setup Stable Debug Keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+            echo "Stable debug keystore successfully configured."
+          else
+            echo "ERROR: ANDROID_DEBUG_KEYSTORE_BASE64 secret is not set."
+            exit 1
+          fi
+
+      - name: Build Android debug APK
+        working-directory: ./android
+        env:
+          DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEYSTORE_PASSWORD }}
+          DEBUG_KEY_ALIAS: ${{ secrets.ANDROID_DEBUG_KEY_ALIAS }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE_PASSWORD" ] || [ -z "$DEBUG_KEY_ALIAS" ]; then
+            echo "ERROR: ANDROID_DEBUG_KEYSTORE_PASSWORD or ANDROID_DEBUG_KEY_ALIAS secrets are missing."
+            exit 1
+          fi
+          ./gradlew assembleDebug \
+            -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
+            -Pandroid.injected.signing.store.password=$DEBUG_KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$DEBUG_KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
+
+      - name: Run automated benchmark on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 27
+          target: google_apis
+          arch: x86_64
+          ram-size: 4096M
+          disk-size: 4096M
+          script: |
+            set -e
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -a android.intent.action.VIEW \
+              -d "app.noma.notes://autoperf?env=emulator" \
+              app.noma.notes/.MainActivity
+            echo "Waiting for perf-report.json (up to ~15 min)…"
+            READY=""
+            for i in $(seq 1 150); do
+              if adb shell "run-as app.noma.notes ls files/perf-report.json" 2>/dev/null | grep -q "perf-report.json"; then
+                READY=1
+                echo "Report ready after ~$((i * 6))s"
+                break
+              fi
+              sleep 6
+            done
+            if [ -z "$READY" ]; then
+              echo "ERROR: benchmark report never appeared."
+              adb logcat -d | tail -n 200 || true
+              exit 1
+            fi
+            adb exec-out run-as app.noma.notes cat files/perf-report.json > perf-report.emulator.json
+            python3 - <<'EOF'
+            import json
+            r = json.load(open("perf-report.emulator.json"))
+            print("environment:", r["environment"]["label"])
+            print("WARNING:", r["environment"]["warning"])
+            for size in sorted(r["automated"]["sizes"], key=int):
+                s = r["automated"]["sizes"][size]
+                print(f"--- {size} notes ---")
+                print("  fixture gen:", s["fixture"]["generationMs"], "ms")
+                print("  dexie toArray:", s["dexie"]["toArray"], "ms")
+                ed = s["editor"]
+                print("  editor:", ed if "failed" in ed else "tap->painted %s ms" % ed["tapToEditorPaintedMs"])
+                lr = s["listRender"]
+                print("  list:", lr if "failed" in lr else "fixture->painted %s ms" % lr["fixtureToListPaintedMs"])
+            EOF
+
+      - name: Upload emulator report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-emulator
+          path: perf-report.emulator.json
+
+      - name: Emulator disclaimer
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## ⚠️ Emulator results — not J7 Prime measurements
+          The `perf-report-emulator` artifact contains **preliminary smoke numbers from an
+          x86_64 Android emulator (API 27)**. They validate that the automated benchmark
+          runs end-to-end on Android; they must **never** be presented as Samsung Galaxy
+          J7 Prime measurements.
+          EOF

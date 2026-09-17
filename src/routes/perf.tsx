@@ -1,17 +1,21 @@
 /**
- * TEMPORARY performance baseline control panel (J7 Prime).
+ * TEMPORARY performance baseline control panel.
  * Reachable at /perf via the temporary Settings entry. Delete this file
- * with `perf-instrumentation.ts` / `perf-fixture.ts` when the baseline is done.
+ * with `perf-instrumentation.ts` / `perf-fixture.ts` / `perf-automation.ts`
+ * when the baseline is done.
  */
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import {
   PERF_ENABLED,
+  getLastAutoReport,
   getPerfReport,
   resetPerf,
+  type PerfAutoReport,
   type PerfReport,
 } from "@/lib/noma/perf-instrumentation";
+import { requestAutoBenchmark } from "@/lib/noma/perf-automation";
 import {
   clearFixture,
   generateFixture,
@@ -24,13 +28,163 @@ export const Route = createFileRoute("/perf")({
   component: PerfPanel,
 });
 
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+function AutoReportView({ report }: { report: PerfAutoReport }) {
+  const copyAutoReport = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+    } catch {
+      /* user can select the JSON manually */
+    }
+  }, [report]);
+
+  const sizeKeys = Object.keys(report.automated.sizes).sort((a, b) => Number(a) - Number(b));
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-medium">Latest automated report</h2>
+        <button
+          type="button"
+          onClick={() => void copyAutoReport()}
+          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Copy report JSON
+        </button>
+      </div>
+
+      <div className="space-y-1 text-sm">
+        <p>
+          <span className="font-medium">Environment: </span>
+          {report.environment.kind === "emulator" ? (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+              EMULATOR — preliminary, NOT a J7 Prime
+            </span>
+          ) : (
+            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
+              Physical device
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {report.environment.label} · {report.generatedAt}
+        </p>
+        {report.notes.map((note) => (
+          <p key={note} className="text-xs text-muted-foreground">
+            {note}
+          </p>
+        ))}
+      </div>
+
+      {sizeKeys.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          The benchmark did not complete (see notes above — e.g. App Lock was on).
+        </p>
+      )}
+
+      {sizeKeys.map((size) => {
+        const s = report.automated.sizes[size]!;
+        const searchMedian = median(s.search.map((r) => r.ms));
+        const saveMedian = median(s.save.updateMs);
+        return (
+          <div key={size} className="rounded-md border border-border p-3">
+            <h3 className="text-sm font-medium">{size} notes</h3>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <dt className="text-muted-foreground">Fixture generation</dt>
+              <dd className="text-right font-mono">{s.fixture.generationMs} ms</dd>
+              <dt className="text-muted-foreground">Dexie count / toArray</dt>
+              <dd className="text-right font-mono">
+                {s.dexie.count} / {s.dexie.toArray} ms
+              </dd>
+              <dt className="text-muted-foreground">Dexie indexed folder query</dt>
+              <dd className="text-right font-mono">{s.dexie.indexedFolderQuery} ms</dd>
+              <dt className="text-muted-foreground">Dexie recent-50 slice</dt>
+              <dd className="text-right font-mono">{s.dexie.recentSlice50} ms</dd>
+              <dt className="text-muted-foreground">Search compute (median of 5)</dt>
+              <dd className="text-right font-mono">{searchMedian} ms</dd>
+              <dt className="text-muted-foreground">Save: create / update median</dt>
+              <dd className="text-right font-mono">
+                {s.save.createMs} / {saveMedian} ms
+              </dd>
+              <dt className="text-muted-foreground">Editor: tap → painted</dt>
+              <dd className="text-right font-mono">
+                {"failed" in s.editor
+                  ? `failed: ${s.editor.failed}`
+                  : `${s.editor.tapToEditorPaintedMs} ms`}
+              </dd>
+              <dt className="text-muted-foreground">List: fixture → painted</dt>
+              <dd className="text-right font-mono">
+                {"failed" in s.listRender
+                  ? `failed: ${s.listRender.failed}`
+                  : `${s.listRender.fixtureToListPaintedMs} ms`}
+              </dd>
+            </dl>
+          </div>
+        );
+      })}
+
+      {Object.keys(report.automated.startup).length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium">Warm start (this session, JS only)</h3>
+          <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            {Object.entries(report.automated.startup).map(([name, ms]) => (
+              <div key={name} className="contents">
+                <dt className="text-muted-foreground">{name}</dt>
+                <dd className="text-right font-mono">{ms} ms</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-sm font-medium">
+          Device-only{" "}
+          <span className="font-normal text-muted-foreground">
+            (optional validation — not automated)
+          </span>
+        </h3>
+        <ul className="mt-1 space-y-2 text-xs text-muted-foreground">
+          {report.deviceOnly.map((d) => (
+            <li key={d.metric}>
+              <span className="font-medium text-foreground">{d.metric}</span>
+              <br />
+              {d.howTo}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <details>
+        <summary className="cursor-pointer text-xs text-muted-foreground underline">
+          Full JSON
+        </summary>
+        <pre className="mt-2 max-h-96 overflow-auto rounded-md border border-border bg-background p-3 text-xs">
+          {JSON.stringify(report, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 function PerfPanel() {
   const { db } = useDatabase();
+  const navigate = useNavigate();
   const [report, setReport] = useState<PerfReport | null>(null);
+  const [autoReport, setAutoReport] = useState<PerfAutoReport | null>(null);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
-  const refresh = useCallback(() => setReport(getPerfReport()), []);
+  const refresh = useCallback(() => {
+    setReport(getPerfReport());
+    setAutoReport(getLastAutoReport());
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -84,16 +238,40 @@ function PerfPanel() {
       <div>
         <h1 className="font-serif text-2xl font-medium">Performance baseline (temporary)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          J7 Prime protocol: reboot, battery &gt; 50%, airplane mode on. Generate a fixture, run
-          each metric 5×, report medians. This panel and its route are temporary.
+          One tap runs the whole automated baseline. Human/device-only metrics are listed as
+          optional validation — nothing is required from you beyond this button. This panel and its
+          route are temporary.
         </p>
         <Link to="/" className="text-sm underline">
           Back to Noma
         </Link>
       </div>
 
+      <section className="space-y-2 rounded-lg border border-primary/30 bg-card p-4">
+        <h2 className="text-sm font-medium">Automated benchmark</h2>
+        <p className="text-xs text-muted-foreground">
+          Generates the 100 / 500 / 2,000-note fixtures and measures Dexie operations, search
+          computation, save timing, editor mount, and list render — fully automatically. Takes a few
+          minutes; keep the app open and make sure App Lock is off. Produces one copyable JSON
+          report.
+        </p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            requestAutoBenchmark("device");
+            void navigate({ to: "/" });
+          }}
+          className="rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+        >
+          Run Performance Benchmark
+        </button>
+      </section>
+
+      {autoReport && <AutoReportView report={autoReport} />}
+
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">1. Fixture data (deterministic, idempotent)</h2>
+        <h2 className="text-sm font-medium">Manual tools (ad-hoc checks)</h2>
         <div className="flex flex-wrap gap-2">
           {[100, 500, 2000].map((n) => (
             <button
@@ -132,7 +310,7 @@ function PerfPanel() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">2. Dexie micro-benchmark</h2>
+        <h2 className="text-sm font-medium">Dexie micro-benchmark</h2>
         <button
           type="button"
           disabled={busy}
@@ -149,7 +327,7 @@ function PerfPanel() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-medium">3. Report</h2>
+        <h2 className="text-sm font-medium">Live marks report</h2>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
