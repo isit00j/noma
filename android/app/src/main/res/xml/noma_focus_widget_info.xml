@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:maxResizeWidth="640dp"
+    android:maxResizeHeight="480dp"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_focus"
+    android:description="@string/widget_focus_desc"
+    android:previewLayout="@layout/widget_focus"
+    android:widgetCategory="home_screen"
+    android:configure="app.noma.notes.NomaFocusWidgetConfigureActivity" />

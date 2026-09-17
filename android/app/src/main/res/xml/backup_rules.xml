@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Widget projections and per-widget configuration are device-local by
+         design and must not leave the device via Auto Backup. -->
+    <exclude domain="sharedpref" path="noma_widget_prefs.xml" />
+</full-backup-content>

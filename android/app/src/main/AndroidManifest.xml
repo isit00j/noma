@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -38,11 +39,69 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Noma home-screen widgets (Android only) -->
+        <receiver
+            android:name=".NomaNoteWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_note_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/noma_note_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".NomaTaskWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_task_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/noma_task_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".NomaFocusWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_focus_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/noma_focus_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".NomaNoteWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme.NoActionBarLaunch" />
+        <activity
+            android:name=".NomaTaskWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme.NoActionBarLaunch" />
+        <activity
+            android:name=".NomaFocusWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme.NoActionBarLaunch" />
+
+        <receiver
+            android:name=".NomaWidgetBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 </manifest>

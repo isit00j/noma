@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NomaBackupPlugin.class);
         registerPlugin(NomaBiometricPlugin.class);
         registerPlugin(NomaAlarmPlugin.class);
+        registerPlugin(NomaWidgetPlugin.class);
 
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setOnExitAnimationListener(provider -> {

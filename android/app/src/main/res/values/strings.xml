@@ -6,4 +6,14 @@
     <string name="custom_url_scheme">app.noma.notes</string>
     <string name="shortcut_note_short">Note</string>
     <string name="shortcut_note_long">Note</string>
+    <string name="widget_note_name">Noma Note</string>
+    <string name="widget_note_desc">Your notes at a glance. Tap to open in Noma.</string>
+    <string name="widget_task_name">Noma Task</string>
+    <string name="widget_task_desc">Today\'s tasks with quick completion. Tap to open in Noma.</string>
+    <string name="widget_focus_name">Noma Focus</string>
+    <string name="widget_focus_desc">One note and what\'s due. A calm glance, nothing more.</string>
+    <string name="widget_configure_title">Noma widget</string>
+    <string name="widget_configure_body">This widget starts with sensible defaults. You can fine-tune it anytime inside Noma, under Settings → Widgets.</string>
+    <string name="widget_configure_add">Add widget</string>
+    <string name="widget_configure_customize">Customize in Noma</string>
 </resources>
