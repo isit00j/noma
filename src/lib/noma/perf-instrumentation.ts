@@ -53,11 +53,18 @@ export function pmark(name: string): void {
 /**
  * Mark after the next paint (double rAF). Approximates "rendered to screen"
  * — it fires after the browser has had a chance to paint, not a guarantee.
+ *
+ * `after` runs after the paint mark is recorded: use it for measures that
+ * depend on the paint mark, since measuring synchronously after scheduling
+ * would find the mark missing and record nothing.
  */
-export function pmarkPaint(name: string): void {
+export function pmarkPaint(name: string, after?: () => void): void {
   if (!PERF_ENABLED) return;
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => pmark(name));
+    requestAnimationFrame(() => {
+      pmark(name);
+      after?.();
+    });
   });
 }
 
@@ -66,6 +73,21 @@ function latestMark(name: string): PerfMarkEntry | undefined {
     if (marks[i]!.name === name) return marks[i];
   }
   return undefined;
+}
+
+/**
+ * True when mark `name` has a newer latest entry than mark `other`
+ * (or when `other` was never marked). Used to attribute editor marks to the
+ * New Note flow vs the note-open flow: both mount the same editor, so
+ * `new-note-tap-*` measures must not pair a stale `new-note-tap` with fresh
+ * marks from a note-open flow.
+ */
+export function perfNewerThan(name: string, other: string): boolean {
+  if (!PERF_ENABLED) return false;
+  const a = latestMark(name);
+  if (!a) return false;
+  const b = latestMark(other);
+  return !b || a.t >= b.t;
 }
 
 /**

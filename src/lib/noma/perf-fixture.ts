@@ -92,7 +92,10 @@ export async function generateFixture(
   await clearFixture(db);
 
   const rng = mulberry32(0x9e3779b9);
-  const now = Date.now();
+  // TEMP-PERF: fixed wall-clock anchor (2026-01-01T00:00:00Z) so every
+  // timestamp derives from the seed — the fixture is byte-identical across
+  // runs and devices for a given note count.
+  const now = 1767225600000;
 
   const folders: Folder[] = Array.from({ length: 5 }, (_, i) => ({
     id: `${PERF_ID_PREFIX}folder-${i}`,

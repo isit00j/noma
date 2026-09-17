@@ -236,10 +236,13 @@ export function Workspace() {
     if (perfStartupMarked.current || dbLoading || !db || notes === undefined) return;
     perfStartupMarked.current = true;
     pmark("notes-loaded");
-    pmarkPaint("workspace-painted");
-    pmeasure("startup-js-to-workspace-painted", "js-bundle-start", "workspace-painted");
+    // TEMP-PERF: paint-dependent measures must be computed after the paint
+    // mark lands — measuring synchronously here would record nothing.
+    pmarkPaint("workspace-painted", () => {
+      pmeasure("startup-js-to-workspace-painted", "js-bundle-start", "workspace-painted");
+      pmeasure("startup-notes-loaded-to-painted", "notes-loaded", "workspace-painted");
+    });
     pmeasure("startup-db-ready-to-notes-loaded", "db-ready", "notes-loaded");
-    pmeasure("startup-notes-loaded-to-painted", "notes-loaded", "workspace-painted");
   }, [dbLoading, db, notes]);
   const [prompt, setPrompt] = useState<PromptRequest | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -347,7 +350,9 @@ export function Workspace() {
     setNoteMode(isEmpty ? "edit" : "read");
     setEditReturnTo(isEmpty ? "list" : "read");
     // TEMP-PERF: approximates read-view paint after state commit.
-    pmarkPaint("read-view-painted");
+    pmarkPaint("read-view-painted", () => {
+      pmeasure("note-open-tap-to-read-view-painted", "note-open-tap", "read-view-painted");
+    });
   }, []);
 
   /** Enter the editor for the currently open note (from the Read View). */
@@ -573,7 +578,9 @@ export function Workspace() {
   // TEMP-PERF: approximate search-results paint.
   useEffect(() => {
     if (!searchOpen || query.trim() === "") return;
-    pmarkPaint("search-painted");
+    pmarkPaint("search-painted", () => {
+      pmeasure("search-input-to-results-painted", "search-start", "search-painted");
+    });
   }, [searchResults, searchOpen, query]);
 
   if (dbLoading || !db) {

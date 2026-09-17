@@ -51,7 +51,13 @@ import type { Note } from "@/lib/noma/types";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { saveImageAttachment, scheduleDebouncedAttachmentCleanup } from "@/lib/noma/media";
 // TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
-import { pmark, pmarkPaint, pmeasure, PERF_ENABLED } from "@/lib/noma/perf-instrumentation";
+import {
+  pmark,
+  pmarkPaint,
+  pmeasure,
+  perfNewerThan,
+  PERF_ENABLED,
+} from "@/lib/noma/perf-instrumentation";
 import { ChartEditorDialog, type AdvancedChartData } from "./chart-node";
 import { createNomaExtensions } from "./tiptap-extensions";
 
@@ -498,9 +504,13 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
       content: note.content,
       editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
       // TEMP-PERF: Tiptap instance ready (view created, before first paint).
+      // The same editor mounts for New Note and note-open flows: only
+      // attribute new-note measures when the latest tap was New Note.
       onCreate: () => {
         pmark("tiptap-ready");
-        pmeasure("new-note-tap-to-tiptap-ready", "new-note-tap", "tiptap-ready");
+        if (perfNewerThan("new-note-tap", "note-open-tap")) {
+          pmeasure("new-note-tap-to-tiptap-ready", "new-note-tap", "tiptap-ready");
+        }
       },
       onUpdate: ({ editor: instance }) => {
         // TEMP-PERF: first real content change -> painted (one-shot).
@@ -526,8 +536,13 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
   const perfFirstUpdateMarked = useRef(false);
   useEffect(() => {
     if (!PERF_ENABLED) return;
+    // TEMP-PERF: the same editor mounts for New Note and note-open flows.
+    // Attribute new-note measures only when the latest tap was New Note.
+    const isNewNoteFlow = perfNewerThan("new-note-tap", "note-open-tap");
     pmark("editor-mounted");
-    pmeasure("new-note-tap-to-editor-mounted", "new-note-tap", "editor-mounted");
+    if (isNewNoteFlow) {
+      pmeasure("new-note-tap-to-editor-mounted", "new-note-tap", "editor-mounted");
+    }
 
     let focused = false;
     let keyboardMarked = false;
@@ -540,7 +555,9 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
       if (focused) return;
       focused = true;
       pmark("editor-first-focus");
-      pmeasure("new-note-tap-to-first-focus", "new-note-tap", "editor-first-focus");
+      if (isNewNoteFlow) {
+        pmeasure("new-note-tap-to-first-focus", "new-note-tap", "editor-first-focus");
+      }
       pmeasure("tiptap-ready-to-first-focus", "tiptap-ready", "editor-first-focus");
       if (typeof window !== "undefined" && window.visualViewport) {
         initialViewportHeight = window.visualViewport.height;
@@ -560,7 +577,10 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
 
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (!target || !target.closest("[data-perf-editor]")) return;
+      // TEMP-PERF: first-keydown belongs to the body-keystroke chain
+      // (first-content-update only fires from Tiptap), so ignore title
+      // keystrokes — they would otherwise dangle the chain.
+      if (!target || !target.closest(".tiptap")) return;
       if (keydownMarked) return;
       keydownMarked = true;
       pmark("first-keydown");
