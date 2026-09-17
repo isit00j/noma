@@ -20,6 +20,8 @@ import {
   verifySecret,
   type BiometricCheckResult,
 } from "./app-lock-crypto";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { pmark } from "./perf-instrumentation";
 
 export interface AppLockContextValue {
   isLocked: boolean;
@@ -84,6 +86,11 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setIsUnlocked(false);
   }, [activeDbName]);
+
+  // TEMP-PERF: mark when the lock-state gate resolves (settings loaded).
+  useEffect(() => {
+    if (ready) pmark("applock-resolved");
+  }, [ready]);
 
   // Check native biometric availability on mount
   useEffect(() => {

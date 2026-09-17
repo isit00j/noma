@@ -15,6 +15,10 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // TEMP-PERF: native cold-start anchor. Correlate with the JS
+        // `js-bundle-start` wall time (report) for full tap-to-ready math.
+        // filter: adb logcat -s NomaPerf
+        android.util.Log.d("NomaPerf", "nativeOnCreate wallMs=" + System.currentTimeMillis());
         registerPlugin(GoogleDriveAuthPlugin.class);
         registerPlugin(NomaBackupPlugin.class);
         registerPlugin(NomaBiometricPlugin.class);

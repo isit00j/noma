@@ -4,6 +4,8 @@ import { ArrowLeft, Download, Loader2, LogOut, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppGate } from "@/components/noma/app-gate";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { PERF_ENABLED } from "@/lib/noma/perf-instrumentation";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -373,6 +375,21 @@ function SettingsPage() {
             </div>
           )}
         </Section>
+
+        {/* TEMP-PERF: temporary baseline control panel entry. Remove with perf-instrumentation.ts. */}
+        {PERF_ENABLED && (
+          <Section
+            title="Performance (temporary)"
+            description="J7 Prime baseline tooling. Removed before any merge."
+          >
+            <Link
+              to="/perf"
+              className="inline-flex items-center rounded-md border border-border px-3 py-2 text-sm"
+            >
+              Open performance panel
+            </Link>
+          </Section>
+        )}
       </div>
 
       <AlertDialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>

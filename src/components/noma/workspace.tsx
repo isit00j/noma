@@ -81,6 +81,8 @@ import {
   cleanupOrphanedReminders,
 } from "@/lib/noma/notes";
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { pmark, pmarkPaint, pmeasure } from "@/lib/noma/perf-instrumentation";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
 import { cn } from "@/lib/utils";
@@ -228,6 +230,17 @@ export function Workspace() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // TEMP-PERF: one-shot startup marks.
+  const perfStartupMarked = useRef(false);
+  useEffect(() => {
+    if (perfStartupMarked.current || dbLoading || !db || notes === undefined) return;
+    perfStartupMarked.current = true;
+    pmark("notes-loaded");
+    pmarkPaint("workspace-painted");
+    pmeasure("startup-js-to-workspace-painted", "js-bundle-start", "workspace-painted");
+    pmeasure("startup-db-ready-to-notes-loaded", "db-ready", "notes-loaded");
+    pmeasure("startup-notes-loaded-to-painted", "notes-loaded", "workspace-painted");
+  }, [dbLoading, db, notes]);
   const [prompt, setPrompt] = useState<PromptRequest | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [reminderTargetNote, setReminderTargetNote] = useState<Note | null>(null);
@@ -260,7 +273,13 @@ export function Workspace() {
     async (id: string, patch: { title?: string; content?: string }) => {
       if (!db) return;
       try {
+        // TEMP-PERF
+        pmark("save-write-start");
         await updateNote(db!, id, patch);
+        // TEMP-PERF
+        pmark("save-write-end");
+        pmeasure("save-dexie-write", "save-write-start", "save-write-end");
+        pmeasure("save-keystroke-to-written", "save-keystroke", "save-write-end");
         pendingSaveRef.current = null;
         setSaveState(navigator.onLine ? "saved" : "offline");
       } catch {
@@ -274,6 +293,8 @@ export function Workspace() {
   const handleChange = useCallback(
     (patch: { title?: string; content?: string }) => {
       if (!activeNoteId) return;
+      // TEMP-PERF
+      pmark("save-keystroke");
       setDraft((current) => ({
         ...(current?.id === activeNoteId ? current : { id: activeNoteId }),
         id: activeNoteId,
@@ -317,12 +338,16 @@ export function Workspace() {
    * nothing to read, so they open directly in the editor instead.
    */
   const openNote = useCallback((note: Note) => {
+    // TEMP-PERF
+    pmark("note-open-tap");
     setDraft(null);
     setSaveState("idle");
     setActiveNoteId(note.id);
     const isEmpty = !note.title.trim() && !notePreview(note);
     setNoteMode(isEmpty ? "edit" : "read");
     setEditReturnTo(isEmpty ? "list" : "read");
+    // TEMP-PERF: approximates read-view paint after state commit.
+    pmarkPaint("read-view-painted");
   }, []);
 
   /** Enter the editor for the currently open note (from the Read View). */
@@ -355,10 +380,15 @@ export function Workspace() {
 
   const handleNewNote = useCallback(async () => {
     if (!db) return;
+    // TEMP-PERF
+    pmark("new-note-tap");
     const note = await createNote(db!, {
       folderId: view.kind === "folder" ? (view.id ?? null) : null,
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
+    // TEMP-PERF
+    pmark("new-note-created");
+    pmeasure("new-note-tap-to-created", "new-note-tap", "new-note-created");
     setMobileNavOpen(false);
     setDraft(null);
     setSaveState("idle");
@@ -525,18 +555,26 @@ export function Workspace() {
     [db, openNote, activeNoteId],
   );
 
-  const searchResults = useMemo(
-    () =>
-      searchOpen
-        ? searchNotes(
-            query,
-            allNotes.filter((note) => !note.deleted),
-            allFolders,
-            allTags,
-          )
-        : [],
-    [searchOpen, query, allNotes, allFolders, allTags],
-  );
+  const searchResults = useMemo(() => {
+    if (!searchOpen || query.trim() === "") return [];
+    // TEMP-PERF
+    pmark("search-start");
+    const results = searchNotes(
+      query,
+      allNotes.filter((note) => !note.deleted),
+      allFolders,
+      allTags,
+    );
+    pmark("search-end");
+    pmeasure("search-compute", "search-start", "search-end");
+    return results;
+  }, [searchOpen, query, allNotes, allFolders, allTags]);
+
+  // TEMP-PERF: approximate search-results paint.
+  useEffect(() => {
+    if (!searchOpen || query.trim() === "") return;
+    pmarkPaint("search-painted");
+  }, [searchResults, searchOpen, query]);
 
   if (dbLoading || !db) {
     return (

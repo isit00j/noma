@@ -50,6 +50,8 @@ import { toast } from "sonner";
 import type { Note } from "@/lib/noma/types";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
 import { saveImageAttachment, scheduleDebouncedAttachmentCleanup } from "@/lib/noma/media";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { pmark, pmarkPaint, pmeasure, PERF_ENABLED } from "@/lib/noma/perf-instrumentation";
 import { ChartEditorDialog, type AdvancedChartData } from "./chart-node";
 import { createNomaExtensions } from "./tiptap-extensions";
 
@@ -495,7 +497,19 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
       extensions: createNomaExtensions(),
       content: note.content,
       editorProps: { attributes: { class: "tiptap", spellcheck: "true" } },
+      // TEMP-PERF: Tiptap instance ready (view created, before first paint).
+      onCreate: () => {
+        pmark("tiptap-ready");
+        pmeasure("new-note-tap-to-tiptap-ready", "new-note-tap", "tiptap-ready");
+      },
       onUpdate: ({ editor: instance }) => {
+        // TEMP-PERF: first real content change -> painted (one-shot).
+        if (!perfFirstUpdateMarked.current) {
+          perfFirstUpdateMarked.current = true;
+          pmark("first-content-update");
+          pmarkPaint("first-keystroke-painted");
+          pmeasure("first-keydown-to-content-update", "first-keydown", "first-content-update");
+        }
         const html = instance.getHTML();
         onChangeRef.current({ content: html });
         if (dbRef.current) {
@@ -505,6 +519,68 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
     },
     [note.id],
   );
+
+  // TEMP-PERF: capture-path timing — mount, first focus (human tap),
+  // keyboard visibility heuristic, first keystroke -> painted.
+  // No autofocus is added: the baseline must show where the delay is.
+  const perfFirstUpdateMarked = useRef(false);
+  useEffect(() => {
+    if (!PERF_ENABLED) return;
+    pmark("editor-mounted");
+    pmeasure("new-note-tap-to-editor-mounted", "new-note-tap", "editor-mounted");
+
+    let focused = false;
+    let keyboardMarked = false;
+    let keydownMarked = false;
+    let initialViewportHeight = 0;
+
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || !target.closest("[data-perf-editor]")) return;
+      if (focused) return;
+      focused = true;
+      pmark("editor-first-focus");
+      pmeasure("new-note-tap-to-first-focus", "new-note-tap", "editor-first-focus");
+      pmeasure("tiptap-ready-to-first-focus", "tiptap-ready", "editor-first-focus");
+      if (typeof window !== "undefined" && window.visualViewport) {
+        initialViewportHeight = window.visualViewport.height;
+      }
+    };
+
+    // Heuristic: after focus, a sharp visual-viewport shrink means the
+    // Android keyboard is animating in. Noisy by nature — treat as approximate.
+    const onViewportResize = () => {
+      if (!focused || keyboardMarked || !window.visualViewport) return;
+      if (initialViewportHeight - window.visualViewport.height > 150) {
+        keyboardMarked = true;
+        pmark("keyboard-visible");
+        pmeasure("first-focus-to-keyboard", "editor-first-focus", "keyboard-visible");
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || !target.closest("[data-perf-editor]")) return;
+      if (keydownMarked) return;
+      keydownMarked = true;
+      pmark("first-keydown");
+      pmeasure("first-focus-to-first-keydown", "editor-first-focus", "first-keydown");
+    };
+
+    document.addEventListener("focusin", onFocusIn);
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", onViewportResize);
+    }
+    document.addEventListener("keydown", onKeyDown, true);
+
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      if (typeof window !== "undefined" && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", onViewportResize);
+      }
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, []);
 
   // Swap document when a different note is opened, without clobbering typing.
   useEffect(() => {
@@ -564,6 +640,8 @@ export function NoteEditor({ note, onChange, fontSize, editorWidth, lineHeight }
   return (
     <div
       className="noma-editor mx-auto w-full px-5 pb-32 sm:px-8"
+      // TEMP-PERF: focus/keystroke attribution scope (title + editor).
+      data-perf-editor
       style={
         {
           maxWidth: `${editorWidth}px`,
