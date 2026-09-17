@@ -193,23 +193,25 @@ export function resetPerf(): void {
 // ---------------------------------------------------------------------------
 
 export interface PerfAutoEnvironment {
-  kind: "device" | "emulator";
+  kind: "device" | "emulator" | "ci";
   label: string;
   userAgent: string;
-  /** Hard rule: emulator numbers are preliminary, never J7 Prime numbers. */
+  /** Hard rule: automated numbers are preliminary, never J7 Prime numbers. */
   warning: string;
 }
 
-export function makeAutoEnv(kind: "device" | "emulator"): PerfAutoEnvironment {
+export function makeAutoEnv(kind: "device" | "emulator" | "ci"): PerfAutoEnvironment {
   return {
     kind,
     label:
       kind === "emulator"
-        ? "Android emulator (API 27, x86_64) — PRELIMINARY, not a J7 Prime"
-        : "Physical device (manual run)",
+        ? "Android emulator — PRELIMINARY, not a J7 Prime"
+        : kind === "ci"
+          ? "CI headless Chromium (Linux) — PRELIMINARY smoke numbers, not a J7 Prime"
+          : "Physical device (manual run)",
     userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
     warning:
-      "Emulator measurements are preliminary smoke numbers only and must never be presented as J7 Prime measurements.",
+      "Automated measurements are preliminary smoke numbers only and must never be presented as J7 Prime measurements.",
   };
 }
 
@@ -302,6 +304,11 @@ let lastAutoReport: PerfAutoReport | null = null;
 
 export function setLastAutoReport(report: PerfAutoReport | null): void {
   lastAutoReport = report;
+  // TEMP-PERF: expose the report on window so the headless-CI driver can
+  // extract it without touching React state.
+  if (typeof window !== "undefined") {
+    (window as unknown as { __nomaPerfReport?: PerfAutoReport | null }).__nomaPerfReport = report;
+  }
 }
 
 export function getLastAutoReport(): PerfAutoReport | null {

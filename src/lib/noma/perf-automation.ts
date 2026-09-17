@@ -332,5 +332,6 @@ export function autoBenchmarkQueryParam(): PerfAutoEnvironment | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   if (params.get("autoperf") !== "1") return null;
-  return makeAutoEnv(params.get("env") === "emulator" ? "emulator" : "device");
+  const envParam = params.get("env");
+  return makeAutoEnv(envParam === "emulator" ? "emulator" : envParam === "ci" ? "ci" : "device");
 }

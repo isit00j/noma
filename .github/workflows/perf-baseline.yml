@@ -3,12 +3,17 @@
 # - perf-tests: vitest regression tests for the instrumentation (Dexie ops,
 #   fixture generation/determinism, query timings, search computation,
 #   save/write timing, instrumentation unit tests).
-# - perf-emulator: builds the debug APK, boots an Android emulator
-#   (API 27, x86_64), installs the app, triggers the automated benchmark via
-#   the `app.noma.notes://autoperf?env=emulator` deep link, waits for the
-#   report file, and pulls it via `adb run-as`.
+# - perf-chromium: builds the production web app, serves it, and drives the
+#   automated benchmark in headless Chromium via ?autoperf=1&env=ci,
+#   extracting window.__nomaPerfReport.
 #
-# Emulator numbers are preliminary smoke numbers and must NEVER be presented
+# The Android emulator path was cut: it failed five consecutive runs for
+# five different infrastructure reasons (unpublished system image, runner
+# script splitting, cold-start deep-link race, API 29 WebView too old to
+# parse the bundle, API 34 WebView renderer crash). Headless Chromium runs
+# the same web-tech measurements (Dexie, search, DOM) in ~5 minutes.
+#
+# Automated numbers are preliminary smoke numbers and must NEVER be presented
 # as J7 Prime measurements. Delete this workflow when the baseline is done.
 name: Perf Baseline (temporary)
 
@@ -39,7 +44,7 @@ jobs:
       - name: Run perf regression tests
         run: npx vitest run
 
-  perf-emulator:
+  perf-chromium:
     needs: [perf-tests]
     runs-on: ubuntu-latest
     steps:
@@ -55,80 +60,26 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: "temurin"
-          java-version: "21"
-          cache: "gradle"
+      - name: Install Playwright (no-save, CI driver only)
+        run: npm install --no-save playwright && npx playwright install chromium
 
       - name: Build web application
         run: npm run build
 
-      - name: Sync Capacitor Android project
-        run: npx cap sync android
+      - name: Run automated benchmark in headless Chromium
+        run: node .github/scripts/run-chromium-benchmark.mjs
 
-      - name: Setup Stable Debug Keystore
-        env:
-          DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
-            mkdir -p ~/.android
-            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
-            echo "Stable debug keystore successfully configured."
-          else
-            echo "ERROR: ANDROID_DEBUG_KEYSTORE_BASE64 secret is not set."
-            exit 1
-          fi
-
-      - name: Build Android debug APK
-        working-directory: ./android
-        env:
-          DEBUG_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DEBUG_KEYSTORE_PASSWORD }}
-          DEBUG_KEY_ALIAS: ${{ secrets.ANDROID_DEBUG_KEY_ALIAS }}
-        run: |
-          if [ -z "$DEBUG_KEYSTORE_PASSWORD" ] || [ -z "$DEBUG_KEY_ALIAS" ]; then
-            echo "ERROR: ANDROID_DEBUG_KEYSTORE_PASSWORD or ANDROID_DEBUG_KEY_ALIAS secrets are missing."
-            exit 1
-          fi
-          ./gradlew assembleDebug \
-            -Pandroid.injected.signing.store.file=$HOME/.android/debug.keystore \
-            -Pandroid.injected.signing.store.password=$DEBUG_KEYSTORE_PASSWORD \
-            -Pandroid.injected.signing.key.alias=$DEBUG_KEY_ALIAS \
-            -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
-
-      - name: Run automated benchmark on emulator
-        # NOTE: API 27's system image is no longer published in the SDK repo
-        # (sdkmanager: "Failed to find package"). API 29 boots, but its stock
-        # system WebView (~Chrome 74, 2019) cannot parse the production JS
-        # bundle (optional chaining etc. need Chrome 80+), so the app never
-        # boots and no benchmark trigger can arrive. API 34's stock WebView
-        # is modern and runs the bundle. Emulator numbers stay preliminary
-        # smoke numbers regardless of API level — never J7 Prime results.
-        # NOTE 2: android-emulator-runner executes each `script` line as its
-        # own `sh -c` call, so the driver lives in a script file — inline
-        # continuations/heredocs would be split apart and break.
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          ram-size: 4096M
-          disk-size: 6144M
-          script: bash .github/scripts/run-emu-benchmark.sh
-
-      - name: Upload emulator report
+      - name: Upload CI report
         uses: actions/upload-artifact@v4
         with:
-          name: perf-report-emulator
-          path: perf-report.emulator.json
+          name: perf-report-ci
+          path: perf-report.ci.json
 
-      - name: Emulator disclaimer
+      - name: CI disclaimer
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          ## ⚠️ Emulator results — not J7 Prime measurements
-          The `perf-report-emulator` artifact contains **preliminary smoke numbers from an
-          x86_64 Android emulator (API 27)**. They validate that the automated benchmark
-          runs end-to-end on Android; they must **never** be presented as Samsung Galaxy
-          J7 Prime measurements.
+          ## ⚠️ CI results — not J7 Prime measurements
+          The `perf-report-ci` artifact contains **preliminary smoke numbers from headless
+          Chromium on a CI Linux runner**. They validate that the automated benchmark runs
+          end-to-end; they must **never** be presented as Samsung Galaxy J7 Prime measurements.
           EOF
