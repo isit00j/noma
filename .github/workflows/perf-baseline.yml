@@ -98,9 +98,12 @@ jobs:
             -Pandroid.injected.signing.key.password=$DEBUG_KEYSTORE_PASSWORD
 
       - name: Run automated benchmark on emulator
+        # NOTE: API 27's system image is no longer published in the SDK repo
+        # (sdkmanager: "Failed to find package"), so we use API 29. Emulator
+        # numbers stay preliminary smoke numbers regardless of API level.
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 27
+          api-level: 29
           target: google_apis
           arch: x86_64
           ram-size: 4096M
