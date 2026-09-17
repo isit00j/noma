@@ -35,7 +35,9 @@
 
     </LinearLayout>
 
-    <View
+    <!-- RemoteViews-compatible divider: plain <View> is NOT in Android's
+         RemoteViews widget list and fails launcher-side inflation. -->
+    <ImageView
         android:id="@+id/widget_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"

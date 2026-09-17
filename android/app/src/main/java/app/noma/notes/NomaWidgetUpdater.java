@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -32,6 +31,19 @@ import java.util.Locale;
  *   the web layer re-checks App Lock before acting on them.
  */
 public final class NomaWidgetUpdater {
+
+    private static final String TAG = "NomaWidget";
+
+    /**
+     * TEMPORARY diagnostic switch for the Android 8.1 / Samsung Experience
+     * Home launcher-failure bisect. When true, every provider renders the
+     * minimal diagnostic layout (LinearLayout + one TextView: no drawables,
+     * no PendingIntent, no reflection ops, no theme processing) so the
+     * provider/manifest/update pipeline can be proven before re-introducing
+     * layout complexity one piece at a time. Set back to false once the
+     * bisect is complete.
+     */
+    private static final boolean DIAGNOSTIC_MINIMAL = true;
 
     /** Deep-link actions handled by the web layer (see shortcut.ts). */
     public static final String DEEP_LINK_OPEN = "app.noma.notes://widget/open";
@@ -82,82 +94,82 @@ public final class NomaWidgetUpdater {
     }
 
     /**
-     * Renders a widget instance. Never throws: any failure renders the
-     * locked card instead (fail closed), so the launcher never shows its
-     * generic "Problem loading widget" error.
+     * Renders a widget instance. Never throws: any failure is logged with its
+     * exact class/message/stack trace, recorded, and followed by the minimal
+     * diagnostic fallback — so the launcher never shows its generic
+     * "Problem loading widget" error without us knowing why.
      */
     public static void updateWidget(Context context, int widgetId) {
+        Log.d(TAG, "updateWidget: widgetId=" + widgetId);
         try {
             updateWidgetInternal(context, widgetId);
             NomaWidgetStore.clearError(context);
-        } catch (Exception e) {
-            Log.e("NomaWidget", "updateWidget failed for widgetId=" + widgetId, e);
-            NomaWidgetStore.recordError(context, e.toString());
-            applyLockedCardQuietly(context, widgetId);
+            Log.d(TAG, "updateWidget: success widgetId=" + widgetId);
+        } catch (Throwable t) {
+            Log.e(TAG, "updateWidget FAILED widgetId=" + widgetId
+                    + " ex=" + t.getClass().getName()
+                    + " msg=" + t.getMessage(), t);
+            NomaWidgetStore.recordError(context, t.getClass().getName() + ": " + t.getMessage());
+            applyDiagnosticFallback(context, widgetId, t);
         }
     }
 
     /**
-     * Last-resort render: a bare locked card built defensively. Used when
-     * the normal render path threw, so the widget fails closed no matter
-     * what went wrong.
+     * Last-resort render: the absolute simplest RemoteViews (LinearLayout +
+     * one TextView, plain text only — no drawables, no tint ops, no nested
+     * RemoteViews, no PendingIntent, no sizing, no theme). If Samsung
+     * Experience Home cannot render even this, the pipeline itself is broken;
+     * if it can, the failure is in the real layouts and we bisect from there.
      */
-    private static void applyLockedCardQuietly(Context context, int widgetId) {
+    private static void applyDiagnosticFallback(Context context, int widgetId, Throwable cause) {
+        Log.d(TAG, "applyDiagnosticFallback: widgetId=" + widgetId);
         try {
-            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_locked);
-            try {
-                views.setOnClickPendingIntent(
-                        R.id.widget_root, pendingDeepLink(context, widgetId, 1, DEEP_LINK_OPEN));
-            } catch (Exception ignored) {
-                // A broken tap action must not break the fail-closed card.
-            }
-            if (isDebuggable(context)) {
-                // Surface the failure on the widget itself so a screenshot
-                // of the test build reveals the exact cause.
-                String err = NomaWidgetStore.getLastError(context);
-                if (err != null) {
-                    try {
-                        views.setTextViewText(R.id.widget_locked_sub, truncate(err, 140));
-                        views.setTextColor(R.id.widget_locked_sub, 0xFFE5484D);
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_diag_minimal);
+            String label = "Noma fallback (" + cause.getClass().getSimpleName() + ")";
+            views.setTextViewText(R.id.diag_text, label);
             AppWidgetManager.getInstance(context).updateAppWidget(widgetId, views);
-        } catch (Exception ignored) {
+            Log.d(TAG, "applyDiagnosticFallback: applied widgetId=" + widgetId);
+        } catch (Throwable t2) {
+            Log.e(TAG, "applyDiagnosticFallback FAILED widgetId=" + widgetId
+                    + " ex=" + t2.getClass().getName()
+                    + " msg=" + t2.getMessage(), t2);
         }
     }
 
-    private static String truncate(String value, int maxLength) {
-        if (value == null) return "";
-        return value.length() <= maxLength ? value : value.substring(0, maxLength) + "...";
-    }
-
-    /** True for debuggable (test) builds; the diagnostic subtitle is debug-only. */
-    private static boolean isDebuggable(Context context) {
-        try {
-            return (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        } catch (Exception e) {
-            return false;
-        }
+    /** Minimal diagnostic RemoteViews shared by all providers during the bisect. */
+    private static RemoteViews buildDiagnosticMinimal(Context context, int widgetId, String kind) {
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_diag_minimal);
+        views.setTextViewText(R.id.diag_text, "Noma " + kind + " #" + widgetId + " OK");
+        return views;
     }
 
     private static void updateWidgetInternal(Context context, int widgetId) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         String kind = kindForWidget(context, manager, widgetId);
-        if (kind == null) return;
+        Log.d(TAG, "updateWidgetInternal: widgetId=" + widgetId + " kind=" + kind);
+        if (kind == null) {
+            Log.w(TAG, "updateWidgetInternal: no AppWidgetProviderInfo for widgetId="
+                    + widgetId + " — skipping");
+            return;
+        }
 
         RemoteViews views;
-        if (NomaWidgetStore.isLocked(context)) {
+        if (DIAGNOSTIC_MINIMAL) {
+            Log.d(TAG, "updateWidgetInternal: building MINIMAL diagnostic RemoteViews");
+            views = buildDiagnosticMinimal(context, widgetId, kind);
+        } else if (NomaWidgetStore.isLocked(context)) {
+            Log.d(TAG, "updateWidgetInternal: building locked card");
             views = buildLocked(context, widgetId);
         } else {
+            Log.d(TAG, "updateWidgetInternal: building content (" + kind + ")");
             String projectionJson = NomaWidgetStore.getProjection(context, widgetId);
             views = buildContent(context, manager, widgetId, kind, projectionJson);
         }
-        try {
-            manager.updateAppWidget(widgetId, views);
-        } catch (Exception ignored) {
-        }
+        // NOTE: no silent catch here — a failure to apply must propagate to
+        // updateWidget() so the real exception is logged and recorded.
+        Log.d(TAG, "updateWidgetInternal: applying RemoteViews widgetId=" + widgetId);
+        manager.updateAppWidget(widgetId, views);
+        Log.d(TAG, "updateWidgetInternal: updateAppWidget returned widgetId=" + widgetId);
     }
 
     private static String kindForWidget(
@@ -170,7 +182,9 @@ public final class NomaWidgetUpdater {
             if (className.equals(NomaNoteWidgetProvider.class.getName())) return "note";
             if (className.equals(NomaTaskWidgetProvider.class.getName())) return "task";
             if (className.equals(NomaFocusWidgetProvider.class.getName())) return "focus";
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.w(TAG, "kindForWidget: getAppWidgetInfo failed widgetId=" + widgetId
+                    + " ex=" + e.getClass().getName() + " msg=" + e.getMessage());
         }
         return null;
     }

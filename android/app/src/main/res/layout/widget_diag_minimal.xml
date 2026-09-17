@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TEMPORARY diagnostic layout for the Android 8.1 / Samsung Experience Home
+     launcher-failure bisect. Deliberately the simplest possible RemoteViews:
+     a LinearLayout with a single TextView. No vector drawables, no
+     PendingIntent, no reflection operations, no nested RemoteViews, no theme
+     processing, no dynamic sizing. Remove once the bisect is complete. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FFFFFF"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/diag_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Noma widget OK"
+        android:textSize="14sp"
+        android:textColor="#000000" />
+
+</LinearLayout>

@@ -8,7 +8,7 @@
     android:maxResizeHeight="480dp"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_focus"
+    android:initialLayout="@layout/widget_diag_minimal" <!-- TEMPORARY for 8.1 bisect -->
     android:description="@string/widget_focus_desc"
     android:previewLayout="@layout/widget_focus"
     android:widgetCategory="home_screen"

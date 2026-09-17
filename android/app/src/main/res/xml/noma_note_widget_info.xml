@@ -8,7 +8,7 @@
     android:maxResizeHeight="480dp"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_note"
+    android:initialLayout="@layout/widget_diag_minimal" <!-- TEMPORARY for 8.1 bisect -->
     android:description="@string/widget_note_desc"
     android:previewLayout="@layout/widget_note"
     android:widgetCategory="home_screen"

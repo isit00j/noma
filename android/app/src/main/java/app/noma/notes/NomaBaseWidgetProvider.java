@@ -4,6 +4,9 @@ import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.os.Bundle;
+import android.util.Log;
+
+import java.util.Arrays;
 
 /**
  * Shared base for Noma's widget providers.
@@ -18,11 +21,14 @@ import android.os.Bundle;
  */
 public abstract class NomaBaseWidgetProvider extends AppWidgetProvider {
 
+    private static final String TAG = "NomaWidget";
+
     /** "note" | "task" | "focus". */
     protected abstract String kind();
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
+        Log.d(TAG, "provider onUpdate: kind=" + kind() + " ids=" + Arrays.toString(appWidgetIds));
         for (int widgetId : appWidgetIds) {
             NomaWidgetUpdater.updateWidget(context, widgetId);
         }
@@ -30,6 +36,7 @@ public abstract class NomaBaseWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onDeleted(Context context, int[] appWidgetIds) {
+        Log.d(TAG, "provider onDeleted: kind=" + kind() + " ids=" + Arrays.toString(appWidgetIds));
         for (int widgetId : appWidgetIds) {
             NomaWidgetStore.removeWidgetData(context, widgetId);
         }
@@ -38,11 +45,18 @@ public abstract class NomaBaseWidgetProvider extends AppWidgetProvider {
     @Override
     public void onAppWidgetOptionsChanged(
             Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle newOptions) {
+        Log.d(TAG, "provider onAppWidgetOptionsChanged: kind=" + kind() + " id=" + appWidgetId);
         NomaWidgetUpdater.updateWidget(context, appWidgetId);
     }
 
     @Override
     public void onEnabled(Context context) {
+        Log.d(TAG, "provider onEnabled: kind=" + kind());
         NomaWidgetUpdater.updateAll(context);
+    }
+
+    @Override
+    public void onDisabled(Context context) {
+        Log.d(TAG, "provider onDisabled: kind=" + kind());
     }
 }
