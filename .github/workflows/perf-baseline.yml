@@ -101,6 +101,9 @@ jobs:
         # NOTE: API 27's system image is no longer published in the SDK repo
         # (sdkmanager: "Failed to find package"), so we use API 29. Emulator
         # numbers stay preliminary smoke numbers regardless of API level.
+        # NOTE 2: android-emulator-runner executes each `script` line as its
+        # own `sh -c` call, so the driver lives in a script file — inline
+        # continuations/heredocs would be split apart and break.
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -108,43 +111,7 @@ jobs:
           arch: x86_64
           ram-size: 4096M
           disk-size: 4096M
-          script: |
-            set -e
-            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -a android.intent.action.VIEW \
-              -d "app.noma.notes://autoperf?env=emulator" \
-              app.noma.notes/.MainActivity
-            echo "Waiting for perf-report.json (up to ~15 min)…"
-            READY=""
-            for i in $(seq 1 150); do
-              if adb shell "run-as app.noma.notes ls files/perf-report.json" 2>/dev/null | grep -q "perf-report.json"; then
-                READY=1
-                echo "Report ready after ~$((i * 6))s"
-                break
-              fi
-              sleep 6
-            done
-            if [ -z "$READY" ]; then
-              echo "ERROR: benchmark report never appeared."
-              adb logcat -d | tail -n 200 || true
-              exit 1
-            fi
-            adb exec-out run-as app.noma.notes cat files/perf-report.json > perf-report.emulator.json
-            python3 - <<'EOF'
-            import json
-            r = json.load(open("perf-report.emulator.json"))
-            print("environment:", r["environment"]["label"])
-            print("WARNING:", r["environment"]["warning"])
-            for size in sorted(r["automated"]["sizes"], key=int):
-                s = r["automated"]["sizes"][size]
-                print(f"--- {size} notes ---")
-                print("  fixture gen:", s["fixture"]["generationMs"], "ms")
-                print("  dexie toArray:", s["dexie"]["toArray"], "ms")
-                ed = s["editor"]
-                print("  editor:", ed if "failed" in ed else "tap->painted %s ms" % ed["tapToEditorPaintedMs"])
-                lr = s["listRender"]
-                print("  list:", lr if "failed" in lr else "fixture->painted %s ms" % lr["fixtureToListPaintedMs"])
-            EOF
+          script: bash .github/scripts/run-emu-benchmark.sh
 
       - name: Upload emulator report
         uses: actions/upload-artifact@v4
