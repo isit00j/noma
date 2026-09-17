@@ -124,6 +124,35 @@ export function isWidgetSupported(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
 }
 
+type WidgetConfigChangeListener = () => void;
+const widgetConfigChangeListeners = new Set<WidgetConfigChangeListener>();
+
+/**
+ * Subscribe to widget configuration changes saved from Noma's UI (e.g.
+ * Settings → Widgets). Lets WidgetSync re-read configs and rebuild
+ * projections deterministically — no polling.
+ */
+export function subscribeWidgetConfigChanged(listener: WidgetConfigChangeListener): () => void {
+  widgetConfigChangeListeners.add(listener);
+  return () => {
+    widgetConfigChangeListeners.delete(listener);
+  };
+}
+
+/**
+ * Notify subscribers that a widget's configuration was saved. Call after
+ * `saveWidgetConfig` resolves.
+ */
+export function notifyWidgetConfigChanged(): void {
+  for (const listener of widgetConfigChangeListeners) {
+    try {
+      listener();
+    } catch {
+      // A subscriber must never break the save flow.
+    }
+  }
+}
+
 const DEFAULT_WIDGET_COLORS: WidgetColors = {
   background: "#ffffff",
   card: "#ffffff",

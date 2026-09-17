@@ -10,6 +10,7 @@ import {
   isWidgetSupported,
   noteAccentHex,
   readWidgetTheme,
+  subscribeWidgetConfigChanged,
   type FocusWidgetConfig,
   type NoteWidgetConfig,
   type PlacedWidget,
@@ -46,6 +47,19 @@ const MAX_POOL_TASKS = 120;
 
 function clampMaxItems(value: number): number {
   return Math.min(6, Math.max(1, Math.floor(value) || 3));
+}
+
+/**
+ * Deterministic signature of a widget's configuration. The projection
+ * pipeline keys off this, so saving a new config (same widget ID) always
+ * rebuilds and re-pushes that widget's projection — no polling needed.
+ */
+function configSignature(config: WidgetConfig | null): string {
+  if (!config) return "∅";
+  const entries = Object.entries(config as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify(entries);
 }
 
 function toNoteItem(note: Note): WidgetNoteItem {
@@ -215,7 +229,10 @@ export function WidgetSync() {
   const [systemTick, setSystemTick] = useState(0);
 
   const locked = !ready || isLockStateResolving || isLocked;
-  const widgetsKey = widgets.map((w) => `${w.kind}:${w.id}`).join(",");
+  // Keyed by kind, ID *and* serialized config: a config change must
+  // deterministically rebuild that widget's projection, even when the
+  // widget ID stays the same.
+  const widgetsKey = widgets.map((w) => `${w.kind}:${w.id}:${configSignature(w.config)}`).join("|");
 
   const refreshWidgets = async () => {
     if (!supported) return;
@@ -241,6 +258,17 @@ export function WidgetSync() {
     return () => {
       appListener?.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supported]);
+
+  // Re-read configs when one is saved from Noma's UI (Settings → Widgets).
+  // The config signature in `widgetsKey` then deterministically rebuilds and
+  // re-pushes that widget's projection.
+  useEffect(() => {
+    if (!supported) return;
+    return subscribeWidgetConfigChanged(() => {
+      void refreshWidgets();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supported]);
 

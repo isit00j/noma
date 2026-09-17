@@ -17,6 +17,7 @@ import {
   WIDGET_KIND_LABEL,
   defaultWidgetConfig,
   isWidgetSupported,
+  notifyWidgetConfigChanged,
   type FocusWidgetConfig,
   type NoteWidgetConfig,
   type PlacedWidget,
@@ -168,6 +169,7 @@ export function WidgetSection() {
         return next;
       });
       toast.success("Widget updated");
+      notifyWidgetConfigChanged();
       void refresh();
     } catch {
       toast.error("Couldn't update the widget");
