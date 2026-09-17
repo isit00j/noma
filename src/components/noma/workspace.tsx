@@ -92,6 +92,7 @@ import {
   consumeAutoBenchmarkRequest,
   runAutomatedBenchmark,
   writeAutoReportFile,
+  writeTriggerReceipt,
   type AutoBenchmarkDriver,
 } from "@/lib/noma/perf-automation";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
@@ -407,6 +408,9 @@ export function Workspace() {
     autoStarted.current = true;
     // TEMP-PERF: breadcrumb for CI logcat diagnosis.
     console.log(`[autoperf] trigger seen, env=${env.label}`);
+    // TEMP-PERF: receipt file so CI can tell "trigger never arrived"
+    // apart from "benchmark started but produced no report".
+    void writeTriggerReceipt(env);
 
     if (isLocked) {
       setLastAutoReport(

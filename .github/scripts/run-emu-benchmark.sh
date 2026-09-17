@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # TEMPORARY: drives the automated perf benchmark on the CI emulator.
-# Installs the debug APK, fires the autoperf deep link, waits for the
-# report file, pulls it via `adb run-as`, and prints a short summary.
+# Installs the debug APK, warm-launches the app (so the JS deep-link
+# listener is registered before the VIEW intent arrives — a cold-start
+# VIEW intent races JS init and the trigger can be lost), fires the
+# autoperf deep link, waits for the trigger receipt + report file, pulls
+# the report via `adb run-as`, and prints a short summary.
 # Emulator numbers are preliminary smoke numbers — never J7 Prime measurements.
 # Delete with .github/workflows/perf-baseline.yml when the baseline is done.
 set -euo pipefail
@@ -9,10 +12,56 @@ set -euo pipefail
 APK="android/app/build/outputs/apk/debug/app-debug.apk"
 OUT="perf-report.emulator.json"
 
+fail_diagnostics() {
+  echo "--- app process ---"
+  adb shell pidof app.noma.notes || echo "(app not running)"
+  echo "--- app logcat (filtered) ---"
+  adb logcat -d | grep -iE "autoperf|noma|capacitor|chromium|AndroidRuntime" | tail -n 80 || true
+}
+
 adb install -r "$APK"
+
+# Warm start so the JS app (and its appUrlOpen listener) is fully booted
+# before the deep link is delivered.
+echo "Warm-launching the app…"
+adb shell am start -n app.noma.notes/.MainActivity >/dev/null
+
+echo "Waiting for the native bridge to start (up to ~3 min)…"
+BOOT=""
+for i in $(seq 1 36); do
+  if adb logcat -d 2>/dev/null | grep -q "Capacitor: App started"; then
+    BOOT=1
+    echo "Bridge started."
+    break
+  fi
+  sleep 5
+done
+if [ -z "$BOOT" ]; then
+  echo "WARNING: no App-started marker seen; continuing anyway."
+fi
+echo "Waiting 60s for the JS app to finish booting…"
+sleep 60
+
+echo "Firing autoperf deep link…"
 adb shell am start -a android.intent.action.VIEW -d "app.noma.notes://autoperf?env=emulator"
 
-echo "Waiting for perf-report.json (up to ~15 min)..."
+echo "Waiting for trigger receipt (up to ~3 min)…"
+TRIGGER=""
+for i in $(seq 1 36); do
+  if adb shell "run-as app.noma.notes ls files/perf-trigger.json" 2>/dev/null | grep -q "perf-trigger.json"; then
+    TRIGGER=1
+    echo "Trigger reached the app."
+    break
+  fi
+  sleep 5
+done
+if [ -z "$TRIGGER" ]; then
+  echo "ERROR: autoperf trigger never reached the app."
+  fail_diagnostics
+  exit 1
+fi
+
+echo "Waiting for perf-report.json (up to ~15 min)…"
 READY=""
 for i in $(seq 1 150); do
   if adb shell "run-as app.noma.notes ls files/perf-report.json" 2>/dev/null | grep -q "perf-report.json"; then
@@ -25,12 +74,7 @@ done
 
 if [ -z "$READY" ]; then
   echo "ERROR: benchmark report never appeared."
-  echo "--- app process ---"
-  adb shell pidof app.noma.notes || echo "(app not running)"
-  echo "--- app logcat (filtered) ---"
-  adb logcat -d | grep -iE "autoperf|noma|capacitor|chromium|AndroidRuntime" | tail -n 80 || true
-  echo "--- logcat tail ---"
-  adb logcat -d | tail -n 40 || true
+  fail_diagnostics
   exit 1
 fi
 

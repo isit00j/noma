@@ -292,6 +292,24 @@ export async function writeAutoReportFile(report: PerfAutoReport): Promise<void>
   });
 }
 
+/**
+ * TEMP-PERF: trigger receipt for CI. Written the moment the autoperf
+ * trigger reaches JS, so CI can distinguish "deep link never arrived"
+ * from "benchmark started but produced no report".
+ */
+export async function writeTriggerReceipt(env: PerfAutoEnvironment): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await Filesystem.writeFile({
+      path: "perf-trigger.json",
+      data: JSON.stringify({ seenAt: new Date().toISOString(), env: env.label }),
+      directory: Directory.Data,
+    });
+  } catch {
+    /* best effort — the benchmark itself is the source of truth */
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Trigger plumbing (module-level pending request).
 // ---------------------------------------------------------------------------
