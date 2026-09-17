@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -110,7 +111,7 @@ public final class NomaWidgetUpdater {
             } catch (Exception ignored) {
                 // A broken tap action must not break the fail-closed card.
             }
-            if (BuildConfig.DEBUG) {
+            if (isDebuggable(context)) {
                 // Surface the failure on the widget itself so a screenshot
                 // of the test build reveals the exact cause.
                 String err = NomaWidgetStore.getLastError(context);
@@ -130,6 +131,15 @@ public final class NomaWidgetUpdater {
     private static String truncate(String value, int maxLength) {
         if (value == null) return "";
         return value.length() <= maxLength ? value : value.substring(0, maxLength) + "...";
+    }
+
+    /** True for debuggable (test) builds; the diagnostic subtitle is debug-only. */
+    private static boolean isDebuggable(Context context) {
+        try {
+            return (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static void updateWidgetInternal(Context context, int widgetId) {
