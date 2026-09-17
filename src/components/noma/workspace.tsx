@@ -16,6 +16,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { toast } from "sonner";
@@ -81,6 +82,19 @@ import {
   cleanupOrphanedReminders,
 } from "@/lib/noma/notes";
 import { highlightTerms, searchNotes } from "@/lib/noma/search";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { pmark, pmarkPaint, pmeasure } from "@/lib/noma/perf-instrumentation";
+// TEMP-PERF: automated benchmark (remove with perf-instrumentation.ts).
+import { makeAutoEnv, PERF_ENABLED, setLastAutoReport } from "@/lib/noma/perf-instrumentation";
+import {
+  autoBenchmarkQueryParam,
+  blockedAutoReport,
+  consumeAutoBenchmarkRequest,
+  runAutomatedBenchmark,
+  writeAutoReportFile,
+  writeTriggerReceipt,
+  type AutoBenchmarkDriver,
+} from "@/lib/noma/perf-automation";
 import type { Folder, Note, Reminder, Tag } from "@/lib/noma/types";
 import { filterNotes, viewTitle, type ViewState } from "@/lib/noma/view";
 import { cn } from "@/lib/utils";
@@ -215,7 +229,9 @@ export function Workspace() {
   const { settings, update: updateSettings } = useSettings();
   const online = useOnline();
   const { isLocked, isLockStateResolving } = useAppLock();
-  const { action: shortcutAction, consumeShortcut } = usePendingShortcut();
+  // TEMP-PERF: shortcutEnv carries the autoperf deep-link environment tag.
+  const { action: shortcutAction, shortcutEnv, consumeShortcut } = usePendingShortcut();
+  const navigate = useNavigate();
 
   const [view, setView] = useState<ViewState>({ kind: "all" });
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
@@ -228,6 +244,27 @@ export function Workspace() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // TEMP-PERF: one-shot startup marks.
+  const perfStartupMarked = useRef(false);
+  // TEMP-PERF: automated benchmark state (remove with perf-instrumentation.ts).
+  const [autoProgress, setAutoProgress] = useState<string | null>(null);
+  const autoStarted = useRef(false);
+  const notesRef = useRef<Note[] | undefined>(undefined);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+  useEffect(() => {
+    if (perfStartupMarked.current || dbLoading || !db || notes === undefined) return;
+    perfStartupMarked.current = true;
+    pmark("notes-loaded");
+    // TEMP-PERF: paint-dependent measures must be computed after the paint
+    // mark lands — measuring synchronously here would record nothing.
+    pmarkPaint("workspace-painted", () => {
+      pmeasure("startup-js-to-workspace-painted", "js-bundle-start", "workspace-painted");
+      pmeasure("startup-notes-loaded-to-painted", "notes-loaded", "workspace-painted");
+    });
+    pmeasure("startup-db-ready-to-notes-loaded", "db-ready", "notes-loaded");
+  }, [dbLoading, db, notes]);
   const [prompt, setPrompt] = useState<PromptRequest | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [reminderTargetNote, setReminderTargetNote] = useState<Note | null>(null);
@@ -260,7 +297,13 @@ export function Workspace() {
     async (id: string, patch: { title?: string; content?: string }) => {
       if (!db) return;
       try {
+        // TEMP-PERF
+        pmark("save-write-start");
         await updateNote(db!, id, patch);
+        // TEMP-PERF
+        pmark("save-write-end");
+        pmeasure("save-dexie-write", "save-write-start", "save-write-end");
+        pmeasure("save-keystroke-to-written", "save-keystroke", "save-write-end");
         pendingSaveRef.current = null;
         setSaveState(navigator.onLine ? "saved" : "offline");
       } catch {
@@ -274,6 +317,8 @@ export function Workspace() {
   const handleChange = useCallback(
     (patch: { title?: string; content?: string }) => {
       if (!activeNoteId) return;
+      // TEMP-PERF
+      pmark("save-keystroke");
       setDraft((current) => ({
         ...(current?.id === activeNoteId ? current : { id: activeNoteId }),
         id: activeNoteId,
@@ -317,12 +362,18 @@ export function Workspace() {
    * nothing to read, so they open directly in the editor instead.
    */
   const openNote = useCallback((note: Note) => {
+    // TEMP-PERF
+    pmark("note-open-tap");
     setDraft(null);
     setSaveState("idle");
     setActiveNoteId(note.id);
     const isEmpty = !note.title.trim() && !notePreview(note);
     setNoteMode(isEmpty ? "edit" : "read");
     setEditReturnTo(isEmpty ? "list" : "read");
+    // TEMP-PERF: approximates read-view paint after state commit.
+    pmarkPaint("read-view-painted", () => {
+      pmeasure("note-open-tap-to-read-view-painted", "note-open-tap", "read-view-painted");
+    });
   }, []);
 
   /** Enter the editor for the currently open note (from the Read View). */
@@ -340,6 +391,99 @@ export function Workspace() {
     setNoteMode("read");
   }, [flushPendingSave]);
 
+  // TEMP-PERF: automated benchmark trigger + runner (one-shot).
+  // Triggers: /perf "Run Performance Benchmark" button (module flag),
+  // `?autoperf=1` query param, or the `app.noma.notes://autoperf` deep link
+  // (CI emulator). Never runs behind the App Lock screen.
+  useEffect(() => {
+    if (!PERF_ENABLED || !db || dbLoading || notes === undefined || isLockStateResolving) return;
+    if (autoStarted.current) return;
+    let env = consumeAutoBenchmarkRequest();
+    if (!env) env = autoBenchmarkQueryParam();
+    if (!env && shortcutAction === "autoperf") {
+      env = makeAutoEnv(shortcutEnv ?? "device");
+      consumeShortcut();
+    }
+    if (!env) return;
+    autoStarted.current = true;
+    // TEMP-PERF: breadcrumb for CI logcat diagnosis.
+    console.log(`[autoperf] trigger seen, env=${env.label}`);
+    // TEMP-PERF: receipt file so CI can tell "trigger never arrived"
+    // apart from "benchmark started but produced no report".
+    void writeTriggerReceipt(env);
+
+    if (isLocked) {
+      setLastAutoReport(
+        blockedAutoReport(env, "Noma is locked (App Lock). Unlock Noma and run again."),
+      );
+      navigate({ to: "/perf" });
+      return;
+    }
+
+    const driver: AutoBenchmarkDriver = {
+      db,
+      env,
+      onProgress: (step) => setAutoProgress(step),
+      getNotesCount: () => notesRef.current?.length ?? 0,
+      openNewNoteInEditor: async () => {
+        // Same code path as the New Note button, driven programmatically.
+        pmark("new-note-tap");
+        const note = await createNote(db, {});
+        pmark("new-note-created");
+        pmeasure("new-note-tap-to-created", "new-note-tap", "new-note-created");
+        setDraft(null);
+        setSaveState("idle");
+        setActiveNoteId(note.id);
+        setNoteMode("edit");
+        setEditReturnTo("list");
+        return note.id;
+      },
+      closeEditor: async () => {
+        await closeNote();
+      },
+      deleteNoteById: async (id: string) => {
+        await db.notes.delete(id);
+      },
+    };
+
+    setAutoProgress("Starting automated benchmark…");
+    void runAutomatedBenchmark(driver)
+      .then(async (report) => {
+        try {
+          await writeAutoReportFile(report);
+          // TEMP-PERF: breadcrumb for CI logcat diagnosis.
+          console.log("[autoperf] report written");
+        } catch (error) {
+          console.error("perf: failed to write report file", error);
+        }
+        setAutoProgress(null);
+        navigate({ to: "/perf" });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setAutoProgress(`Benchmark failed: ${message}`);
+        // TEMP-PERF: persist the failure so CI fails fast with the reason
+        // instead of waiting out the whole report timeout.
+        console.error("[autoperf] benchmark failed:", message);
+        const failed = blockedAutoReport(env, message);
+        setLastAutoReport(failed);
+        void writeAutoReportFile(failed).catch(() => {
+          /* best effort */
+        });
+      });
+  }, [
+    db,
+    dbLoading,
+    notes,
+    isLockStateResolving,
+    isLocked,
+    shortcutAction,
+    shortcutEnv,
+    consumeShortcut,
+    navigate,
+    closeNote,
+  ]);
+
   /**
    * Back navigation out of the editor: return to the Read View when the note
    * was opened for reading, otherwise back to the Notes list.
@@ -355,10 +499,15 @@ export function Workspace() {
 
   const handleNewNote = useCallback(async () => {
     if (!db) return;
+    // TEMP-PERF
+    pmark("new-note-tap");
     const note = await createNote(db!, {
       folderId: view.kind === "folder" ? (view.id ?? null) : null,
       tagIds: view.kind === "tag" && view.id ? [view.id] : [],
     });
+    // TEMP-PERF
+    pmark("new-note-created");
+    pmeasure("new-note-tap-to-created", "new-note-tap", "new-note-created");
     setMobileNavOpen(false);
     setDraft(null);
     setSaveState("idle");
@@ -525,18 +674,28 @@ export function Workspace() {
     [db, openNote, activeNoteId],
   );
 
-  const searchResults = useMemo(
-    () =>
-      searchOpen
-        ? searchNotes(
-            query,
-            allNotes.filter((note) => !note.deleted),
-            allFolders,
-            allTags,
-          )
-        : [],
-    [searchOpen, query, allNotes, allFolders, allTags],
-  );
+  const searchResults = useMemo(() => {
+    if (!searchOpen || query.trim() === "") return [];
+    // TEMP-PERF
+    pmark("search-start");
+    const results = searchNotes(
+      query,
+      allNotes.filter((note) => !note.deleted),
+      allFolders,
+      allTags,
+    );
+    pmark("search-end");
+    pmeasure("search-compute", "search-start", "search-end");
+    return results;
+  }, [searchOpen, query, allNotes, allFolders, allTags]);
+
+  // TEMP-PERF: approximate search-results paint.
+  useEffect(() => {
+    if (!searchOpen || query.trim() === "") return;
+    pmarkPaint("search-painted", () => {
+      pmeasure("search-input-to-results-painted", "search-start", "search-painted");
+    });
+  }, [searchResults, searchOpen, query]);
 
   if (dbLoading || !db) {
     return (
@@ -660,6 +819,12 @@ export function Workspace() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
+      {/* TEMP-PERF: automated benchmark progress banner. */}
+      {autoProgress && (
+        <div className="fixed inset-x-0 top-0 z-[100] bg-primary px-4 py-3 text-center text-sm font-medium text-primary-foreground shadow-lg">
+          {autoProgress}
+        </div>
+      )}
       {!settings.sidebarCollapsed && (
         <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
           {sidebar}

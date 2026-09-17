@@ -1,0 +1,85 @@
+# TEMPORARY: automated perf-baseline CI for the chore/perf-baseline branch.
+#
+# - perf-tests: vitest regression tests for the instrumentation (Dexie ops,
+#   fixture generation/determinism, query timings, search computation,
+#   save/write timing, instrumentation unit tests).
+# - perf-chromium: builds the production web app, serves it, and drives the
+#   automated benchmark in headless Chromium via ?autoperf=1&env=ci,
+#   extracting window.__nomaPerfReport.
+#
+# The Android emulator path was cut: it failed five consecutive runs for
+# five different infrastructure reasons (unpublished system image, runner
+# script splitting, cold-start deep-link race, API 29 WebView too old to
+# parse the bundle, API 34 WebView renderer crash). Headless Chromium runs
+# the same web-tech measurements (Dexie, search, DOM) in ~5 minutes.
+#
+# Automated numbers are preliminary smoke numbers and must NEVER be presented
+# as J7 Prime measurements. Delete this workflow when the baseline is done.
+name: Perf Baseline (temporary)
+
+on:
+  push:
+    branches: ["chore/perf-baseline"]
+  workflow_dispatch:
+
+jobs:
+  perf-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run perf regression tests
+        run: npx vitest run
+
+  perf-chromium:
+    needs: [perf-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright (no-save, CI driver only)
+        run: npm install --no-save playwright && npx playwright install chromium
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Run automated benchmark in headless Chromium
+        run: node .github/scripts/run-chromium-benchmark.mjs
+
+      - name: Upload CI report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-ci
+          path: perf-report.ci.json
+
+      - name: CI disclaimer
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## ⚠️ CI results — not J7 Prime measurements
+          The `perf-report-ci` artifact contains **preliminary smoke numbers from headless
+          Chromium on a CI Linux runner**. They validate that the automated benchmark runs
+          end-to-end; they must **never** be presented as Samsung Galaxy J7 Prime measurements.
+          EOF

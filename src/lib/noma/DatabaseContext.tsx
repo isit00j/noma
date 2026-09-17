@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { NomaDatabase, copyDatabase } from "./db";
 import { useAuth } from "./auth";
 import { rehydrateReminders } from "./notifications";
+// TEMP-PERF: baseline instrumentation (remove with perf-instrumentation.ts).
+import { pmark } from "./perf-instrumentation";
 
 export interface DatabaseContextValue {
   db: NomaDatabase | null;
@@ -63,6 +65,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     let localGuestDb: NomaDatabase | null = null;
 
     async function initializeDatabase() {
+      // TEMP-PERF
+      pmark("db-init-start");
       const dbName = auth.user ? `noma_${auth.user.uid}` : "noma_guest";
       localNewDb = new NomaDatabase(dbName);
 
@@ -120,6 +124,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
                 setActiveDb(localNewDb);
                 setGuestMigrationPending(true);
                 setLoading(false);
+                // TEMP-PERF
+                pmark("db-ready");
 
                 // Prevent cleanup from closing these since they are now in state
                 localGuestDb = null;
@@ -139,6 +145,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       if (initGeneration.current === currentGen) {
         setActiveDb(localNewDb);
         setLoading(false);
+        // TEMP-PERF
+        pmark("db-ready");
         const dbToRehydrate = localNewDb;
         localNewDb = null;
         setPendingGuestDb(null);

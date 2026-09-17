@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as PerfRouteImport } from './routes/perf'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SigninRouteImport } from './routes/signin'
 
@@ -36,6 +37,11 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PerfRoute = PerfRouteImport.update({
+  id: '/perf',
+  path: '/perf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/contact': typeof ContactRoute
+  '/perf': typeof PerfRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/contact': typeof ContactRoute
+  '/perf': typeof PerfRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
 }
@@ -69,20 +77,23 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/contact': typeof ContactRoute
+  '/perf': typeof PerfRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/account' | '/app' | '/contact' | '/settings' | '/signin'
+  fullPaths:
+    '/' | '/account' | '/app' | '/contact' | '/perf' | '/settings' | '/signin'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/app' | '/contact' | '/settings' | '/signin'
+  to: '/' | '/account' | '/app' | '/contact' | '/perf' | '/settings' | '/signin'
   id:
     | '__root__'
     | '/'
     | '/account'
     | '/app'
     | '/contact'
+    | '/perf'
     | '/settings'
     | '/signin'
   fileRoutesById: FileRoutesById
@@ -92,6 +103,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AppRoute: typeof AppRoute
   ContactRoute: typeof ContactRoute
+  PerfRoute: typeof PerfRoute
   SettingsRoute: typeof SettingsRoute
   SigninRoute: typeof SigninRoute
 }
@@ -126,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/perf': {
+      id: '/perf'
+      path: '/perf'
+      fullPath: '/perf'
+      preLoaderRoute: typeof PerfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -148,6 +167,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AppRoute: AppRoute,
   ContactRoute: ContactRoute,
+  PerfRoute: PerfRoute,
   SettingsRoute: SettingsRoute,
   SigninRoute: SigninRoute,
 }
