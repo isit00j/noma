@@ -67,6 +67,32 @@ async function pollFor(cond: () => boolean, timeoutMs: number, label: string): P
   }
 }
 
+/**
+ * Paint probe with a timeout. requestAnimationFrame can stall indefinitely
+ * (backgrounded WebView, throttled renderer), so never await it unbounded —
+ * fail open and keep the benchmark moving.
+ */
+async function paintProbeMs(
+  label: string,
+  markName: string,
+  measureName: string,
+  fromMark: string,
+  timeoutMs = 15000,
+): Promise<number> {
+  const ms = await Promise.race([
+    new Promise<number>((resolve) => {
+      pmarkPaint(markName, () => {
+        pmeasure(measureName, fromMark, markName);
+        const v = measureLookup().get(measureName);
+        resolve(v === undefined ? Number.NaN : v);
+      });
+    }),
+    new Promise<number>((resolve) => setTimeout(() => resolve(Number.NaN), timeoutMs)),
+  ]);
+  if (Number.isNaN(ms)) throw new Error(`timed out waiting for ${label} paint`);
+  return ms;
+}
+
 function measureLookup(): Map<string, number> {
   const map = new Map<string, number>();
   for (const m of getPerfReport().measures) map.set(m.name, m.medianMs);
@@ -97,14 +123,13 @@ async function runSize(
       30000,
       "list to show the new fixture",
     );
-    await new Promise<void>((resolve) => {
-      pmarkPaint("auto-list-painted", () => {
-        pmeasure("auto-fixture-to-list-painted", "auto-fixture-committed", "auto-list-painted");
-        resolve();
-      });
-    });
-    const ms = measureLookup().get("auto-fixture-to-list-painted");
-    listRender = ms === undefined ? { failed: "measure missing" } : { fixtureToListPaintedMs: ms };
+    const ms = await paintProbeMs(
+      "list render",
+      "auto-list-painted",
+      "auto-fixture-to-list-painted",
+      "auto-fixture-committed",
+    );
+    listRender = { fixtureToListPaintedMs: ms };
   } catch (error) {
     listRender = { failed: error instanceof Error ? error.message : String(error) };
   }
@@ -162,12 +187,12 @@ async function runSize(
     const t0 = perfMarkClock();
     const noteId = await driver.openNewNoteInEditor();
     await waitForMark("tiptap-ready", 30000, t0);
-    await new Promise<void>((resolve) => {
-      pmarkPaint("auto-editor-painted", () => {
-        pmeasure("auto-new-note-to-editor-painted", "new-note-tap", "auto-editor-painted");
-        resolve();
-      });
-    });
+    const paintedMs = await paintProbeMs(
+      "editor",
+      "auto-editor-painted",
+      "auto-new-note-to-editor-painted",
+      "new-note-tap",
+    );
     const lookup = measureLookup();
     const need = (name: string): number => {
       const v = lookup.get(name);
@@ -178,7 +203,7 @@ async function runSize(
       tapToCreatedMs: need("new-note-tap-to-created"),
       tapToEditorMountedMs: need("new-note-tap-to-editor-mounted"),
       tapToTiptapReadyMs: need("new-note-tap-to-tiptap-ready"),
-      tapToEditorPaintedMs: need("auto-new-note-to-editor-painted"),
+      tapToEditorPaintedMs: paintedMs,
     };
     await driver.closeEditor();
     await driver.deleteNoteById(noteId);
@@ -233,7 +258,10 @@ export async function runAutomatedBenchmark(driver: AutoBenchmarkDriver): Promis
 
   const sizes: Record<string, PerfAutoSizeResult> = {};
   for (const size of AUTO_BENCHMARK_SIZES) {
+    // TEMP-PERF: breadcrumb for CI logcat diagnosis.
+    console.log(`[autoperf] starting size ${size}`);
     sizes[String(size)] = await runSize(driver, size);
+    console.log(`[autoperf] finished size ${size}`);
   }
 
   onProgress("Finishing…");

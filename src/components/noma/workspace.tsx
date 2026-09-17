@@ -405,6 +405,8 @@ export function Workspace() {
     }
     if (!env) return;
     autoStarted.current = true;
+    // TEMP-PERF: breadcrumb for CI logcat diagnosis.
+    console.log(`[autoperf] trigger seen, env=${env.label}`);
 
     if (isLocked) {
       setLastAutoReport(
@@ -445,6 +447,8 @@ export function Workspace() {
       .then(async (report) => {
         try {
           await writeAutoReportFile(report);
+          // TEMP-PERF: breadcrumb for CI logcat diagnosis.
+          console.log("[autoperf] report written");
         } catch (error) {
           console.error("perf: failed to write report file", error);
         }
@@ -452,9 +456,16 @@ export function Workspace() {
         navigate({ to: "/perf" });
       })
       .catch((error) => {
-        setAutoProgress(
-          `Benchmark failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        setAutoProgress(`Benchmark failed: ${message}`);
+        // TEMP-PERF: persist the failure so CI fails fast with the reason
+        // instead of waiting out the whole report timeout.
+        console.error("[autoperf] benchmark failed:", message);
+        const failed = blockedAutoReport(env, message);
+        setLastAutoReport(failed);
+        void writeAutoReportFile(failed).catch(() => {
+          /* best effort */
+        });
       });
   }, [
     db,

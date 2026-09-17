@@ -25,7 +25,12 @@ done
 
 if [ -z "$READY" ]; then
   echo "ERROR: benchmark report never appeared."
-  adb logcat -d | tail -n 200 || true
+  echo "--- app process ---"
+  adb shell pidof app.noma.notes || echo "(app not running)"
+  echo "--- app logcat (filtered) ---"
+  adb logcat -d | grep -iE "autoperf|noma|capacitor|chromium|AndroidRuntime" | tail -n 80 || true
+  echo "--- logcat tail ---"
+  adb logcat -d | tail -n 40 || true
   exit 1
 fi
 
@@ -36,6 +41,8 @@ import json
 r = json.load(open("perf-report.emulator.json"))
 print("environment:", r["environment"]["label"])
 print("WARNING:", r["environment"]["warning"])
+for note in r.get("notes", []):
+    print("note:", note)
 for size in sorted(r["automated"]["sizes"], key=int):
     s = r["automated"]["sizes"][size]
     print(f"--- {size} notes ---")
