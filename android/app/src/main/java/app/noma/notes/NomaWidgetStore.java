@@ -29,6 +29,7 @@ public final class NomaWidgetStore {
     private static final String KEY_ENV = "env_json";
     private static final String KEY_PROJECTION_PREFIX = "projection_";
     private static final String KEY_CONFIG_PREFIX = "config_";
+    private static final String KEY_LAST_ERROR = "widget_last_error";
 
     private NomaWidgetStore() {
     }
@@ -92,6 +93,27 @@ public final class NomaWidgetStore {
                 .remove(KEY_PROJECTION_PREFIX + widgetId)
                 .remove(KEY_CONFIG_PREFIX + widgetId)
                 .apply();
+    }
+
+    /** Last render failure (for diagnostics). Null when the last render succeeded. */
+    public static String getLastError(Context context) {
+        return prefs(context).getString(KEY_LAST_ERROR, null);
+    }
+
+    /**
+     * Records the first render error only, so the original failure stays
+     * visible instead of being overwritten by follow-up attempts.
+     */
+    public static void recordError(Context context, String error) {
+        SharedPreferences prefs = prefs(context);
+        if (!prefs.contains(KEY_LAST_ERROR)) {
+            prefs.edit().putString(KEY_LAST_ERROR, error).apply();
+        }
+    }
+
+    /** Clears the recorded error after a successful render. */
+    public static void clearError(Context context) {
+        prefs(context).edit().remove(KEY_LAST_ERROR).apply();
     }
 
     /** All widget IDs that have a stored config (for diagnostics). */

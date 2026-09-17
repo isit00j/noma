@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -79,7 +80,59 @@ public final class NomaWidgetUpdater {
         }
     }
 
+    /**
+     * Renders a widget instance. Never throws: any failure renders the
+     * locked card instead (fail closed), so the launcher never shows its
+     * generic "Problem loading widget" error.
+     */
     public static void updateWidget(Context context, int widgetId) {
+        try {
+            updateWidgetInternal(context, widgetId);
+            NomaWidgetStore.clearError(context);
+        } catch (Exception e) {
+            Log.e("NomaWidget", "updateWidget failed for widgetId=" + widgetId, e);
+            NomaWidgetStore.recordError(context, e.toString());
+            applyLockedCardQuietly(context, widgetId);
+        }
+    }
+
+    /**
+     * Last-resort render: a bare locked card built defensively. Used when
+     * the normal render path threw, so the widget fails closed no matter
+     * what went wrong.
+     */
+    private static void applyLockedCardQuietly(Context context, int widgetId) {
+        try {
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_locked);
+            try {
+                views.setOnClickPendingIntent(
+                        R.id.widget_root, pendingDeepLink(context, widgetId, 1, DEEP_LINK_OPEN));
+            } catch (Exception ignored) {
+                // A broken tap action must not break the fail-closed card.
+            }
+            if (BuildConfig.DEBUG) {
+                // Surface the failure on the widget itself so a screenshot
+                // of the test build reveals the exact cause.
+                String err = NomaWidgetStore.getLastError(context);
+                if (err != null) {
+                    try {
+                        views.setTextViewText(R.id.widget_locked_sub, truncate(err, 140));
+                        views.setTextColor(R.id.widget_locked_sub, 0xFFE5484D);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+            AppWidgetManager.getInstance(context).updateAppWidget(widgetId, views);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String truncate(String value, int maxLength) {
+        if (value == null) return "";
+        return value.length() <= maxLength ? value : value.substring(0, maxLength) + "...";
+    }
+
+    private static void updateWidgetInternal(Context context, int widgetId) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         String kind = kindForWidget(context, manager, widgetId);
         if (kind == null) return;
