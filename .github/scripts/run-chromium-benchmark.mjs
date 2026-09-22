@@ -76,7 +76,11 @@ try {
     page.on("pageerror", (err) => errors.push(String(err)));
     await page.goto(URL, { waitUntil: "domcontentloaded" });
     console.log("Page loaded, waiting for the benchmark report (up to ~12 min)…");
-    await page.waitForFunction(() => window.__nomaPerfReport != null, {
+    // NOTE: page.waitForFunction's signature is (pageFunction, arg, options) —
+    // the options object must be the THIRD argument. Passing it second made
+    // Playwright treat it as `arg` and silently fall back to the 30s default
+    // timeout, which killed CI runs even when the benchmark was healthy.
+    await page.waitForFunction(() => window.__nomaPerfReport != null, undefined, {
       timeout: 12 * 60 * 1000,
       polling: 2000,
     });
