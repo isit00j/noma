@@ -43,6 +43,11 @@ const MIME = {
 
 function startStaticServer() {
   return new Promise((resolve, reject) => {
+    // TEMP-PERF: startup sanity — CI once 404'd the document even though the
+    // build had just written it, so log what we can actually see.
+    console.log(
+      `static root check: index.html ${existsSync(join(STATIC_ROOT, "index.html")) ? "present" : "MISSING"}`,
+    );
     const server = createServer((req, res) => {
       try {
         const urlPath = decodeURIComponent(new URL(req.url, `http://127.0.0.1:${PORT}`).pathname);
@@ -63,7 +68,8 @@ function startStaticServer() {
           "content-length": body.length,
         });
         res.end(body);
-      } catch {
+      } catch (e) {
+        console.log(`static 404: ${req.url} -> ${e.message}`);
         res.writeHead(404);
         res.end("not found");
       }
