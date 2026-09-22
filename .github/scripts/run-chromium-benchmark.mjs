@@ -9,57 +9,74 @@
  *
  * Delete with .github/workflows/perf-baseline.yml when the baseline is done.
  */
-import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import { extname, join, normalize } from "node:path";
 import { chromium } from "playwright";
 
 const PORT = 4173;
 const URL = `http://127.0.0.1:${PORT}/?autoperf=1&env=ci`;
 const OUT = "perf-report.ci.json";
+// The production build is a static SPA in .output/public. NOTE: `vite
+// preview` does NOT work here — it tries to boot an SSR server from
+// dist/server/server.js (which this build never emits) and answers every
+// page request with HTTP 500, so the app never runs. Serve the static
+// output directly instead.
+const STATIC_ROOT = process.cwd() + "/.output/public";
 
-function waitForPort() {
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
+  ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+};
+
+function startStaticServer() {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 60_000;
-    const tick = () => {
-      import("node:net")
-        .then(({ connect }) => {
-          const socket = connect(PORT, "127.0.0.1");
-          socket.on("connect", () => {
-            socket.end();
-            resolve();
-          });
-          socket.on("error", () => {
-            socket.destroy();
-            if (Date.now() > deadline) reject(new Error("preview server never came up"));
-            else setTimeout(tick, 500);
-          });
-        })
-        .catch(reject);
-    };
-    tick();
+    const server = createServer((req, res) => {
+      try {
+        const urlPath = decodeURIComponent(new URL(req.url, `http://127.0.0.1:${PORT}`).pathname);
+        let filePath = normalize(join(STATIC_ROOT, urlPath));
+        // Never escape the static root.
+        if (!filePath.startsWith(STATIC_ROOT)) {
+          res.writeHead(403);
+          res.end("forbidden");
+          return;
+        }
+        // SPA fallback: directories and unknown paths serve index.html.
+        if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
+          filePath = join(STATIC_ROOT, "index.html");
+        }
+        const body = readFileSync(filePath);
+        res.writeHead(200, {
+          "content-type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
+          "content-length": body.length,
+        });
+        res.end(body);
+      } catch {
+        res.writeHead(404);
+        res.end("not found");
+      }
+    });
+    server.on("error", reject);
+    server.listen(PORT, "127.0.0.1", () => resolve(server));
   });
 }
 
-const preview = spawn(
-  // Local vite binary directly: deterministic, no npx resolution involved.
-  process.cwd() + "/node_modules/.bin/vite",
-  ["preview", "--port", String(PORT), "--strictPort"],
-  { stdio: ["ignore", "pipe", "pipe"] },
-);
-let previewFailed = false;
-let previewStderr = "";
-preview.stderr.on("data", (d) => {
-  previewStderr += d.toString();
-});
-preview.on("exit", (code) => {
-  previewFailed = true;
-  console.error(`preview server exited with code ${code}\n${previewStderr.slice(-2000)}`);
-});
+const server = await startStaticServer();
+console.log(`Static server serving ${STATIC_ROOT} on port ${PORT}`);
 
 try {
-  await waitForPort();
-  if (previewFailed) throw new Error("preview server died before the benchmark ran");
-
   const browser = await chromium.launch({
     // Local testing: PLAYWRIGHT_CHROMIUM_PATH=/opt/meta-chromium/chrome
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
@@ -141,5 +158,5 @@ try {
     await browser.close();
   }
 } finally {
-  preview.kill("SIGKILL");
+  server.close();
 }
