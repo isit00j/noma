@@ -15,7 +15,7 @@ import { extname, join, normalize } from "node:path";
 import { chromium } from "playwright";
 
 const PORT = 4173;
-const URL = `http://127.0.0.1:${PORT}/?autoperf=1&env=ci`;
+const BENCH_URL = `http://127.0.0.1:${PORT}/?autoperf=1&env=ci`;
 const OUT = "perf-report.ci.json";
 // The production build is a static SPA in .output/public. NOTE: `vite
 // preview` does NOT work here — it tries to boot an SSR server from
@@ -109,7 +109,7 @@ try {
         console.log(`[console.${msg.type()}]`, text.slice(0, 300));
       }
     });
-    await page.goto(URL, { waitUntil: "domcontentloaded" });
+    await page.goto(BENCH_URL, { waitUntil: "domcontentloaded" });
     console.log("Page loaded, waiting for the benchmark report (up to ~12 min)…");
     // NOTE: page.waitForFunction's signature is (pageFunction, arg, options) —
     // the options object must be the THIRD argument. Passing it second made
