@@ -73,17 +73,46 @@ try {
   try {
     const page = await browser.newPage();
     const errors = [];
-    page.on("pageerror", (err) => errors.push(String(err)));
+    // TEMP-PERF: stream diagnostics in real time so a timeout still leaves
+    // breadcrumbs about how far the benchmark got.
+    page.on("pageerror", (err) => {
+      const s = String(err);
+      errors.push(s);
+      console.log("[pageerror]", s.slice(0, 300));
+    });
+    page.on("console", (msg) => {
+      const text = msg.text();
+      if (text.includes("[autoperf]") || msg.type() === "error" || msg.type() === "warning") {
+        console.log(`[console.${msg.type()}]`, text.slice(0, 300));
+      }
+    });
     await page.goto(URL, { waitUntil: "domcontentloaded" });
     console.log("Page loaded, waiting for the benchmark report (up to ~12 min)…");
     // NOTE: page.waitForFunction's signature is (pageFunction, arg, options) —
     // the options object must be the THIRD argument. Passing it second made
     // Playwright treat it as `arg` and silently fall back to the 30s default
     // timeout, which killed CI runs even when the benchmark was healthy.
-    await page.waitForFunction(() => window.__nomaPerfReport != null, undefined, {
-      timeout: 12 * 60 * 1000,
-      polling: 2000,
-    });
+    try {
+      await page.waitForFunction(() => window.__nomaPerfReport != null, undefined, {
+        timeout: 12 * 60 * 1000,
+        polling: 2000,
+      });
+    } catch (e) {
+      console.log("Timed out waiting for the report. Page debug state:");
+      try {
+        const dbg = await page.evaluate(() => ({
+          title: document.title,
+          rootChildren: document.getElementById("root")?.childElementCount ?? -1,
+          bodyTextStart: document.body?.innerText?.slice(0, 200) ?? "",
+          report: typeof window.__nomaPerfReport,
+          href: location.href,
+        }));
+        console.log(JSON.stringify(dbg, null, 1).slice(0, 1000));
+      } catch (evalErr) {
+        console.log("debug evaluate failed:", String(evalErr).slice(0, 200));
+      }
+      throw e;
+    }
     const report = await page.evaluate(() => window.__nomaPerfReport);
     if (errors.length > 0) {
       console.log("page errors seen during run:");
