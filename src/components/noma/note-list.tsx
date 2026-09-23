@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useContext, useMemo } from "react";
 import { formatDistanceToNowStrict, format } from "date-fns";
 import {
   AlarmClock,
@@ -29,6 +29,12 @@ import {
 import { cn } from "@/lib/utils";
 import { notePreview, noteTitle } from "@/lib/noma/notes";
 import { noteAccentBucket, noteAccentClass } from "@/lib/noma/note-accent";
+import { VirtualList } from "./virtual-list";
+import { NotesListSurfaceContext } from "./notes-list-surface-context";
+
+// Module-level so the virtualizer's offset prefix-sums aren't recomputed on
+// every NoteList render due to a new function identity.
+const getNoteKey = (note: Note) => note.id;
 import type { Folder, Note, Tag } from "@/lib/noma/types";
 import type { ViewState } from "@/lib/noma/view";
 
@@ -105,7 +111,7 @@ const NoteItem = memo(function NoteItem({
   const accentClass = noteAccentClass(noteAccentBucket(note));
 
   return (
-    <li>
+    <div>
       <div
         className={cn(
           "group relative rounded-xl border border-border/60 bg-card shadow-xs transition-[border-color,box-shadow,background-color] duration-150",
@@ -259,9 +265,11 @@ const NoteItem = memo(function NoteItem({
           </DropdownMenu>
         </div>
       </div>
-    </li>
+    </div>
   );
 });
+
+export { NoteItem };
 
 export function NoteList({
   notes,
@@ -278,6 +286,11 @@ export function NoteList({
     [folders],
   );
 
+  // The scroll element and list handle come from the notes-list surface
+  // context, so NoteList's public props are unchanged. (Hook is above the
+  // empty-state early return: hooks must run unconditionally.)
+  const surface = useContext(NotesListSurfaceContext);
+
   if (notes.length === 0) {
     const copy = EMPTY_COPY[view.kind] ?? EMPTY_COPY["default"]!;
     return (
@@ -291,11 +304,18 @@ export function NoteList({
     );
   }
 
+  // Virtualized window: only visible + overscan rows are mounted, in normal
+  // document flow. Row heights are measured per note id; unmeasured rows use
+  // the estimate until rendered.
   return (
-    <ul className="mx-auto w-full max-w-3xl space-y-3 p-4 sm:p-6">
-      {notes.map((note) => (
+    <VirtualList
+      items={notes}
+      getKey={getNoteKey}
+      scrollElement={surface?.scrollElement ?? null}
+      listRef={surface?.listHandleRef}
+      className="mx-auto w-full max-w-3xl px-4 sm:px-6"
+      renderItem={(note) => (
         <NoteItem
-          key={note.id}
           note={note}
           folders={folders}
           tagNameMap={tagNameMap}
@@ -304,7 +324,7 @@ export function NoteList({
           actions={actions}
           isPhoneAlarm={phoneAlarmNoteIds?.has(note.id) ?? false}
         />
-      ))}
-    </ul>
+      )}
+    />
   );
 }

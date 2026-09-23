@@ -640,3 +640,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Explicit guard so the hidden notes-list surface stays hidden even if
+ * Tailwind's preflight [hidden] rule were ever absent. display:none removes
+ * the surface from layout, the accessibility tree, and keyboard/pointer
+ * interaction while a note is open.
+ */
+.notes-list-surface[hidden] {
+  display: none;
+}

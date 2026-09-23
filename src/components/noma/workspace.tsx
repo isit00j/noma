@@ -24,6 +24,9 @@ import { Bell } from "lucide-react";
 import { NoteEditor, type SaveState } from "./note-editor";
 import { NoteReadView } from "./note-read-view";
 import { NoteList, type NoteActions } from "./note-list";
+import { useStableNotes } from "./use-stable-notes";
+import type { VirtualListHandle } from "./virtual-list";
+import { NotesListSurfaceContext } from "./notes-list-surface-context";
 import { PromptDialog, type PromptRequest } from "./prompt-dialog";
 import { ReminderDialog } from "./reminder-dialog";
 import { RemindersView } from "./reminders-view";
@@ -197,6 +200,167 @@ function NoteOverflowMenu({
   );
 }
 
+interface WorkspaceSurfacesProps {
+  activeNote: Note | null;
+  activeNoteId: string | null;
+  noteMode: "read" | "edit";
+  view: ViewState;
+  /** True while the notes live query has not returned yet. */
+  notesLoading: boolean;
+  visibleNotes: Note[];
+  allNotes: Note[];
+  allFolders: Folder[];
+  allTags: Tag[];
+  reminders: Reminder[] | undefined;
+  actions: NoteActions;
+  phoneAlarmNoteIds: Set<string>;
+  onOpenNote: (note: Note) => void;
+  onNoteChange: (patch: { title?: string; content?: string }) => void;
+  fontSize: number;
+  editorWidth: number;
+  lineHeight: number;
+}
+
+/**
+ * The two main content surfaces of the workspace.
+ *
+ * The notes-list surface stays mounted for the lifetime of the workspace:
+ * opening a note hides it instead of unmounting it, so returning to the
+ * list is instant and the list's filter/sort state is preserved. The list
+ * itself is virtualized, so only the visible window plus overscan rows
+ * (~20 rows) stay mounted — the retained DOM that made a full-list
+ * keep-alive too expensive on low-end devices is gone. The `hidden`
+ * attribute (plus an explicit CSS guard) removes the surface from layout,
+ * the accessibility tree, and keyboard/pointer interaction, so the hidden
+ * list is fully inert while a note is open.
+ *
+ * Scroll position is mirrored continuously via onScroll, so the value is
+ * already saved before the surface hides (never relying on the browser
+ * preserving scroll across `display: none`); it is restored explicitly —
+ * plus a virtualizer viewport re-sync — when the surface shows again.
+ *
+ * The note surface is still mounted on demand (keyed by note id) — it is
+ * cheap to construct and must always start at the top of the note.
+ */
+export function WorkspaceSurfaces({
+  activeNote,
+  activeNoteId,
+  noteMode,
+  view,
+  notesLoading,
+  visibleNotes,
+  allNotes,
+  allFolders,
+  allTags,
+  reminders,
+  actions,
+  phoneAlarmNoteIds,
+  onOpenNote,
+  onNoteChange,
+  fontSize,
+  editorWidth,
+  lineHeight,
+}: WorkspaceSurfacesProps) {
+  const noteOpen = activeNote != null;
+  // The list surface doubles as the virtualized list's scroll element, so
+  // sibling views (reminders, loading skeletons) share the same scroller.
+  // Published via state (not a ref object): the virtualizer is a child of
+  // this div, and child layout effects run before the parent's ref attaches
+  // — state re-renders the tree with the element as an ordinary prop,
+  // synchronously during commit, before paint.
+  const [surfaceEl, setSurfaceEl] = useState<HTMLDivElement | null>(null);
+  const setSurfaceElCallback = useCallback((el: HTMLDivElement | null) => {
+    setSurfaceEl(el);
+  }, []);
+  const listHandleRef = useRef<VirtualListHandle | null>(null);
+  // Live scroll position, mirrored on every scroll event so the value is
+  // already saved before the surface is hidden (no reliance on the browser
+  // preserving scrollTop across display:none).
+  const savedScrollTop = useRef(0);
+  const wasNoteOpenRef = useRef(noteOpen);
+
+  const surfaceApi = useMemo(() => ({ scrollElement: surfaceEl, listHandleRef }), [surfaceEl]);
+
+  useEffect(() => {
+    const wasOpen = wasNoteOpenRef.current;
+    wasNoteOpenRef.current = noteOpen;
+    if (noteOpen || wasOpen || !surfaceEl) return;
+    // Restore after unhide, in the next frame so the element has layout
+    // again, then re-sync the virtualizer's cached viewport height.
+    const top = savedScrollTop.current;
+    const raf = requestAnimationFrame(() => {
+      surfaceEl.scrollTop = top;
+      listHandleRef.current?.syncViewport();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [noteOpen, surfaceEl]);
+
+  return (
+    <>
+      {activeNote ? (
+        <div className="noma-scroll flex-1 overflow-y-auto" data-testid="note-surface">
+          {noteMode === "read" ? (
+            <NoteReadView
+              key={activeNote.id}
+              note={activeNote}
+              folders={allFolders}
+              tags={allTags}
+              fontSize={fontSize}
+              editorWidth={editorWidth}
+              lineHeight={lineHeight}
+            />
+          ) : (
+            <NoteEditor
+              key={activeNote.id}
+              note={activeNote}
+              onChange={onNoteChange}
+              fontSize={fontSize}
+              editorWidth={editorWidth}
+              lineHeight={lineHeight}
+            />
+          )}
+        </div>
+      ) : null}
+      <NotesListSurfaceContext.Provider value={surfaceApi}>
+        <div
+          ref={setSurfaceElCallback}
+          className="noma-scroll notes-list-surface min-h-0 flex-1 overflow-y-auto"
+          hidden={noteOpen}
+          tabIndex={-1}
+          data-testid="notes-list-surface"
+          onScroll={(e) => {
+            savedScrollTop.current = e.currentTarget.scrollTop;
+          }}
+        >
+          {view.kind === "reminders" ? (
+            <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={onOpenNote} />
+          ) : notesLoading ? (
+            <div className="space-y-3 p-4 sm:p-6" aria-busy="true" aria-label="Loading notes">
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="rounded-xl border border-border/60 bg-card p-4 shadow-xs">
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                  <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+                  <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <NoteList
+              notes={visibleNotes}
+              folders={allFolders}
+              tags={allTags}
+              view={view}
+              activeNoteId={activeNoteId}
+              actions={actions}
+              phoneAlarmNoteIds={phoneAlarmNoteIds}
+            />
+          )}
+        </div>
+      </NotesListSurfaceContext.Provider>
+    </>
+  );
+}
+
 export function Workspace() {
   const { db, loading: dbLoading } = useDatabase();
   const notes = useLiveQuery(() => db?.notes.toArray() ?? [], [db], undefined);
@@ -248,7 +412,12 @@ export function Workspace() {
     patch: { title?: string; content?: string };
   } | null>(null);
 
-  const allNotes = useMemo(() => notes ?? [], [notes]);
+  // Stabilize row identities: useLiveQuery hands out fresh objects for every
+  // row on each notes-table commit, which would defeat memo(NoteItem) and
+  // re-render all rendered rows on every single-note mutation or autosave.
+  // Stabilization runs before virtualization so the window only re-renders
+  // rows whose fields actually changed.
+  const allNotes = useStableNotes(notes);
   // Keep the note-preview cache bounded: drop entries for notes that no
   // longer exist whenever the live note set changes.
   useEffect(() => {
@@ -504,7 +673,9 @@ export function Workspace() {
       trash: (note) => {
         if (!db) return;
         void trashNote(db, note.id);
-        if (activeNoteId === note.id) setActiveNoteId(null);
+        // Use functional update to avoid depending on activeNoteId (which would
+        // recreate the actions object on every note open, defeating NoteItem memo).
+        setActiveNoteId((prev) => (prev === note.id ? null : prev));
         toast.success("Moved to Trash", {
           action: { label: "Undo", onClick: () => void restoreNote(db, note.id) },
         });
@@ -523,12 +694,13 @@ export function Workspace() {
           onConfirm: async () => {
             if (!db) return;
             await deleteNoteForever(db, note.id);
-            if (activeNoteId === note.id) setActiveNoteId(null);
+            // Functional update avoids activeNoteId dep (see trash above).
+            setActiveNoteId((prev) => (prev === note.id ? null : prev));
             toast.success("Note deleted");
           },
         }),
     }),
-    [db, openNote, activeNoteId],
+    [db, openNote],
   );
 
   const searchResults = useMemo(
@@ -857,52 +1029,25 @@ export function Workspace() {
           )}
         </header>
 
-        <div className="noma-scroll flex-1 overflow-y-auto">
-          {activeNote ? (
-            noteMode === "read" ? (
-              <NoteReadView
-                key={activeNote.id}
-                note={activeNote}
-                folders={allFolders}
-                tags={allTags}
-                fontSize={settings.fontSize}
-                editorWidth={settings.editorWidth}
-                lineHeight={settings.lineHeight}
-              />
-            ) : (
-              <NoteEditor
-                key={activeNote.id}
-                note={activeNote}
-                onChange={handleChange}
-                fontSize={settings.fontSize}
-                editorWidth={settings.editorWidth}
-                lineHeight={settings.lineHeight}
-              />
-            )
-          ) : view.kind === "reminders" ? (
-            <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={openNote} />
-          ) : notes === undefined ? (
-            <div className="space-y-3 p-4 sm:p-6" aria-busy="true" aria-label="Loading notes">
-              {[0, 1, 2, 3].map((row) => (
-                <div key={row} className="rounded-xl border border-border/60 bg-card p-4 shadow-xs">
-                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
-                  <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
-                  <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <NoteList
-              notes={visibleNotes}
-              folders={allFolders}
-              tags={allTags}
-              view={view}
-              activeNoteId={activeNoteId}
-              actions={actions}
-              phoneAlarmNoteIds={phoneAlarmNoteIds}
-            />
-          )}
-        </div>
+        <WorkspaceSurfaces
+          activeNote={activeNote}
+          activeNoteId={activeNoteId}
+          noteMode={noteMode}
+          view={view}
+          notesLoading={notes === undefined}
+          visibleNotes={visibleNotes}
+          allNotes={allNotes}
+          allFolders={allFolders}
+          allTags={allTags}
+          reminders={reminders}
+          actions={actions}
+          phoneAlarmNoteIds={phoneAlarmNoteIds}
+          onOpenNote={openNote}
+          onNoteChange={handleChange}
+          fontSize={settings.fontSize}
+          editorWidth={settings.editorWidth}
+          lineHeight={settings.lineHeight}
+        />
       </main>
 
       <Dialog
