@@ -53,6 +53,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useOnline, useSettings } from "@/hooks/use-noma";
 import { useDatabase } from "@/lib/noma/DatabaseContext";
+import { useStableNotes } from "./use-stable-notes";
 import { useAppLock } from "@/lib/noma/AppLockContext";
 import { usePendingShortcut } from "@/lib/noma/shortcut";
 import {
@@ -197,6 +198,118 @@ function NoteOverflowMenu({
   );
 }
 
+interface WorkspaceSurfacesProps {
+  activeNote: Note | null;
+  activeNoteId: string | null;
+  noteMode: "read" | "edit";
+  view: ViewState;
+  /** True while the notes live query has not returned yet. */
+  notesLoading: boolean;
+  visibleNotes: Note[];
+  allNotes: Note[];
+  allFolders: Folder[];
+  allTags: Tag[];
+  reminders: Reminder[] | undefined;
+  actions: NoteActions;
+  phoneAlarmNoteIds: Set<string>;
+  onOpenNote: (note: Note) => void;
+  onNoteChange: (patch: { title?: string; content?: string }) => void;
+  fontSize: number;
+  editorWidth: number;
+  lineHeight: number;
+}
+
+/**
+ * The two main content surfaces of the workspace.
+ *
+ * The notes-list surface stays mounted for the lifetime of the workspace:
+ * opening a note hides it instead of unmounting it, so returning to the
+ * list is instant and the list's DOM, scroll position, filter, and sort
+ * state are preserved. The `hidden` attribute removes the surface from
+ * layout, the accessibility tree, and keyboard/pointer interaction, so the
+ * hidden list is fully inert while a note is open.
+ *
+ * The note surface is still mounted on demand (keyed by note id) — it is
+ * cheap to construct and must always start at the top of the note.
+ */
+export function WorkspaceSurfaces({
+  activeNote,
+  activeNoteId,
+  noteMode,
+  view,
+  notesLoading,
+  visibleNotes,
+  allNotes,
+  allFolders,
+  allTags,
+  reminders,
+  actions,
+  phoneAlarmNoteIds,
+  onOpenNote,
+  onNoteChange,
+  fontSize,
+  editorWidth,
+  lineHeight,
+}: WorkspaceSurfacesProps) {
+  return (
+    <>
+      {activeNote ? (
+        <div className="noma-scroll flex-1 overflow-y-auto" data-testid="note-surface">
+          {noteMode === "read" ? (
+            <NoteReadView
+              key={activeNote.id}
+              note={activeNote}
+              folders={allFolders}
+              tags={allTags}
+              fontSize={fontSize}
+              editorWidth={editorWidth}
+              lineHeight={lineHeight}
+            />
+          ) : (
+            <NoteEditor
+              key={activeNote.id}
+              note={activeNote}
+              onChange={onNoteChange}
+              fontSize={fontSize}
+              editorWidth={editorWidth}
+              lineHeight={lineHeight}
+            />
+          )}
+        </div>
+      ) : null}
+      <div
+        className="noma-scroll flex-1 overflow-y-auto"
+        hidden={activeNote != null}
+        data-testid="notes-list-surface"
+      >
+        {view.kind === "reminders" ? (
+          <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={onOpenNote} />
+        ) : notesLoading ? (
+          <div className="space-y-3 p-4 sm:p-6" aria-busy="true" aria-label="Loading notes">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="rounded-xl border border-border/60 bg-card p-4 shadow-xs">
+                <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+                <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <NoteList
+            notes={visibleNotes}
+            folders={allFolders}
+            tags={allTags}
+            view={view}
+            activeNoteId={activeNoteId}
+            actions={actions}
+            phoneAlarmNoteIds={phoneAlarmNoteIds}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
 export function Workspace() {
   const { db, loading: dbLoading } = useDatabase();
   const notes = useLiveQuery(() => db?.notes.toArray() ?? [], [db], undefined);
@@ -248,7 +361,10 @@ export function Workspace() {
     patch: { title?: string; content?: string };
   } | null>(null);
 
-  const allNotes = useMemo(() => notes ?? [], [notes]);
+  // Stabilize row identities: useLiveQuery hands out fresh objects for every
+  // row on each notes-table commit, which would defeat memo(NoteItem) and
+  // re-render all rows on every single-note mutation or autosave.
+  const allNotes = useStableNotes(notes);
   // Keep the note-preview cache bounded: drop entries for notes that no
   // longer exist whenever the live note set changes.
   useEffect(() => {
@@ -857,52 +973,25 @@ export function Workspace() {
           )}
         </header>
 
-        <div className="noma-scroll flex-1 overflow-y-auto">
-          {activeNote ? (
-            noteMode === "read" ? (
-              <NoteReadView
-                key={activeNote.id}
-                note={activeNote}
-                folders={allFolders}
-                tags={allTags}
-                fontSize={settings.fontSize}
-                editorWidth={settings.editorWidth}
-                lineHeight={settings.lineHeight}
-              />
-            ) : (
-              <NoteEditor
-                key={activeNote.id}
-                note={activeNote}
-                onChange={handleChange}
-                fontSize={settings.fontSize}
-                editorWidth={settings.editorWidth}
-                lineHeight={settings.lineHeight}
-              />
-            )
-          ) : view.kind === "reminders" ? (
-            <RemindersView reminders={reminders ?? []} notes={allNotes} onOpenNote={openNote} />
-          ) : notes === undefined ? (
-            <div className="space-y-3 p-4 sm:p-6" aria-busy="true" aria-label="Loading notes">
-              {[0, 1, 2, 3].map((row) => (
-                <div key={row} className="rounded-xl border border-border/60 bg-card p-4 shadow-xs">
-                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" />
-                  <div className="mt-2.5 h-3 w-3/4 animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
-                  <div className="mt-2 h-3 w-1/5 animate-pulse rounded bg-muted/50 motion-reduce:animate-none" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <NoteList
-              notes={visibleNotes}
-              folders={allFolders}
-              tags={allTags}
-              view={view}
-              activeNoteId={activeNoteId}
-              actions={actions}
-              phoneAlarmNoteIds={phoneAlarmNoteIds}
-            />
-          )}
-        </div>
+        <WorkspaceSurfaces
+          activeNote={activeNote}
+          activeNoteId={activeNoteId}
+          noteMode={noteMode}
+          view={view}
+          notesLoading={notes === undefined}
+          visibleNotes={visibleNotes}
+          allNotes={allNotes}
+          allFolders={allFolders}
+          allTags={allTags}
+          reminders={reminders}
+          actions={actions}
+          phoneAlarmNoteIds={phoneAlarmNoteIds}
+          onOpenNote={openNote}
+          onNoteChange={handleChange}
+          fontSize={settings.fontSize}
+          editorWidth={settings.editorWidth}
+          lineHeight={settings.lineHeight}
+        />
       </main>
 
       <Dialog

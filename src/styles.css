@@ -629,6 +629,22 @@
   background-clip: content-box;
 }
 
+/*
+ * Notes list rows: let the browser skip rendering work for off-screen rows.
+ * `content-visibility: auto` is ignored by browsers without support, so it
+ * degrades gracefully (rows just render normally) and it never changes
+ * layout, spacing, or visual appearance — only how much style/layout/paint
+ * work off-screen rows cost. Supported since Chrome 85, which covers the
+ * Play-Store-updated WebView on Noma's Android devices.
+ * `contain-intrinsic-size` is a rough estimate of a typical row height so the
+ * scrollbar stays stable before a row is first measured; rows keep their
+ * natural measured height once rendered.
+ */
+.note-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 132px;
+}
+
 /* Respect the OS reduced-motion preference: keep state changes, drop the motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

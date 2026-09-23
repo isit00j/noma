@@ -87,7 +87,7 @@ interface NoteItemProps {
   isPhoneAlarm: boolean;
 }
 
-const NoteItem = memo(function NoteItem({
+export const NoteItem = memo(function NoteItem({
   note,
   folders,
   tagNameMap,
@@ -105,7 +105,7 @@ const NoteItem = memo(function NoteItem({
   const accentClass = noteAccentClass(noteAccentBucket(note));
 
   return (
-    <li>
+    <li className="note-list-row">
       <div
         className={cn(
           "group relative rounded-xl border border-border/60 bg-card shadow-xs transition-[border-color,box-shadow,background-color] duration-150",
