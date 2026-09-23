@@ -157,6 +157,10 @@ export function VirtualList<T>({
   // "Maximum update depth exceeded". On detach the key is removed so the
   // measurement pass never reads a detached node (whose offsetHeight is 0).
   const rowElCallbacksRef = useRef(new Map<string, (el: HTMLDivElement | null) => void>());
+  // Guards against infinite measure -> setState loops (React #185) when row
+  // heights are unstable on slow devices. Counts consecutive renders where
+  // measurement found changed heights; stops triggering re-renders after 5.
+  const measureLoopGuardRef = useRef(0);
   const setRowEl = useCallback((key: string) => {
     let cb = rowElCallbacksRef.current.get(key);
     if (!cb) {
@@ -277,13 +281,20 @@ export function VirtualList<T>({
   useLayoutEffect(() => {
     const scroller = scrollElement;
     if (!scroller) return;
+    // Skip measurement when the list is hidden (display:none). offsetHeight
+    // is 0 for all rows in a hidden subtree, and measuring would corrupt the
+    // height map with zeros, causing layout jumps when unhidden.
+    if (scroller.offsetParent === null) return;
     const st = scroller.scrollTop;
     let changed = false;
     let shift = 0;
     rowElsRef.current.forEach((el, key) => {
       const h = el.offsetHeight;
       const prev = sizesRef.current.get(key);
-      if (prev !== h) {
+      // Ignore tiny fluctuations (< 2px) from layout timing on slow devices.
+      // Only significant changes trigger a re-render, preventing infinite
+      // measure -> setState -> re-render loops (React #185).
+      if (prev === undefined || Math.abs(prev - h) >= 2) {
         sizesRef.current.set(key, h);
         changed = true;
         const idx = indexByKey.get(key);
@@ -300,7 +311,17 @@ export function VirtualList<T>({
       scrollTopRef.current = next;
       setScrollTop(next);
     }
-    if (changed) setSizesVersion((v) => v + 1);
+    if (changed) {
+      // Safeguard: if heights change on every single render (unstable layout),
+      // stop after 5 consecutive measurements to prevent React #185.
+      // The last measured heights are kept; the UI remains functional.
+      const consecutive = (measureLoopGuardRef.current += 1);
+      if (consecutive <= 5) {
+        setSizesVersion((v) => v + 1);
+      }
+    } else {
+      measureLoopGuardRef.current = 0;
+    }
 
     const ae = document.activeElement;
     const focusedKey = focusedKeyRef.current;
