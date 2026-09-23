@@ -673,7 +673,9 @@ export function Workspace() {
       trash: (note) => {
         if (!db) return;
         void trashNote(db, note.id);
-        if (activeNoteId === note.id) setActiveNoteId(null);
+        // Use functional update to avoid depending on activeNoteId (which would
+        // recreate the actions object on every note open, defeating NoteItem memo).
+        setActiveNoteId((prev) => (prev === note.id ? null : prev));
         toast.success("Moved to Trash", {
           action: { label: "Undo", onClick: () => void restoreNote(db, note.id) },
         });
@@ -692,12 +694,13 @@ export function Workspace() {
           onConfirm: async () => {
             if (!db) return;
             await deleteNoteForever(db, note.id);
-            if (activeNoteId === note.id) setActiveNoteId(null);
+            // Functional update avoids activeNoteId dep (see trash above).
+            setActiveNoteId((prev) => (prev === note.id ? null : prev));
             toast.success("Note deleted");
           },
         }),
     }),
-    [db, openNote, activeNoteId],
+    [db, openNote],
   );
 
   const searchResults = useMemo(
