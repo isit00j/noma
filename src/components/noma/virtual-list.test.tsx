@@ -267,6 +267,24 @@ describe("VirtualList", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it("compensates before clamping when rows above are removed and the list shrinks", () => {
+    const hundred = Array.from({ length: 100 }, (_, i) => ({ id: `m${i}` }));
+    setAllMockRowHeights(
+      hundred.map((n) => n.id),
+      132,
+    );
+    show(hundred);
+    scrollTo(12000); // rows ~m90-m95 visible near the bottom
+    expect(scroller.scrollTop).toBe(12000);
+
+    // Delete 61 rows above the viewport: the visible rows (m90+) survive as
+    // m29+; compensation must keep them stable at 12000 - 61*132 = 3948,
+    // not collapse to 0 (which clamping first would produce).
+    show(hundred.slice(61));
+    expect(scroller.scrollTop).toBe(3948);
+    expect(renderedKeys()[0]).toBe("m84");
+  });
+
   it("clamps the scroll position when the list shrinks below it", () => {
     show(makeItems());
     scrollTo(200000);

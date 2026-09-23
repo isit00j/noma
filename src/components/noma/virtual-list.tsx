@@ -216,23 +216,12 @@ export function VirtualList<T>({
     return () => el.removeEventListener("focusin", onFocusIn);
   }, [scrollElement]);
 
-  // Clamp the DOM scroll position when the content shrinks under it
-  // (e.g. deleting/archiving notes, switching to a shorter view).
-  useLayoutEffect(() => {
-    const el = scrollElement;
-    if (!el) return;
-    const max = Math.max(0, totalSize - viewportHeight);
-    if (el.scrollTop > max) {
-      el.scrollTop = max;
-      scrollTopRef.current = max;
-      setScrollTop(max);
-    }
-  }, [items, totalSize, viewportHeight, scrollElement]);
-
   // When rows above the viewport are removed (archive/trash/delete), shift
   // the scroll position up by the removed height so the visible content
   // stays put instead of jumping. Runs only when the items array changes —
-  // never per scroll frame.
+  // never per scroll frame. Declared BEFORE the clamp effect: compensation
+  // must see the pre-clamp scroll position, otherwise clamping first would
+  // destroy the information needed to keep visible content stable.
   useLayoutEffect(() => {
     const prev = prevLayoutRef.current;
     prevLayoutRef.current = { indexByKey, offsets };
@@ -252,6 +241,19 @@ export function VirtualList<T>({
       setScrollTop(next);
     }
   }, [items, indexByKey, offsets, scrollElement]);
+
+  // Clamp the DOM scroll position when the content shrinks under it
+  // (e.g. deleting/archiving notes, switching to a shorter view).
+  useLayoutEffect(() => {
+    const el = scrollElement;
+    if (!el) return;
+    const max = Math.max(0, totalSize - viewportHeight);
+    if (el.scrollTop > max) {
+      el.scrollTop = max;
+      scrollTopRef.current = max;
+      setScrollTop(max);
+    }
+  }, [items, totalSize, viewportHeight, scrollElement]);
 
   // Post-commit pass (pre-paint): measure rendered rows, fix up scroll when
   // a row above the viewport changed height, and recover focus if the
