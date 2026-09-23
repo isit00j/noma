@@ -96,6 +96,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
+        {/* TEMP DEBUG: show the actual exception so we can diagnose the
+            note-open crash on device. Remove after the root cause is fixed. */}
+        <details className="mt-4 text-left">
+          <summary className="cursor-pointer text-xs text-muted-foreground">
+            Error details (for debugging)
+          </summary>
+          <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 text-[10px] leading-tight text-muted-foreground">
+            {error?.stack ?? String(error)}
+          </pre>
+        </details>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
