@@ -1,8 +1,7 @@
-import { EditorContent, useEditor } from "@tiptap/react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { Bell, FolderOpen } from "lucide-react";
-import React, { useEffect } from "react";
-import { createNomaExtensions } from "./tiptap-extensions";
+import React from "react";
+import { NoteReadContent } from "./note-read-content";
 import { noteTitle } from "@/lib/noma/notes";
 import type { Folder, Note, Tag } from "@/lib/noma/types";
 
@@ -16,10 +15,11 @@ interface NoteReadViewProps {
 }
 
 /**
- * Dedicated reading experience for a note. Renders the exact same Tiptap
- * document as the editor (tables, charts, attachments, formatting) through a
- * non-editable editor instance, so there is no cursor, selection UI, toolbar,
- * or other editor chrome — just the content.
+ * Dedicated reading experience for a note. Renders the stored (sanitized) HTML
+ * statically — no Tiptap/ProseMirror construction — so opening a note skips
+ * editor, schema, and view initialization entirely. Charts and attachment
+ * images are enhanced after mount; typography comes from the shared
+ * `.noma-editor .tiptap` styles, identical to the editor's output.
  */
 export function NoteReadView({
   note,
@@ -29,30 +29,6 @@ export function NoteReadView({
   editorWidth,
   lineHeight,
 }: NoteReadViewProps) {
-  const editor = useEditor(
-    {
-      immediatelyRender: false,
-      extensions: createNomaExtensions({ readOnly: true }),
-      content: note.content,
-      editable: false,
-      editorProps: {
-        attributes: { class: "tiptap", spellcheck: "false" },
-      },
-    },
-    [note.id],
-  );
-
-  // Keep the rendered document in sync if the underlying note record changes
-  // while the Read View is mounted (e.g. tags or reminder updates).
-  useEffect(() => {
-    if (!editor) return;
-    const rendered = editor.getHTML();
-    const source = note.content || "";
-    if (rendered !== source) {
-      editor.commands.setContent(source, { emitUpdate: false });
-    }
-  }, [editor, note.id, note.content]);
-
   const folder = folders.find((item) => item.id === note.folderId) ?? null;
   const noteTags = tags.filter((tag) => note.tagIds.includes(tag.id));
 
@@ -96,10 +72,10 @@ export function NoteReadView({
         {note.wordCount > 0 && <span className="tabular-nums">{note.wordCount} words</span>}
       </div>
 
-      {/* `.noma-editor` scopes the shared Tiptap content typography; with
-          `editable: false` there is no cursor, toolbar, or editor chrome. */}
+      {/* `.noma-editor` scopes the shared content typography; the content is
+          rendered statically (no editor instance, cursor, or chrome). */}
       <div className="noma-editor">
-        <EditorContent editor={editor} />
+        <NoteReadContent content={note.content} />
       </div>
     </article>
   );

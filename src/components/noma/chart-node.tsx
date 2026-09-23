@@ -1209,6 +1209,40 @@ function NomaChartNodeComponent({
   );
 }
 
+/**
+ * Reads chart data back from a rendered `div[data-type="noma-chart"]` element,
+ * applying the same v2/v1 normalization the Tiptap node uses when parsing
+ * stored HTML. Shared by the editor node view and the static read renderer so
+ * both interpret chart markup identically.
+ */
+export function parseChartElement(element: HTMLElement): AdvancedChartData {
+  const version = parseInt(element.getAttribute("data-version") || "1", 10);
+  const type = (element.getAttribute("data-chart-type") || "bar") as AdvancedChartType;
+  const title = element.getAttribute("data-title") || "";
+  const subtitle = element.getAttribute("data-subtitle") || "";
+
+  const catRaw = element.getAttribute("data-categories");
+  const serRaw = element.getAttribute("data-series");
+  const optRaw = element.getAttribute("data-options");
+  const legacyRaw = element.getAttribute("data-chart");
+
+  if (version === 2 && catRaw && serRaw) {
+    return validateAndNormalizeChartData({
+      version: 2,
+      type,
+      title,
+      subtitle,
+      categories: safeJsonParse(catRaw, []),
+      series: safeJsonParse(serRaw, []),
+      options: safeJsonParse(optRaw, {}),
+    });
+  }
+
+  // Legacy V1 fallback
+  const legacyData = safeJsonParse(legacyRaw, []);
+  return validateAndNormalizeChartData({ version: 1, type, title, data: legacyData });
+}
+
 export const NomaChartNode = Node.create({
   name: "nomaChart",
   group: "block",
@@ -1269,32 +1303,7 @@ export const NomaChartNode = Node.create({
         tag: 'div[data-type="noma-chart"]',
         getAttrs: (element) => {
           if (typeof element === "string") return false;
-          const el = element as HTMLElement;
-          const version = parseInt(el.getAttribute("data-version") || "1", 10);
-          const type = (el.getAttribute("data-chart-type") || "bar") as AdvancedChartType;
-          const title = el.getAttribute("data-title") || "";
-          const subtitle = el.getAttribute("data-subtitle") || "";
-
-          const catRaw = el.getAttribute("data-categories");
-          const serRaw = el.getAttribute("data-series");
-          const optRaw = el.getAttribute("data-options");
-          const legacyRaw = el.getAttribute("data-chart");
-
-          if (version === 2 && catRaw && serRaw) {
-            return validateAndNormalizeChartData({
-              version: 2,
-              type,
-              title,
-              subtitle,
-              categories: safeJsonParse(catRaw, []),
-              series: safeJsonParse(serRaw, []),
-              options: safeJsonParse(optRaw, {}),
-            });
-          }
-
-          // Legacy V1 fallback
-          const legacyData = safeJsonParse(legacyRaw, []);
-          return validateAndNormalizeChartData({ version: 1, type, title, data: legacyData });
+          return parseChartElement(element as HTMLElement);
         },
       },
     ];
