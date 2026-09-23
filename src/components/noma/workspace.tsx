@@ -68,6 +68,7 @@ import {
   moveNote,
   notePreview,
   noteTitle,
+  pruneNotePreviewCache,
   renameFolder,
   renameTag,
   restoreNote,
@@ -248,6 +249,11 @@ export function Workspace() {
   } | null>(null);
 
   const allNotes = useMemo(() => notes ?? [], [notes]);
+  // Keep the note-preview cache bounded: drop entries for notes that no
+  // longer exist whenever the live note set changes.
+  useEffect(() => {
+    pruneNotePreviewCache(allNotes.map((note) => note.id));
+  }, [allNotes]);
   const allFolders = useMemo(() => folders ?? [], [folders]);
   const allTags = useMemo(() => tags ?? [], [tags]);
 

@@ -209,6 +209,72 @@ export async function setNoteTags(
 }
 
 export function notePreview(note: Note, length = 140): string {
+  const cached = notePreviewCache.get(note.id);
+  const contentHash = hashNoteContent(note.content);
+  if (cached && cached.contentHash === contentHash && cached.length === length) {
+    return cached.preview;
+  }
+  const preview = computeNotePreview(note, length);
+  notePreviewCache.set(note.id, { contentHash, length, preview });
+  // Backstop so the cache can never grow without limit, even if pruning
+  // hasn't run yet (e.g. right after mass deletions). Map preserves
+  // insertion order, so the oldest entries go first.
+  while (notePreviewCache.size > NOTE_PREVIEW_CACHE_MAX) {
+    const oldest = notePreviewCache.keys().next();
+    if (oldest.done) break;
+    notePreviewCache.delete(oldest.value);
+  }
+  return preview;
+}
+
+/**
+ * Drops cached previews for notes that no longer exist, keeping memory
+ * bounded. Call with the currently-live note ids (e.g. after the notes
+ * list refreshes). Returns the number of entries removed.
+ */
+export function pruneNotePreviewCache(livingIds: Iterable<string>): number {
+  const living = new Set(livingIds);
+  let removed = 0;
+  for (const id of notePreviewCache.keys()) {
+    if (!living.has(id)) {
+      notePreviewCache.delete(id);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/* ------- Note preview cache (see notePreview above) ------- */
+
+interface NotePreviewCacheEntry {
+  /** FNV-1a hash of the note content the preview was computed from. */
+  contentHash: number;
+  /** The `length` argument the preview was computed with. */
+  length: number;
+  preview: string;
+}
+
+const notePreviewCache = new Map<string, NotePreviewCacheEntry>();
+
+/** Hard upper bound so the cache can never grow forever. */
+const NOTE_PREVIEW_CACHE_MAX = 10000;
+
+/**
+ * Cheap FNV-1a hash used to detect content changes. Hashing is O(n) but
+ * native-speed (no DOM work), and it means non-content updates (pin, tags,
+ * reminders) that bump `updatedAt` don't needlessly invalidate the preview.
+ */
+function hashNoteContent(content: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < content.length; i++) {
+    hash ^= content.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/** The original preview computation, unchanged. */
+function computeNotePreview(note: Note, length: number): string {
   const text = htmlToPlainText(note.content);
   return text.length > length ? `${text.slice(0, length)}…` : text;
 }
