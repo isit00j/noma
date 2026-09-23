@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, Component, type ErrorInfo } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -86,6 +86,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+  // TEMP DEBUG: show the React component stack to identify the #185 loop.
+  // Remove after the root cause is fixed.
+  const componentStack = (error as Error & { __componentStack?: string }).__componentStack;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -96,6 +99,18 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
+        {/* TEMP DEBUG: show the React component stack to identify the #185 loop.
+            Remove after the root cause is fixed. */}
+        {componentStack && (
+          <details className="mt-4 text-left">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Component stack (for debugging)
+            </summary>
+            <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 text-[10px] leading-tight text-muted-foreground whitespace-pre-wrap">
+              {componentStack}
+            </pre>
+          </details>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -186,6 +201,19 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/* TEMP DEBUG: Captures the React component stack for the #185 loop.
+   Remove after the root cause is fixed. */
+class DebugBoundary extends Component<{ children: ReactNode }> {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
+    (error as Error & { __componentStack?: string | undefined }).__componentStack =
+      info.componentStack ?? undefined;
+    throw error;
+  }
+  override render() {
+    return this.props.children;
+  }
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -196,7 +224,10 @@ function RootComponent() {
           <AppLockProvider>
             <ShortcutListener>
               {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
+              {/* TEMP DEBUG: DebugBoundary captures component stack. Remove after fix. */}
+              <DebugBoundary>
+                <Outlet />
+              </DebugBoundary>
               <GuestMigrationDialog />
               <Toaster position="bottom-center" />
               <PWAReloadPrompt />
