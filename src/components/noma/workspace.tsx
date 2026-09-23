@@ -278,7 +278,7 @@ export function WorkspaceSurfaces({
         </div>
       ) : null}
       <div
-        className="noma-scroll flex-1 overflow-y-auto"
+        className="noma-scroll notes-list-surface flex-1 overflow-y-auto"
         hidden={activeNote != null}
         data-testid="notes-list-surface"
       >

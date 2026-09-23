@@ -645,6 +645,15 @@
   contain-intrinsic-size: 132px;
 }
 
+/*
+ * Explicit guard so the hidden list surface stays hidden even if Tailwind's
+ * preflight [hidden] rule were ever absent. display:none removes the surface
+ * from layout, the accessibility tree, and keyboard/pointer interaction.
+ */
+.notes-list-surface[hidden] {
+  display: none;
+}
+
 /* Respect the OS reduced-motion preference: keep state changes, drop the motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
