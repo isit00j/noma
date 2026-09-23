@@ -368,4 +368,71 @@ describe("VirtualList", () => {
       outside.remove();
     }
   });
+
+  it("keeps row ref callbacks stable across re-renders (prevents Radix #185 loop)", () => {
+    // Regression test for the J7 "Maximum update depth exceeded" crash.
+    // VirtualList used to create a new ref callback via `setRowEl(key)` on
+    // every render. React detaches/reattaches a ref whenever its identity
+    // changes; Radix components (e.g. Switch) compose refs with useState
+    // setters (`useComposedRefs(forwardedRef, setControl)`), so each
+    // detach/reattach fires a state update -> re-render -> new ref callback
+    // -> infinite loop (React error #185).
+    //
+    // This test mimics the Radix pattern: a child that uses a useState setter
+    // as a ref. With unstable row refs, forcing a parent re-render would
+    // detach/reattach every row ref, invoking the state setter repeatedly.
+    // With the fix (cached ref callback per key), re-renders cause zero
+    // ref detach/attach cycles.
+    const refEvents: string[] = [];
+
+    function RadixStyleChild({ id }: { id: string }) {
+      const [, setNode] = useState<HTMLDivElement | null>(null);
+      // Stable callback, like Radix's useComposedRefs output.
+      const ref = useCallback(
+        (el: HTMLDivElement | null) => {
+          refEvents.push(el ? `attach:${id}` : `detach:${id}`);
+          setNode(el);
+        },
+        [id],
+      );
+      return <div ref={ref} data-testid={`radix-child-${id}`} />;
+    }
+
+    let forceUpdate!: () => void;
+    function Wrapper() {
+      const [, setTick] = useState(0);
+      forceUpdate = useCallback(() => setTick((t) => t + 1), []);
+      return (
+        <Harness
+          items={makeItems()}
+          renderItem={(item) => <RadixStyleChild id={item.id} />}
+          onReady={(api) => {
+            scroller = api.scroller;
+            handle = api.handle;
+          }}
+        />
+      );
+    }
+
+    act(() => {
+      root.render(<Wrapper />);
+    });
+    // Initial mount attaches each visible row's child ref exactly once.
+    const initialAttaches = refEvents.filter((e) => e.startsWith("attach:"));
+    expect(initialAttaches.length).toBeGreaterThan(0);
+    expect(refEvents.filter((e) => e.startsWith("detach:"))).toHaveLength(0);
+
+    // Force several parent re-renders, simulating the WorkspaceSurfaces
+    // re-render that happens when a note is tapped open.
+    refEvents.length = 0;
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        forceUpdate();
+      });
+    }
+
+    // Stable row refs => no detach/reattach cycles on re-render.
+    expect(refEvents.filter((e) => e.startsWith("detach:"))).toHaveLength(0);
+    expect(refEvents.filter((e) => e.startsWith("attach:"))).toHaveLength(0);
+  });
 });

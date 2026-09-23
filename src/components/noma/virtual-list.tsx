@@ -148,15 +148,26 @@ export function VirtualList<T>({
   const topPad = offsets[from]!;
   const bottomPad = Math.max(0, totalSize - offsets[to]!);
 
-  // Stable ref callback per row key; on detach the key is removed so the
+  // Stable ref callback per row key, cached by key so the SAME function
+  // instance is returned across renders. This is critical: `ref={setRowEl(key)}`
+  // must not create a new closure every render, otherwise React detaches and
+  // reattaches the ref on every commit. That detach/reattach cycle interacts
+  // badly with Radix's useComposedRefs (e.g. Switch calls the useState setter
+  // `setControl` on ref attach/detach), producing React error #185
+  // "Maximum update depth exceeded". On detach the key is removed so the
   // measurement pass never reads a detached node (whose offsetHeight is 0).
-  const setRowEl = useCallback(
-    (key: string) => (el: HTMLDivElement | null) => {
-      if (el) rowElsRef.current.set(key, el);
-      else rowElsRef.current.delete(key);
-    },
-    [],
-  );
+  const rowElCallbacksRef = useRef(new Map<string, (el: HTMLDivElement | null) => void>());
+  const setRowEl = useCallback((key: string) => {
+    let cb = rowElCallbacksRef.current.get(key);
+    if (!cb) {
+      cb = (el: HTMLDivElement | null) => {
+        if (el) rowElsRef.current.set(key, el);
+        else rowElsRef.current.delete(key);
+      };
+      rowElCallbacksRef.current.set(key, cb);
+    }
+    return cb;
+  }, []);
 
   useImperativeHandle(
     listRef,
