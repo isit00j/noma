@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -50,6 +51,11 @@ interface VirtualListProps<T> {
 const ROW_GAP = 12;
 /** Top/bottom breathing room (px). Matches the list's previous `p-4`. */
 const EDGE_PAD = 16;
+/** Top/bottom breathing room (px) at the `sm` breakpoint and up. Matches the
+ * list's previous `sm:p-6`. */
+const EDGE_PAD_SM = 24;
+/** Tailwind `sm` breakpoint (px). */
+const SM_BREAKPOINT = 640;
 
 /** First index whose bottom edge is below `y`. */
 function firstIndexWithBottomBelow(offsets: number[], y: number): number {
@@ -103,6 +109,19 @@ export function VirtualList<T>({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [sizesVersion, setSizesVersion] = useState(0);
+  // Tracks the Tailwind `sm` breakpoint so the list's top/bottom breathing
+  // room matches the previous `p-4 sm:p-6` (16px mobile, 24px sm+).
+  const [isSmUp, setIsSmUp] = useState(
+    () =>
+      typeof window !== "undefined" && window.matchMedia(`(min-width: ${SM_BREAKPOINT}px)`).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${SM_BREAKPOINT}px)`);
+    const onChange = (e: MediaQueryListEvent) => setIsSmUp(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const edgePad = isSmUp ? EDGE_PAD_SM : EDGE_PAD;
   // note key -> measured slot height (content + ROW_GAP, via the wrapper's
   // padding-bottom). Ref (not state): mutated during measurement, and a
   // version counter drives the one re-render that recomputes offsets.
@@ -122,19 +141,19 @@ export function VirtualList<T>({
   const { offsets, indexByKey, totalSize } = useMemo(() => {
     const offsets = new Array<number>(items.length + 1);
     const indexByKey = new Map<string, number>();
-    offsets[0] = EDGE_PAD;
+    offsets[0] = edgePad;
     for (let i = 0; i < items.length; i++) {
       const key = getKey(items[i]!, i);
       indexByKey.set(key, i);
       offsets[i + 1] = offsets[i]! + (sizesRef.current.get(key) ?? estimatedSlot);
     }
     // Drop the trailing inter-row gap; keep the edge pad.
-    const totalSize = offsets[items.length]! - ROW_GAP + EDGE_PAD;
+    const totalSize = offsets[items.length]! - ROW_GAP + edgePad;
     return { offsets, indexByKey, totalSize };
     // sizesRef is a stable ref mutated during measurement; sizesVersion is
     // the reactive signal for those mutations.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, sizesVersion, getKey, estimatedSlot]);
+  }, [items, sizesVersion, getKey, estimatedSlot, edgePad]);
 
   // Window for the current scroll position. Clamped so an out-of-range
   // scrollTop (e.g. after items shrink) renders an empty window rather than
@@ -166,7 +185,14 @@ export function VirtualList<T>({
     if (!cb) {
       cb = (el: HTMLDivElement | null) => {
         if (el) rowElsRef.current.set(key, el);
-        else rowElsRef.current.delete(key);
+        else {
+          rowElsRef.current.delete(key);
+          // The row unmounted: drop the cached callback too, so callbacks
+          // don't accumulate indefinitely for permanently deleted notes.
+          // Safe: while mounted the instance stays stable across renders
+          // (the React #185 concern); on remount a fresh one is created.
+          rowElCallbacksRef.current.delete(key);
+        }
       };
       rowElCallbacksRef.current.set(key, cb);
     }
@@ -321,6 +347,19 @@ export function VirtualList<T>({
       }
     } else {
       measureLoopGuardRef.current = 0;
+    }
+
+    // Prune stale height entries for permanently deleted notes. Only runs
+    // when the map is clearly bloated (>2x the current items), so heights
+    // for notes that are merely filtered out or reordered are preserved in
+    // normal operation. Map iterates in insertion order, so this removes
+    // oldest-first among keys absent from the current dataset. The worst
+    // case for a pruned live note is one re-measure on next visibility.
+    if (sizesRef.current.size > items.length * 2) {
+      for (const key of sizesRef.current.keys()) {
+        if (sizesRef.current.size <= items.length) break;
+        if (!indexByKey.has(key)) sizesRef.current.delete(key);
+      }
     }
 
     const ae = document.activeElement;

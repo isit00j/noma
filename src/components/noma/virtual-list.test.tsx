@@ -18,6 +18,7 @@ import {
   installLayoutMocks,
   mockSyncRaf,
   setAllMockRowHeights,
+  setMockMatchMedia,
   setMockRowHeight,
   setMockViewportHeight,
   unmockRaf,
@@ -132,6 +133,7 @@ beforeEach(() => {
   clearMockRowHeights();
   setAllMockRowHeights(ids, 132);
   setMockViewportHeight(600);
+  setMockMatchMedia(false);
   mockSyncRaf();
   scroller = null as unknown as HTMLDivElement;
   handle = null;
@@ -161,6 +163,19 @@ describe("VirtualList", () => {
     expect(topPad).toBe(16);
     // total = 16 + 1908*132 - 12 + 16; bottomPad = total - offsets[11]
     expect(bottomPad).toBe(16 + N * 132 - 12 + 16 - (16 + 11 * 132));
+  });
+
+  it("uses the 24px sm+ edge pad at the Tailwind sm breakpoint and up", () => {
+    setMockMatchMedia(true);
+    try {
+      show(makeItems());
+      const [topPad, bottomPad] = spacerHeights();
+      expect(topPad).toBe(24);
+      // total = 24 + 1908*132 - 12 + 24; bottomPad = total - offsets[11]
+      expect(bottomPad).toBe(24 + N * 132 - 12 + 24 - (24 + 11 * 132));
+    } finally {
+      setMockMatchMedia(false);
+    }
   });
 
   it("advances the window correctly on scroll", () => {
